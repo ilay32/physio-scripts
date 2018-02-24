@@ -120,54 +120,60 @@ class BiniFier:
 
 class GUI:
     def __init__(self,master):
-        expand=tk.N+tk.S+tk.E+tk.W
-        self.master = master
-        self.target = None
-        frame = Frame(master,padx=20,width=350,height=400)
-        master.rowconfigure(5, weight=1)
-        master.columnconfigure(5, weight=1)
         master.title("Physio Lab Scripts") 
-        master.geometry("500x300")
-        frame.grid(sticky=expand)
- 
-        
-        desc=Label(frame,text="Unify Walk Lengths by mean-Binning the Time Series")
-        desc.grid(row=0,column=0,columnspan=5,sticky=expand,pady=20)
+        mainframe = Frame(master,padx=10)
+        self.master = master
+        mainframe.pack(expand=True)
+        mainframe.pack_propagate(True)
+        self.mainframe = mainframe
+        self.target = None
+        row1,row2,row3,row4 = self.set_rows(4)
 
+        
+        desc=Label(row1,text="Unify Walk Lengths by mean-Binning the Time Series")
+        desc.pack(fill=tk.X,ipadx=10,ipady=10,side=tk.TOP)
 
-        dirbutton = Button(frame,text="Select Folder",command=self.define_dir)
-        dirbutton.grid(row=1, column=0,sticky=tk.W)
+        dirbutton = Button(row1,text="Select Folder",command=self.define_dir)
+        dirbutton.pack(side=tk.LEFT,expand=True)
         
-        o = Label(frame,text="or")
-        o.grid(row=1,column=1,columnspan=3,sticky=expand)
+        o = Label(row1,text="or")
+        o.pack(side=tk.LEFT,padx=20,expand=True)
         
-        filebutton = Button(frame,text="Select Specific File", command=self.define_file)
-        filebutton.grid(row=1, column=5,sticky=tk.E)
+        filebutton = Button(row1,text="Select Specific File", command=self.define_file)
+        filebutton.pack(side=tk.LEFT,expand=True)
         
-        nb = Label(frame,text="Number of Bins:",pady=10)
-        nb.grid(row=2,column=0,sticky=tk.W)
 
-        scale = Scale(frame,from_=0, to=150,orient=tk.HORIZONTAL)
-        scale.set(100)
-        scale.grid(row=2,column=1,columnspan=4,sticky=expand)
-        self.scale = scale
-        
         self.chosen = StringVar()
         self.chosen_base = "action target:"
-        self.chosen.set(self.chosen_base)
-        self.show_chosen = Label(frame,textvariable=self.chosen)
-        self.show_chosen.grid(row=3,column=0,columnspan=5,pady=20,sticky=tk.W)
+        self.chosen.set(self.chosen_base+" please choose")
+        self.show_chosen = Label(row2,textvariable=self.chosen,background='white')
+        self.show_chosen.pack(fill=tk.X,side=tk.LEFT,pady=10,ipady=5,ipadx=5,expand=True)
 
-        self.go_button = Button(frame,text="GO")
-        self.go_button.grid(row=4,column=1,sticky=tk.W)
+        nb = Label(row3,text="Number of Bins:",pady=10)
+        nb.pack(side=tk.LEFT)
+
+        scale = Scale(row3,from_=0, to=150,orient=tk.HORIZONTAL)
+        scale.set(100)
+        scale.pack(side=tk.LEFT,fill=tk.X,expand=True)
+        self.scale = scale
         
-        self.close_button = Button(frame,text="Close", command=master.quit)
-        self.close_button.grid(row=4,column=3,sticky=tk.E)
+        row4.pack(fill=tk.NONE)
+        self.go_button = Button(row4,text="GO")
+        self.go_button.pack(side=tk.LEFT,padx=10)
         
-        
-                
+        self.close_button = Button(row4,text="Close",command=master.destroy)
+        self.close_button.pack(side=tk.RIGHT,padx=10)
+       
+    def set_rows(self,n):
+        ret = list()
+        for i in range(1,n+1):
+            row = Frame(self.mainframe)
+            row.pack(fill=tk.X,pady=5,side=tk.TOP)
+            ret.append(row)
+        return ret
+
     def define_dir(self):
-        dirname = askdirectory(mustexist=True)
+        dirname = askdirectory(mustexist=True,initialdir=os.environ['HOME'])
         if dirname:
             try:
                 assert os.path.isdir(dirname), "something's wrong. can't locate {:s}".format(dirname)
@@ -179,7 +185,7 @@ class GUI:
                 showerror("Open Source File", "Failed to read file\n'{:s}'".format(dirname))
     
     def define_file(self):
-        specific = askopenfilename(filetypes=[("Template files", "*.xls*")])
+        specific = askopenfilename(filetypes=[("Data Sheets", "*Analyzed.xls*")],initialdir=os.environ['HOME'])
         if specific:
             try:
                 assert os.path.isfile(specific), "something's wrong. can't locate {:s}".format(specific)
@@ -191,8 +197,6 @@ class GUI:
                 showerror("Open Source File","Failed to read file\n'{:s}'\n{:s}".format(specific,str(e)))
         
     def file_action(self): 
-        global root
-        root.quit()
         with BiniFier(self.target,self.scale.get()) as binner:
             binner.process()
 
@@ -201,8 +205,6 @@ class GUI:
         if(len(targets) == 0) :
             showerror("No Appropriate files","can't find any *Analyzed.xlsx in\n'{:s}'".format(self.target))
             return
-        global root
-        root.quit()
         for f in targets:
             with BiniFier(f,self.scale.get()) as binner:
                 binner.process()
