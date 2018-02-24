@@ -163,6 +163,9 @@ class GUI:
         
         self.close_button = Button(row4,text="Close",command=master.destroy)
         self.close_button.pack(side=tk.RIGHT,padx=10)
+
+        self.home = os.environ.get('HOME') or os.environ.get('HOMEPATH') or os.getcwd()
+
        
     def set_rows(self,n):
         ret = list()
@@ -173,7 +176,7 @@ class GUI:
         return ret
 
     def define_dir(self):
-        dirname = askdirectory(mustexist=True,initialdir=os.environ['HOME'])
+        dirname = askdirectory(mustexist=True,initialdir=self.home)
         if dirname:
             try:
                 assert os.path.isdir(dirname), "something's wrong. can't locate {:s}".format(dirname)
@@ -185,7 +188,7 @@ class GUI:
                 showerror("Open Source File", "Failed to read file\n'{:s}'".format(dirname))
     
     def define_file(self):
-        specific = askopenfilename(filetypes=[("Data Sheets", "*Analyzed.xls*")],initialdir=os.environ['HOME'])
+        specific = askopenfilename(filetypes=[("Data Sheets", "*Analyzed.xls*")],initialdir=self.home)
         if specific:
             try:
                 assert os.path.isfile(specific), "something's wrong. can't locate {:s}".format(specific)
