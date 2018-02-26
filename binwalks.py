@@ -2,10 +2,10 @@ import os,sys,glob,re,logging
 import pandas as pd
 import numpy as np
 
-import tkinter as tk
-from tkinter import Tk, Label, Button, StringVar, Scrollbar,Scale, Frame,Text
-from tkinter.filedialog import askopenfilename,askdirectory
-from tkinter.messagebox import showerror
+import Tkinter as tk
+from Tkinter import Tk, Label, Button, StringVar, Scrollbar,Scale, Frame,Text
+from tkFileDialog import askopenfilename,askdirectory
+from tkMessageBox import showerror
 
 
 
