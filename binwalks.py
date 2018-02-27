@@ -29,7 +29,7 @@ class BiniFier:
         if exception_value is not None:
             logger.error(exception_value)
         else:
-            logger.info("done")
+            logger.info("exiting "+self.srcfile)
 
     def process(self):
         writer = pd.ExcelWriter(self.dstfile)
@@ -50,8 +50,8 @@ class BiniFier:
     
     def add_sides_averages(self,df):
         logger.info("\t\tcollecting the side averages over {:d} walks".format(self.sideav_numwalks))
-        leftcols = sorted([c for c in df.columns if re.match(r'^S[123]_',c)])[:self.sideav_numwalks*3]
-        rightcols = sorted([c for c in df.columns if re.match(r'^S[456]_',c)])[:self.sideav_numwalks*3]
+        leftcols = sorted([c for c in df.columns if re.match(r'^S[123].*D1.*(\.[1234]|O)$',c)])[:self.sideav_numwalks*3]
+        rightcols = sorted([c for c in df.columns if re.match(r'^S[456].*D2.*(\.[1234]|O)$',c)])[:self.sideav_numwalks*3]
         df['left'] = df[leftcols].mean(axis=1)
         df['right'] = df[rightcols].mean(axis=1)
         return df
@@ -211,8 +211,13 @@ class GUI:
         for f in targets:
             with BiniFier(f,self.scale.get()) as binner:
                 binner.process()
+        logger.info("all done")
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        nbins = int(sys.argv[2]) or 100
+        with BiniFier(sys.argv[1],nbins) as binner:
+            binner.process()
     root = Tk()
     gui = GUI(root)
     root.mainloop()
