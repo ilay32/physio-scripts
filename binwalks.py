@@ -1,11 +1,9 @@
 import os,sys,glob,re,logging
 import pandas as pd
 import numpy as np
-
 import Tkinter as tk
-from Tkinter import Tk, Label, Button, StringVar, Scrollbar,Scale, Frame,Text
-from tkFileDialog import askopenfilename,askdirectory
-from tkMessageBox import showerror
+from Tkinter import Tk, Label, Button, Scale
+from guihelpers import FileActionGUI
 
 
 
@@ -72,7 +70,7 @@ class BiniFier:
         self.walk_stats[sheet] = dict()
         for walk in walkbases:
             logger.info("\t\tentering {:s}".format(walk))
-            cols = [channel for walkname,channel in zip(walknames,dat.columns) if walkname.startswith(walk)]
+            cols = [channel for walkname,channel in zip(walknames,dat.columns) if re.sub(r'\.\d+$','',walkname) == walk]
             chunk = dat.iloc[self.offset:][cols].dropna().values
             self.walk_stats[sheet][walk] = chunk.shape[0]
             assert chunk.shape[0]/self.nbins >= 1, "not enough data for {:d} bins ({:d}) sheet: {:s} walk: {:s}".format(self.nbins,chunk.shapepe[0],sheet,walk)
@@ -118,34 +116,19 @@ class BiniFier:
         ret = ret.groupby('bins').mean()
         return ret
 
-class GUI:
+class GUI(FileActionGUI):
     def __init__(self,master):
-        master.title("Physio Lab Scripts") 
-        mainframe = Frame(master,padx=10)
-        self.master = master
-        mainframe.pack(expand=True)
-        mainframe.pack_propagate(True)
-        self.mainframe = mainframe
-        self.target = None
+        super(GUI,self).__init__(master)
         row1,row2,row3,row4 = self.set_rows(4)
-
-        
         desc=Label(row1,text="Unify Walk Lengths by mean-Binning the Time Series")
         desc.pack(fill=tk.X,ipadx=10,ipady=10,side=tk.TOP)
-
         dirbutton = Button(row1,text="Select Folder",command=self.define_dir)
         dirbutton.pack(side=tk.LEFT,expand=True)
-        
         o = Label(row1,text="or")
         o.pack(side=tk.LEFT,padx=20,expand=True)
-        
         filebutton = Button(row1,text="Select Specific File", command=self.define_file)
         filebutton.pack(side=tk.LEFT,expand=True)
         
-
-        self.chosen = StringVar()
-        self.chosen_base = "action target:"
-        self.chosen.set(self.chosen_base+" please choose")
         self.show_chosen = Label(row2,textvariable=self.chosen,background='white')
         self.show_chosen.pack(fill=tk.X,side=tk.LEFT,pady=10,ipady=5,ipadx=5,expand=True)
 
@@ -164,41 +147,6 @@ class GUI:
         self.close_button = Button(row4,text="Close",command=master.destroy)
         self.close_button.pack(side=tk.RIGHT,padx=10)
 
-        self.home = os.environ.get('HOME') or os.environ.get('HOMEPATH') or os.getcwd()
-
-       
-    def set_rows(self,n):
-        ret = list()
-        for i in range(1,n+1):
-            row = Frame(self.mainframe)
-            row.pack(fill=tk.X,pady=5,side=tk.TOP)
-            ret.append(row)
-        return ret
-
-    def define_dir(self):
-        dirname = askdirectory(mustexist=True,initialdir=self.home)
-        if dirname:
-            try:
-                assert os.path.isdir(dirname), "something's wrong. can't locate {:s}".format(dirname)
-                self.go_button.configure(command=self.dir_action)
-                self.target = dirname
-                self.chosen.set(self.chosen_base+" "+self.target)
-                
-            except:
-                showerror("Open Source File", "Failed to read file\n'{:s}'".format(dirname))
-    
-    def define_file(self):
-        specific = askopenfilename(filetypes=[("Data Sheets", "*Analyzed.xls*")],initialdir=self.home)
-        if specific:
-            try:
-                assert os.path.isfile(specific), "something's wrong. can't locate {:s}".format(specific)
-                self.go_button.configure(command=self.file_action)
-                self.target = specific
-                self.chosen.set(self.chosen_base+" "+self.target)
-
-            except Exception as e:
-                showerror("Open Source File","Failed to read file\n'{:s}'\n{:s}".format(specific,str(e)))
-        
     def file_action(self): 
         with BiniFier(self.target,self.scale.get()) as binner:
             binner.process()
