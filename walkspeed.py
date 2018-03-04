@@ -44,6 +44,7 @@ class ArduinoSonarRecorder(object):
         expired = 0
         start = time.time()
         now = start
+        ardi.clear_input_buffer()
         while self.recording:
             line = ardi.readline()
             if line:
