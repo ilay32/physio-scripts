@@ -20,6 +20,9 @@ class FileActionGUI(object):
 
         self.home = os.environ.get('HOME') or os.environ.get('HOMEPATH') or os.getcwd()
     
+    def default_action(self):
+        showerror("Target not Set","Please set either a file or a folder")
+    
     def define_dir(self):
         dirname = askdirectory(mustexist=True,initialdir=self.home)
         if dirname:

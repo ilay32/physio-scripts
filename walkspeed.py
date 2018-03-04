@@ -1,147 +1,163 @@
-from Tkinter import *
-import tkFileDialog
+import tkFileDialog,serial,time,re,os,logging,threading
+import serial.tools.list_ports as list_ports
+import pandas as pd
+import Tkinter as tk
+from Tkinter import Tk,Label,Button,Entry,Scale,StringVar
+from guihelpers import FileActionGUI
+from tkMessageBox import showerror
 
-import serial
-import time
-from openpyxl import Workbook
-global inputFile
-global line
-#global count_line
-count_line=0;
-ser = serial.Serial('COM3', 9600, timeout=5)  # , timeout=5)
-message = "";
-
-def PathGet():
-    global inputFile
-    inputFile=tkFileDialog.askdirectory()
-
-def StartRecord():
-    #global line
-    global count_line
-    #count_line=0;
-    line=[]
-    print(int(num_Input.get()))
-    print("OK")
-    #print(str(button_Stop['state']))
-    ser.write(b'v');
-    ser.write(str(num_Input.get()));
-    DisplayArduino(label_4)
-    #while str(button_Stop['state'])=='normal':
-       # print ser.readline()
-
-def DisplayArduino(label_4):
-
-    global count_line
-    print count_line
-    global line
-    line=[]
-    def count():
-        global line
-        arduino_line=ser.readline();
-        line.append(arduino_line)
-        label_4.config(text=str(arduino_line))
-        label_4.after(1000, count)
-        #count_line = count_line + 1;
-    count()
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('walkspeed')
 
 
-def StopRecord():
-    global line
-    #global count_line
-    ser.write(b's');
-    #button_Stop["state"] = DISABLED;
+class ArduinoSonarRecorder(object):
+    def __init__(self):
+        self.read_lines = list()
+        self.durations = list()
+        self.recording = False
+        self.cond = threading.Thread(None,self._start)
+        #self.cond.setDaemon(True)
 
-    #print(str(button_Stop['state']))
-    print(line)
-
-    arduinodata1 = line#ser.readlines()
-    arduinodata1 = [i.split('\r\n', 1)[0] for i in arduinodata1]
-    print(arduinodata1)
-    data=arduinodata1;
-    StartTime=float(data[0].split(': ', 2)[1])
-    print StartTime
-    walk_start= [[0] for i in range(int(num_Input.get()))]
-    walk_end = [[0] for i in range(int(num_Input.get()))]
-    Time_walkS=    [[0]  for i in range(int(num_Input.get()))]
-    Time_walkE=    [[0]  for i in range(int(num_Input.get()))]
-    Velocity_Walk = [[0] for i in range(int(num_Input.get()))]
-    #print (data[1].split(' ', 22));
-    book = Workbook()
-    sheet = book.active
-    sheet.cell(row= 1, column=1).value="Sonar 1 Dist [cm]";
-    sheet.cell(row= 1, column=2).value= "Sonar 1 Time [msec]";
-    sheet.cell(row=1, column=3).value="Sonar 2 Dist [cm]";
-    sheet.cell(row= 1, column=4).value= "Sonar 2 Time [msec]";
-    sheet.cell(row=1, column=5).value="Velocity [m/sec]";
-    sheet.cell(row= 1, column=6).value= "Distance Between Sonars [m]";
-    for j in range(1, int(num_Input.get())+1):
-        walk_start[j-1] = float(data[j].split(' ', 22)[7])
-        walk_end[j-1] = float(data[j].split(' ', 22)[16])
-        Time_walkS[j-1] = float(data[j].split(' ', 22)[11])-StartTime
-        Time_walkE[j - 1] = float(data[j].split(' ', 22)[20])-StartTime
-        Velocity_Walk[j-1]=float(format(float(numWalk_Input.get())*1000/(Time_walkE[j - 1]-Time_walkS[j-1]), '.2f'))# meter/sec
-        print((Time_walkE[j - 1]-Time_walkS[j-1]))
-        print ('\n')
-        sheet.cell(row=j+1, column=1).value = walk_start[j-1];
-        sheet.cell(row=j + 1, column=2).value = Time_walkS[j - 1];
-        sheet.cell(row=j + 1, column=3).value = walk_end[j - 1];
-        sheet.cell(row=j + 1, column=4).value = Time_walkE[j - 1];
-        sheet.cell(row=j + 1, column=5).value = Velocity_Walk[j - 1];
-
-    sheet.cell(row=2,column=6).value=float(numWalk_Input.get());
-    book.save(inputFile + '\\' + str(text_Input.get()) + '.xlsx')
+    def start(self):
+        self.cond.start()
+        self.read_lines = list()
+        self.durations  = list()
 
 
-    print "walk dist\n"
-    print walk_start
-    print "time\n "
-    print Time_walkS
-    print "Velocity\n"
-    print Velocity_Walk
-    #ser.close()
-    root.quit()
+    def _start(self):
+        #find the arduino usb port
+        # and define the Serial object if found
+        port = ""
+        ardi = None
+        for p in list(list_ports.comports()):
+            if "Arduino" in  str(p):
+                port = re.sub(r'\s.*$','',str(p))
+                break
+        if port != "":
+            ardi = serial.Serial(port,115200,timeout=0.1)
+            time.sleep(0.5)
+            logger.info("connected")
+        else:
+            raise(Exception,"couldn't find port")
+
+        self.recording = True
+        expired = 0
+        start = time.time()
+        now = start
+        while self.recording:
+            line = ardi.readline()
+            if line:
+                logger.info(line)
+                self.read_lines.append(line)
+                if ardi.read() == 'y':
+                    self.durations.append(int(ardi.readline()))
+                    
+            #else:
+                #print "read timeout expired {:d}".format(int(abs(time.time() - now - 100) < 20))
+                #expired += 1
+        #print expired 
+        ardi.write(b's')
+        conc = ardi.readline()
+        logger.info(conc)
+        ardi.close()
+    
+    def stop(self):
+        self.recording = False
+        self.cond.join()
+        logger.info(self.read_lines)
+        logger.info(self.durations)
+    
+      
+class GUI(FileActionGUI):
+    def __init__(self,master):
+        super(GUI,self).__init__(master)
+        row1,row2,row3 = self.set_rows(3)
+        desc=Label(row1,text="Measure Average Speed of Walks")
+        desc.pack(fill=tk.X,ipadx=10,ipady=10,side=tk.TOP)
+        dirbutton = Button(row1,text="Save Results To",command=self.define_dir)
+        dirbutton.pack(side=tk.LEFT,expand=True)
+
+        a = Label(row1,text="as")
+        a.pack(side=tk.LEFT,padx=20,expand=True)
+        
+        filename = Entry(row1)
+        filename.insert(0,"test")
+        filename.pack(side=tk.LEFT)
+        self.filename = filename
+        
+        d = Label(row1,text="walking distance:")
+        d.pack(side=tk.LEFT,padx=20)
+
+        distance = Scale(row1,from_=2, to=15,orient=tk.HORIZONTAL)
+        distance.set(10)
+        distance.pack(side=tk.LEFT)
+        self.distance = distance
+        
+        n = Label(row1,text="number of walks:")
+        n.pack(side=tk.LEFT,padx=20)
+
+        numwalks = Entry(row1)
+        numwalks.insert(0,"12")
+        numwalks.pack(side=tk.LEFT)
+        self.numwalks = numwalks
+        
+        
+        
+        self.show_chosen = Label(row2,textvariable=self.chosen,background='white')
+        self.show_chosen.pack(fill=tk.X,side=tk.LEFT,pady=10,ipady=5,ipadx=5,expand=True)
+
+        row3.pack(fill=tk.NONE)
+        self.go_button = Button(row3,text="START",command=self.default_action)
+        self.go_button.pack(side=tk.LEFT,padx=10)
+
+        self.stop_button = Button(row3,text="STOP",command=self.stop_record)
+        self.stop_button.pack(side=tk.LEFT,padx=10)
+        
+        self.save_button = Button(row3,text="SAVE",command=self.save)
+        self.save_button.pack(side=tk.LEFT,padx=10)
+
+        self.close_button = Button(row3,text="CLOSE",command=master.destroy)
+        self.close_button.pack(side=tk.LEFT,padx=10)
+
+        
+        self.recorder = None 
+    
+    
+    def stop_record(self):
+        self.recorder.stop()
+        w = int(self.numwalks.get())
+        durations = self.recorder.durations
+        if w is None or w > 20 or w < 1:
+            logger.warning("Incorrect Number of Walks", "please set the number of walks to a number between 1 and 20")
+        if w != len(durations):
+            logger.warning("recording set for {:d} walks, but {:d} were measured".format(w,len(durations)))
 
 
+    def dir_action(self):
+        self.recorder = ArduinoSonarRecorder()
+        self.recorder.start()
+    
 
-    #ser.write(b'v');
+    def save(self):
+        f =  self.filename.get()
+        f= re.sub(r'\.[a-z]{1,4}$','',f)
+        f = re.sub(r'[^\w\-\.\_]','',f)
+        if f == "": 
+            showerror("Invalid File Name","incorrect file name: {:s}".format(self.filename.get()))
 
+            return
+        target = os.path.join(self.target,f+'.csv')
+        self.chosen.set("saving data to: {:s}".format(target))
+        durations = self.recorder.durations
+        table = pd.DataFrame(index=range(len(durations)),columns=['walk no.','speed','duration'])
+        for i,d in enumerate(durations):
+            speed =  float(self.distance.get())/(float(d)/1000)
+            table.iloc[i] = i+1,speed,d
+        table.to_csv(target,index=False)
+        logger.info("file saved")
+      
 
-root=Tk();
-root.geometry("600x600+0+0")
-root.title("calculate distance")
-text_Input=StringVar()
-num_Input=IntVar()
-numWalk_Input=DoubleVar()
-operator = ""
-Tops=Frame(root,width=700,height = 50 , bg="powder blue", relief=SUNKEN)
-Tops.pack(side=TOP)
-
-Lb=Label(Tops, font=('ariel',30,'bold'), text= "Distance Calculation:",fg="Steel Blue",bd=10,anchor='w')
-Lb.grid(row=0,column=0)
-f1=Frame(root,width=800,height = 700 , bg="powder blue", relief=SUNKEN)
-f1.pack(side=TOP)
-button_Path=Button(f1,text="Choose Path To Save File",bg="powder blue",command = PathGet,font="-weight bold")
-button_Path.grid(columnspan=2)
-label_1=Label(f1,font=('ariel',20,'bold'),text="Name of The Subject",bg="powder blue")
-label_1.grid(columnspan=2)
-txtDisp1=Entry(f1,font=('ariel',20,'bold'),textvariable=text_Input,bd=10,insertwidth=1,bg="powder blue",justify='left')
-txtDisp1.grid(columnspan=2)
-label_2=Label(f1,font=('ariel',20,'bold'),text="Number Of Walks",bg="powder blue")
-label_2.grid(columnspan=2)
-txtDisp2=Entry(f1,font=('ariel',20,'bold'),textvariable=num_Input,bd=10,insertwidth=1,bg="powder blue",justify='left')
-txtDisp2.grid(columnspan=2)
-label_3=Label(f1,font=('ariel',20,'bold'),text="Distance of Walks [M] ",bg="powder blue")
-label_3.grid(columnspan=2)
-txtDisp3=Entry(f1,font=('ariel',20,'bold'),textvariable=numWalk_Input,bd=10,insertwidth=1,bg="powder blue",justify='left')
-txtDisp3.grid(columnspan=2)
-button_Start=Button(f1,text="START RECORD",bg="green",command = StartRecord,font="-weight bold")
-button_Start.grid(columnspan=2)
-button_Stop=Button(f1,text="STOP RECORD",bg="red",command = StopRecord,font="-weight bold")
-button_Stop.grid(columnspan=2)
-label_4=Label(f1,font=('ariel',20,'bold'),text="Arduino Data",bg="powder blue")
-label_4.grid(columnspan=2)
-#label_4.pack()
-#DisplayArduino(label_4)
-root.mainloop()
-
-
+if __name__ == '__main__':
+    root = Tk()
+    gui = GUI(root)
+    root.mainloop()
