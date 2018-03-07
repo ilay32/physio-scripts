@@ -16,12 +16,13 @@ class ArduinoSonarRecorder(object):
         self.durations = list()
         self.recording = False
         self.cond = threading.Thread(None,self._start)
-        #self.cond.setDaemon(True)
+        self.start_time = None
 
     def start(self):
         self.cond.start()
         self.read_lines = list()
         self.durations  = list()
+        self.marks = list()
 
 
     def _start(self):
@@ -34,39 +35,44 @@ class ArduinoSonarRecorder(object):
                 port = re.sub(r'\s.*$','',str(p))
                 break
         if port != "":
-            ardi = serial.Serial(port,115200,timeout=0.1)
-            time.sleep(0.5)
+            ardi = serial.Serial(port,115200,timeout=0.05)
+            time.sleep(0.2)
             logger.info("connected")
         else:
             raise(Exception,"couldn't find port")
 
         self.recording = True
-        expired = 0
-        start = time.time()
-        now = start
-        ardi.clear_input_buffer()
+        self.start_time = time.time()
+        ardi.reset_input_buffer()
+        ardi.write(b'r')
         while self.recording:
             line = ardi.readline()
             if line:
                 logger.info(line)
+                # this is just for the console
                 self.read_lines.append(line)
-                if ardi.read() == 'y':
-                    self.durations.append(int(ardi.readline()))
-                    
-            #else:
-                #print "read timeout expired {:d}".format(int(abs(time.time() - now - 100) < 20))
-                #expired += 1
-        #print expired 
-        ardi.write(b's')
+                # now the actual data
+                # c means walk commenced, e means walk ended
+                # (the other option is n, no futher data at this point)
+                c = ardi.read()
+                if c == 'c':
+                    self.marks.append(int(ardi.readline()))
+                elif c == 'e':
+                    self.durations.append(int(ardi.readline())) 
+
+        ardi.write(b's') # tell it to stop -- it just reports how many walks were registered in this go. the reset is done at new start
         conc = ardi.readline()
         logger.info(conc)
+        ardi.reset_output_buffer()
+        ardi.reset_input_buffer()
         ardi.close()
     
     def stop(self):
         self.recording = False
         self.cond.join()
-        logger.info(self.read_lines)
         logger.info(self.durations)
+        logger.info(self.start_time)
+        logger.info(self.marks)
     
       
 class GUI(FileActionGUI):
@@ -150,11 +156,16 @@ class GUI(FileActionGUI):
         target = os.path.join(self.target,f+'.csv')
         self.chosen.set("saving data to: {:s}".format(target))
         durations = self.recorder.durations
-        table = pd.DataFrame(index=range(len(durations)),columns=['walk no.','speed','duration'])
-        for i,d in enumerate(durations):
+        start = self.recorder.start_time
+        marks = self.recorder.marks
+        table = pd.DataFrame(index=range(len(durations)),columns=['walk no.','speed','duration','start','end'])
+        for i,(d,m) in enumerate(list(zip(durations,marks))):
             speed =  float(self.distance.get())/(float(d)/1000)
-            table.iloc[i] = i+1,speed,d
+            table.iloc[i] = i+1,speed,d,m,m+d
         table.to_csv(target,index=False)
+        with open(target,'a') as f:
+            f.write("\n")
+            f.write("start:,{:s},unix stamp:,{:f}".format(time.ctime(start),start))
         logger.info("file saved")
       
 
