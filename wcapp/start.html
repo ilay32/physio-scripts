@@ -1,0 +1,40 @@
+<h3>
+    Enter Subject Details
+</h3>
+<form name="subjectDetails" class="eight columns"> 
+    <div class="row">
+        <label for="sname">
+            Name: 
+        </label>
+        <input class="flexwidth" name="sname" ng-model="glob.subjectName" ng-change="ufilename(subjectName)"required>
+    </div>
+    <div class="row">
+        <label for="sage">
+            Age: 
+        </label>
+        <input class="flexwidth" name="sage" ng-model="glob.subjectAge"  required>
+    </div>
+    <div class="row">
+        <label for="nwalk">
+            No. of Walks: 
+        </label>
+        <input class="flexwidth" type="number" name="nwalk"  ng-model="glob.nWalks" required>
+    </div>
+    <div class="row">
+        <label for="dwalk">
+            Distance:
+        </label>
+        <input class="flexwidth" name="dwalk" type="number" ng-model="glob.dWalks" ng-model="dWalks" required>
+    </div>
+    <div class="row">
+        <label for="sfile">
+            Save to: 
+        </label>
+        <input class="flexwidth" name="sfile" ng-model="saveFile" required value="saveFile" >
+    </div>
+    <div class="row">
+        <button class="button-primary" ng-click="initialize(glob.nWalks)" ng-disabled="subjectDetails.$invalid"/>
+            start the experiment
+        </button>
+    </div>
+</form>

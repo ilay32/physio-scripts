@@ -1,0 +1,12 @@
+<div id="stopper" class="row">
+    <span class="report">
+        {{seqEntered}}
+    </span>
+</div>
+<div id="keyboard" >
+    <button ng-repeat="k in reportKeys" class="keyboard" ng-click="rpress(k)">{{k}}</button>
+    <button class="keyboard" ng-click="rpress('fixone')"> &lt;x</button>
+    <button class="button-stop keyboard" ng-click="rpress('clear')">C</button>
+    <button class="button-go keyboard" ng-disabled="seqEntered.length != distractorLength" ng-click="rpress('done')">done</button>
+</div>    
+    
