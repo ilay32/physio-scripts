@@ -5,7 +5,6 @@
         <meta name="author" content="ilay">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
 
         <link rel="stylesheet" href="Skeleton-2.0.4/css/normalize.css">
         <link rel="stylesheet" href="Skeleton-2.0.4/css/skeleton.css">
@@ -16,17 +15,17 @@
    		<script src="angular-1.6.9/angular.js"></script> 
 		<script src="walk-control.js"></script>
     </head>
-    <div id="server-message" ng-show="srvMessage">
-        {{srvMessage}}
-    </div>
-   
+       
     <body ng-controller="RunExp">
+        <div id="server-message" ng-show="srvMessage">
+            {{srvMessage}}
+        </div>
         <center id="main" ng-include="maincontent" class="row"> </center>
-        <center id="footer">
+        <div id="footer">
             <button class="button-drastic" ng-click="terminate()">exit</button>
             <button class="button-primary" ng-click="next()" ng-show="incNext" ng-disabled="nextDisabled">next</button>
             <button ng-click="download()" ng-show="incSaveto">save to</button>
-        </center>
+        </div>
     </body>
 </html>
     

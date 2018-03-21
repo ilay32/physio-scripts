@@ -21,6 +21,7 @@ function stateCycler(nw) {
     this.walk = -1;
     this.state = 'start';
     this.distractors = [];
+    this.finished = false;
     
     // generate the random selection of walks that include
     // the distractor task
@@ -45,17 +46,15 @@ function stateCycler(nw) {
                 this.state = 'prewalk';
             break;
             case 'prewalk':
-                if(this.walk ==  this.num_walks - 1) {
-                    this.state = 'end';
+                this.walk++;
+                if(this.is_distractor()) {
+                    this.state = 'distractor';
                 }
-                else{
-                    this.walk++;
-                    if(this.is_distractor()) {
-                        this.state = 'distractor';
-                    }
-                    else {
-                        this.state = 'walk';
-                    }
+                else {
+                    this.state = 'walk';
+                }
+                if(this.walk ==  this.num_walks - 1) {
+                    this.finished = true;
                 }
             break;
             case 'walk':
@@ -73,38 +72,103 @@ function stateCycler(nw) {
             case 'report':
                 this.state = 'prewalk';
             break;
-            case 'end':
-                this.state = 'start';
-            break;
             default:
-                this.state = 'end';
+                this.state = 'prewalk';
             break;
         }
     }
-    
 };
 
 angular.module('walkControl', []).controller(
-    'RunExp', ['$scope','$http','$timeout','$interval','$window', function($scope,$http,$timeout,$interval,$window) {
-    // data for saving
-    $scope.glob = {};
-    $scope.glob.nWalks = 12;
-    $scope.glob.dWalks = 10;
-    $scope.glob.subjectName = 'yosi';
-    $scope.glob.subjectAge = 4;
-    
-    
+    'RunExp', ['$compile','$scope','$http','$timeout','$interval','$window', function($compile,$scope,$http,$timeout,$interval,$window) {
+    // subject data -- first define
+    // with defaults, then use existing
+    // for the template repeat
+    $scope.glob = {
+        subject : {
+            name : "yosi",
+            age : 24,
+            id:-1,
+			gender: "F",
+            height: 175,
+            weight: 65,
+            glasses: "N",
+            dominance: "R",
+            resteps: "medium",
+            shoe_size: 40,
+            regular_sport: "none",
+            weekly_hours: 0,
+            stance_time: 10
+        },
+        walks : {
+            researcher: "yogev",
+            distance: 10,
+            number: 12,
+            nirs41: "right",
+            shoe_type: Math.random() < 0.5 ? "normal" : "restep",
+            start_time: -1
+        },
+        savefile: "",
+        newSubject: true
+    };
+    //$scope.Fields = {
+    //    subject : [ 
+    //        {
+    //            model: "glob.subject.id",
+    //            nicename: "Identifier",
+    //            typ: "number",
+    //            attname: "sid",
+    //            change : "ufilename(glob.subject.id)",
+    //        },
+    //        {
+    //            model :"glob.subject.name",
+    //            nicename: "Name",
+    //            typ: "text",
+    //            attname: "name"
+    //        },
+    //        {
+    //            model: $scope.glob.subject.age,
+    //            nicename: "Age",
+    //            typ: "number",
+    //            attname: "age"
+    //        }
+    //    ],
+    //    walks : [
+    //        { 
+    //            model: $scope.glob.walks.number,
+    //            nicename: "No. of Walks",
+    //            typ: "number",
+    //            attname: "nwalk"
+
+    //        },
+    //        {
+    //            model: $scope.glob.walks.distance, 
+    //            nicename: "Distance",
+    //            typ: "number",
+    //            attname: "dwalk"
+    //        },
+    //        {
+    //            model: $scope.glob.walks.savefile,
+    //            nicename: "Save to",
+    //            typ: "text",
+    //            attname: "savef"
+    //        }
+    //    ]
+    //};
+   
     //helper vars
     $scope.incSaveto = false;
     $scope.numSaves = 0;
-    $scope.saveFileExt = ".csv";
-    $scope.saveFile = $scope.glob.subjectName+$scope.saveFileExt;
+    $scope.saveFileExt = ".xlsx";
+
     $scope.srvMessage = "";
     $scope.maincontent = "start.html";
+        
+
     $scope.prewalkText = "";
     $scope.stopper_is_running = false;
     $scope.walkTime = 0;
-    $scope.reportKeys = [0,1,2,3,4,5,6,7,8,9];
+    $scope.reportKeys = [0,1,2,3,4,5,6,7,8,9,'*'];
     $scope.seqEntered = "";
     $scope.incNext = false;
     $scope.nextDisabled = false;
@@ -113,9 +177,8 @@ angular.module('walkControl', []).controller(
     var stopper = undefined;
     var log = {
         globals : {},
-        walkdata  : [],
+        walkdata : [],
         distractions : {},
-        saveto : ""
     };
     $scope.goFull = function() {
     	// Supports most browsers and their versions.
@@ -126,13 +189,72 @@ angular.module('walkControl', []).controller(
 			requestMethod.call(element);
 		} 
  	}
-
-    $scope.ufilename = function(name) {
-        $scope.saveFile  = name+$scope.saveFileExt;
-    }
+    $scope.check_existing = function(input) {
+        if(typeof(input) == "object") {
+            fparts  = input.value.replace("C:\\fakepath\\","").split(".");
+        }
+        else {
+            fparts = input.split(".");
+        }
+        donechecked = false;
+        fname = fparts[0];
+        fext = fparts[1];
+        f = fname+"."+fext;
+        if(["xlsx","xls","xlsm"].indexOf(fext) < 0) {
+            $scope.glob.savefile = "";
+            $scope.srvMessage = "please select an Excel file";
+        }
+        else if($scope.glob.subject.id < 0) {
+            $scope.srvMessage = "Please Identify Subject";
+            input.value = "";
+            $scope.glob.savefile = "";
+        }
+        else {
+            donechecked = true;
+            $scope.srvMessage = "";
+            $http({
+                url: '/',
+                method: "POST",
+                headers : {
+                    'Content-Type' : 'text/html'
+                },
+                data : {
+                    command: 'check_existing',
+                    filename: $scope.glob.savefile,
+                    sheet : $scope.glob.walks.shoe_type
+                }
+            }).then(
+                function succ(r) {
+                    if(r.data == "exists") {
+                        $scope.srvMessage = "The file "+f+" already includes a " + $scope.glob.walks.shoe_type+" sheet. This will write over it";
+                    }
+                    $scope.glob.savefile = f;
+                    $scope.glob.newSubject = false;
+                },
+                function fail(r) {
+                    $scope.srvMessage = "couldn't check the existing file";
+                }
+            );
+        }
+        if(!donechecked) {
+            $scope.$apply();
+        }
+    };
     
+    $scope.ufilename = function(id) {
+        $scope.glob.savefile  = id+$scope.saveFileExt;
+    };
+    $scope.clearfile = function() {
+        $scope.srvMessage = "";
+        $scope.glob.savefile = "";
+        $scope.glob.newSubject = true;
+        if($scope.glob.subject.id > 0) {
+            $scope.ufilename($scope.glob.subject.id);
+        }
+    }
+
 	$scope.rpress = function(k) {
-        if($scope.reportKeys.indexOf(parseInt(k)) > -1) {
+        if($scope.reportKeys.indexOf(parseInt(k)) > -1 || k == '*') {
             $scope.seqEntered += k;
         }
         else if(k == 'fixone') {
@@ -149,25 +271,55 @@ angular.module('walkControl', []).controller(
         else {
             $scope.srvMessage = "invalid action";
         }
-    }
+    };
     
-    $scope.initialize = function(n) {
-        $scope.glob.nWalks = angular.copy(n)
-        state = new stateCycler(n);
-        log.saveto = $scope.glob.subjectName+$scope.saveFileExt;
+    $scope._init = function() {
+        $scope.srvMessage = "data will be saved to "+$scope.glob.savefile+"/"+$scope.glob.walks.shoe_type;
         log.globals = $scope.glob; 
-        log.globals['start_time'] = Date.now();
+        log.globals.walks.start_time = Date.now();
         $scope.next();
+    };
+
+    $scope.initialize = function(n) {
+        $scope.glob.walks.number = angular.copy(n)
+        state = new stateCycler(n);
+        if($scope.glob.subject.id < 1) {
+            $scope.srvMessage = "Please Enter Identifier";
+            return;
+        }
+        if(!$scope.glob.newSubject) {
+            $scope._init();
+            return;
+        }
+        $http({
+            url: '/',
+            method: "POST",
+            headers : {
+                'Content-Type' : 'text/html'
+            },
+            data : {
+                command: 'checkfile',
+                filename: $scope.glob.savefile
+            }
+        }).then(
+            function succ(r) {
+                $scope.glob.savefile = r.data;
+                $scope._init();
+            },
+            function fail(r) {
+                $scope.srvMessage = "couldn't resolve file name";
+            }
+        );
     }
+
     $scope.download = function() {
         if($scope.numSaves < 1) {
             $scope.srvMessage = "nothing to save yet";
             return;
         }
-        window.open('http://localhost:8000/download/?file='+log.saveto);
+        window.open('http://localhost:8000/download/?file='+$scop.glob.savefile);
     }
     $scope.terminate = function() {
-        $scope.stopping = "stopping";
         $http({
             url: '/',
             method: "POST",
@@ -235,6 +387,7 @@ angular.module('walkControl', []).controller(
     $scope.recloop = function(arr,cur,delay) {
         if(cur == arr.length) {
             $scope.nextDisabled = false;
+            $scope.next();
             return;
         }
         $scope.distDigit = arr[cur];
@@ -253,13 +406,24 @@ angular.module('walkControl', []).controller(
     $scope.next = function(){
         $timeout(function() {
             $scope.srvMessage = "";
-        },1000);
+        },2000);
+        
+        if(state.state == 'prewalk' && state.finished) {
+            delete state;
+            window.location.replace('http://localhost:8000/wcapp/'); 
+            return;
+        }
         state.next();
         if(state.next_is_distractor()){
             $scope.prewalkText = "Please prepare subject for distractor task";
         }
         else{
-            $scope.prewalkText = "walk "+(state.walk+1)+" is starting";
+            if(!state.finished) {
+                $scope.prewalkText = "walk "+(state.walk+1)+" is starting";
+            }
+            else {
+                $scope.prewalkText = "The End";
+            }
         }
         if(state.state == 'prewalk' && state.walk > 0) {
             $scope.save();
@@ -269,11 +433,22 @@ angular.module('walkControl', []).controller(
             $scope.distractor();
         }
         if(state.state == 'walk') {
-
             $scope.nextDisabled = true;
             $scope.walkTime = 0.000;
         }
-        $scope.incNext = ['start','report'].indexOf(state.state) == -1;
+        $scope.incNext = ['start','report','distractor'].indexOf(state.state) == -1;
     }
 }]);
-
+//.directive('reModel', function () {
+//    return {
+//		restrict: 'A',
+//		compile: function (tElement, tAttrs) {
+//			// for some unknown-to-me reason, the input must
+//			// be wrapped in a span or div:
+//			var tplElement = angular.element('<span><input></span>');
+//			var inputEl = tplElement.find('input');
+//			inputEl.attr('ng-model', tAttrs.reModel);
+//			tElement.replaceWith(tplElement);
+//		}
+//	};
+//}); 
