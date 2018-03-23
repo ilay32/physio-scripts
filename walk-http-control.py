@@ -1,9 +1,11 @@
-import BaseHTTPServer,SimpleHTTPServer,webbrowser,threading,time,json,os,re
+import webbrowser,threading,time,json,os,re
+import http.server as hs
+from openpyxl import Workbook,load_workbook
 
 HOST_NAME = 'localhost'
 PORT_NUMBER = 8000
 
-class ExpRunner(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class ExpRunner(hs.SimpleHTTPRequestHandler):
     #savedir = os.path.join(os.path.abspath(os.pardir),"corridor-walks")
     savedir = "corridor-walks"
     def do_HEAD(self):
@@ -16,61 +18,119 @@ class ExpRunner(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.send_header("Expires", "0")
         self.send_header('Content-type', 'text/html')
         self.end_headers()
+
+    def respond(self,string):
+        self.wfile.write(bytes(string,"utf-8"))
     
     def do_GET(self):
         m = re.match(r'(.*download\/\?file\=)(.+\.[a-z]{2,4})$',self.path)
         if m and len(m.groups()) == 2:
-            print "matched"
             self.path = os.path.join(ExpRunner.savedir,m.group(2))
-        return SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
-
+        return hs.SimpleHTTPRequestHandler.do_GET(self)
 
     def do_POST(self):
         self._set_headers()
-        command = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        command = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
+        if command['command']  == 'check_existing':
+            dest = os.path.join(ExpRunner.savedir,command['filename'])
+            wb = load_workbook(dest)
+            if command['sheet'] in wb.sheetnames:
+                self.respond("exists")
+            else:
+                self.respond("absent")
+
+        if command['command'] == 'checkfile':
+            f,e = os.path.splitext(command['filename'])
+            if os.path.isfile(os.path.join(ExpRunner.savedir,f+e)):
+                m = re.findall(r'\(\d+\)$',f)
+                if len(m) == 1:
+                    i = int(m[0].strip("()"))
+                    f = f.replace("("+str(i)+")","("+str(i+1)+")")
+                else:
+                    f += "(1)"
+            self.respond(f+e)
         if command['command'] == 'stop':
-            print "shutting down server"
+            print("shutting down server")
             server_stop.start()
-            self.wfile.write("the server has shutdown")
+            self.respond("the server has shutdown")
         if command['command'] == 'save':
-            print "saving"
             try:
                 self.save_data(command['data'])
-                self.wfile.write("saved")
-                print "saved to "+command['data']['saveto']
+                self.respond("saved")
+                print("saved to "+command['data']['globals']['savefile'])
             except Exception as e:
-                self.wfile.write(str(e))
+                self.respond(str(e))
+                print(str(e))
         #return SimpleHTTPServer.SimpleHTTPRequestHandler.do_POST(self)
 
     def save_data(self,dat):
         if not os.path.isdir(ExpRunner.savedir):
             os.mkdir(ExpRunner.savedir)
-        g = dat['globals']
-        start = g['start_time']
-        with open(os.path.join(ExpRunner.savedir,dat['saveto']),'w') as f:
-            # write the walks table
-            f.write("walk no., absolute start, absolute end, relative start, relative end, duration, speed m/s, distractor digits, remembered as \n")
-            for i,w in enumerate(dat['walkdata']):
-                isdist = str(i) in dat['distractions'].keys()
-                f.write("{:d},{:d},{:d},{:d},{:d},{:d},{:.5f}".format(i,w[0],w[1],w[0] - start,w[1] - start,w[1] - w[0],float(1000*g['dWalks'])/(w[1] - w[0])))
-                if isdist:
-                    d = dat['distractions'][str(i)]
-                    f.write(",{:s},{:s}".format(d[0],d[1]))
-                else:
-                    f.write(",,")
-                f.write("\n")
-            f.write("\n")
-            # write the globals
-            for k,v in g.items():
-                if k != 'start_time':
-                    f.write("{:s}:,{:s}\n".format(k,str(v)))
-            f.write("start:,{:s},unix stamp:,{:f}".format(time.ctime(start/1000),start/1000))
-        return True
+        dest = os.path.join(ExpRunner.savedir,dat['globals']['savefile'])
+        subj = dat['globals']['subject']
+        walks = dat['globals']['walks']
+        start = walks['start_time']
+        sheet = walks['shoe_type']
+        if dat['globals']['newSubject']:
+            wb = Workbook()
+            datsheet = wb.active
+            datsheet.title = walks['shoe_type']
+        else:
+            wb = load_workbook(dest)
+            datsheet = wb.create_sheet(title=sheet)
+        
+        # write subject details in separate sheet
+        # if not already written
+        if 'subject' not in wb.sheetnames:
+            subsheet = wb.create_sheet(title="subject")
+            for i,(k,v) in enumerate(subj.items(),1):
+                if subj['regular_sport'] == "none" and k == 'weekly_hours':
+                    continue;
+                subsheet.cell(row=i,column=1,value=k.replace("_"," "))
+                subsheet.cell(row=i,column=2,value=v)
 
-httpd = BaseHTTPServer.HTTPServer((HOST_NAME, PORT_NUMBER), ExpRunner)
+        cols = [
+            "walk no.", 
+            "absolute start", 
+            "absolute end", 
+            "relative start", 
+            "relative end", 
+            "duration", 
+            "speed m/s", 
+            "distractor digits",
+            "remembered as"
+        ]
+        # header row
+        for i,c in enumerate(cols,1):
+            datsheet.cell(column=i,row=1,value=c)
+        # data
+        for i,w in enumerate(dat['walkdata']):
+            isdist = str(i) in dat['distractions'].keys()
+            row = [i,w[0],w[1],w[0] - start, w[1] - start, w[1] - w[0],float(1000*walks['number'])/(w[1] - w[0])]
+            if isdist: 
+                row += dat['distractions'][str(i)]
+            else:
+                row += ["",""]
+            datsheet.append(row)
+
+        # write the parameters in the same sheet
+        for i,(k,v) in enumerate(walks.items(),len(dat['walkdata'])+3):  
+            if k == 'start_time' :
+                datsheet.cell(row=i,column=1,value="start:")
+                datsheet.cell(row=i,column=2,value=time.ctime(float(start)/1000))
+                datsheet.cell(row=i,column=3,value="unix stamp:")
+                datsheet.cell(row=i,column=4,value=float(start)/1000)
+            else:
+                datsheet.cell(row=i,column=1,value=k.replace("_"," "))
+                datsheet.cell(row=i,column=2,value=v)
+        # and finally    
+        wb.save(filename = dest)
+
+
+httpd = hs.HTTPServer((HOST_NAME, PORT_NUMBER), ExpRunner)
     
 def runserver():
-    print time.asctime(), "Server Starts - %s:%s" % (HOST_NAME, PORT_NUMBER)
+    print(time.asctime(), "Server Starts - %s:%s" % (HOST_NAME, PORT_NUMBER))
     httpd.serve_forever()
     
 

@@ -84,27 +84,28 @@ angular.module('walkControl', []).controller(
     // subject data -- first define
     // with defaults, then use existing
     // for the template repeat
+    $scope.formok = false;
     $scope.glob = {
         subject : {
-            name : "yosi",
-            age : 24,
             id:-1,
-			gender: "F",
-            height: 175,
-            weight: 65,
-            glasses: "N",
-            dominance: "R",
-            resteps: "medium",
-            shoe_size: 40,
+            name: undefined,
+            age : undefined,
+			gender: undefined,
+            height: undefined,
+            weight: undefined,
+            glasses: undefined,
+            dominance: undefined,
+            restep_size: undefined,
+            shoe_size: undefined,
             regular_sport: "none",
-            weekly_hours: 0,
-            stance_time: 10
+            weekly_hours: undefined,
+            stance_time: undefined
         },
         walks : {
-            researcher: "yogev",
-            distance: 10,
-            number: 12,
-            nirs41: "right",
+            researcher: undefined,
+            distance: undefined,
+            number: undefined,
+            nirs41: undefined,
             shoe_type: Math.random() < 0.5 ? "normal" : "restep",
             start_time: -1
         },
@@ -241,7 +242,8 @@ angular.module('walkControl', []).controller(
         }
     };
     
-    $scope.ufilename = function(id) {
+    $scope.ufilename = function() {
+        var id = $scope.glob.subject.id;
         $scope.glob.savefile  = id+$scope.saveFileExt;
     };
     $scope.clearfile = function() {
@@ -249,7 +251,7 @@ angular.module('walkControl', []).controller(
         $scope.glob.savefile = "";
         $scope.glob.newSubject = true;
         if($scope.glob.subject.id > 0) {
-            $scope.ufilename($scope.glob.subject.id);
+            $scope.ufilename();
         }
     }
 
@@ -279,14 +281,15 @@ angular.module('walkControl', []).controller(
         log.globals.walks.start_time = Date.now();
         $scope.next();
     };
-
     $scope.initialize = function(n) {
         $scope.glob.walks.number = angular.copy(n)
         state = new stateCycler(n);
         if($scope.glob.subject.id < 1) {
             $scope.srvMessage = "Please Enter Identifier";
+            delete state;
             return;
         }
+         
         if(!$scope.glob.newSubject) {
             $scope._init();
             return;
