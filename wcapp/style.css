@@ -1,0 +1,134 @@
+
+/* index */
+body,html {
+    height: 100%;
+}
+
+#main {
+    height: calc(100% - 100px);
+}
+#server-message {
+    position: fixed;
+    top:0;
+    left:0;
+    height: 30px;
+    padding: 10px;
+    background-color: #efe899;
+    z-index:1;
+}
+
+
+/* start */
+form {
+    padding: 20px;
+}
+form > div {
+    text-align: left;
+}
+label {
+   float: left;
+   display:inline-block;
+   width: 40%;
+   text-align: left;
+}
+.inputok {
+    width: 30px;
+    height: auto;
+    float: left;
+    margin-top: -3px;
+}
+.radios label {
+    display: inline;
+    float: none;
+    width: auto;
+}
+input.flexwidth{
+    display: inline-block;
+    /*float: left;*/
+    width: 60%;
+}
+/* footer */
+#footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    text-align: center;
+}
+/* walk (and distractor/report) */
+#stopper {
+    font-weight: bold;
+    background-color: #1d0842;
+    color: white;
+    margin-bottom: 40px;
+    font-family: "sans serif";
+    height: calc(100% - 100px);
+    position: relative;
+}
+#stopper > span {
+    font-size: 100px;
+    display:inline-block;
+    margin-top: 8%;
+}
+#stopper > .report {
+    left: 35%;
+}
+#stopper > .distract {
+    font-size: 300px;
+}
+
+#stopper-buttons {
+    margin: 40px 0;
+}
+
+/* report */
+button.keyboard {
+    margin: 0 10px;
+}
+/* util */
+.button-stop {
+  color: #FFF;
+  background-color: #A83232;
+  border-color: #A83232;
+}
+.button-stop:hover,
+.button-stop:focus,
+.button-stop:active {
+  color: #FFF;
+  background-color: #C14747;
+  border-color: #C14747; 
+}
+.button-drastic {
+    background-color:#f7ad0e;
+    color: white;
+    border-color: #f7ad0e;
+    font-weight: bold;
+}
+.button-drastic:hover,
+.button-drastic:focus,
+.button-drastic:active{
+    background-color: #f4810e;
+    color: white;
+}
+
+.button-go {
+  color: #FFF;
+  background-color: #277a14;
+  border-color: #277a14;
+}
+.button-go:hover,
+.button-go:focus {
+  color: #FFF;
+  background-color: #279e0f;
+  border-color: #279e0f; 
+}
+.button-go:disabled {
+    background-color: #587a4f;
+}
+.button-primary:disabled, .button-primary:disabled:hover {
+    background-color: #7fb4c4;
+}
+
+button:disabled {
+    cursor: not-allowed;
+}
+

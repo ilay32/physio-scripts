@@ -1,4 +1,12 @@
-import webbrowser,threading,time,json,os,re
+# android qpython3 uses python3.2, which can't stand u'' for unicode
+# this hack hooks into the import and tries to replace u'whatever' with 'whatever'
+from Imp32 import *
+try:
+    x = type(u'')
+except Exception as e:
+    installImportOverride()
+
+import webbrowser,threading,time,json,os,re,glob
 import http.server as hs
 from openpyxl import Workbook,load_workbook
 
@@ -42,12 +50,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         if command['command'] == 'checkfile':
             f,e = os.path.splitext(command['filename'])
             if os.path.isfile(os.path.join(ExpRunner.savedir,f+e)):
-                m = re.findall(r'\(\d+\)$',f)
-                if len(m) == 1:
-                    i = int(m[0].strip("()"))
-                    f = f.replace("("+str(i)+")","("+str(i+1)+")")
-                else:
-                    f += "(1)"
+                f = self.findlast(f)
             self.respond(f+e)
         if command['command'] == 'stop':
             print("shutting down server")
@@ -62,6 +65,20 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 self.respond(str(e))
                 print(str(e))
         #return SimpleHTTPServer.SimpleHTTPRequestHandler.do_POST(self)
+    
+    def findlast(self,file_base):
+        f = file_base
+        fs = glob.glob(os.path.join(ExpRunner.savedir,f+"([0-9])*"))
+        if len(fs) == 0:
+            return f+"(1)"
+        latest = 1
+        for dup in fs:
+            m = re.match(r'^(.*)(\(\d+\))(\.\w{2,4})$',dup)
+            if len(m.groups()) == 3:
+                i = int(m.group(2).strip("()"))
+                if i > latest:
+                    latest = i
+        return  f+"("+str(latest+1)+")"
 
     def save_data(self,dat):
         if not os.path.isdir(ExpRunner.savedir):

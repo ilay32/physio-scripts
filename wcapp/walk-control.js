@@ -320,7 +320,7 @@ angular.module('walkControl', []).controller(
             $scope.srvMessage = "nothing to save yet";
             return;
         }
-        window.open('http://localhost:8000/download/?file='+$scop.glob.savefile);
+        window.open('http://localhost:8000/download/?file='+$scope.glob.savefile);
     }
     $scope.terminate = function() {
         $http({
