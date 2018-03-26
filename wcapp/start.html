@@ -1,217 +1,222 @@
-<h3>
-    Enter Details
-</h3>
 <form name="subjectDetails"> 
+    <!-- expermient parameters -->
     <div class="row">
-	    <!-- subject -->
-        <div class="six columns" ng-show="glob.newSubject">
-            <div>
-                <label for="sid">
+        <h4>
+            Experiment Parameters
+        </h4>
+        <div>
+            <label for="sid">
 
-                    <img class="inputok" ng-show="glob.subject.id>=0" src="check.png"/>
-                    Identifier:
-                </label>
-                <input class="flexwidth" name="sid" type="text"  ng-model="glob.subject.id" ng-change="ufilename()" >
-            </div>
-            <div>
-                <label for="sage">
+                <img class="inputok" ng-show="glob.subject.id" src="check.png"/>
+                Subject Identifier:
+            </label>
+            <input class="flexwidth" name="sid" type="text"  ng-model="glob.subject.id" ng-change="ufilename()" >
+        </div>
 
-                    <img class="inputok" ng-show="glob.subject.age>5" src="check.png"/>
-                    Age:
-                </label>
-                <input type="number" class="flexwidth" name="sage" type="text"  ng-model="glob.subject.age"  >
-            </div>
-            <div>
+        <div>
+            <label for="nwalk">
+
+                <img class="inputok" ng-show="glob.walks.number>3" src="check.png"/>
+                No. of Walks:
+            </label>
+            <input class="flexwidth" type="number" min="3" max="20" name="nwalk" ng-model="glob.walks.number">
+        </div>
+        <div>
+            <label for="dist">
+                <img class="inputok" ng-show="glob.walks.distance > 5" src="check.png"/>
+                Distance:
+            </label>
+            <input type="number" class="flexwidth" name="dist" min="5" max="25" ng-model="glob.walks.distance" step="0.5" >
+        </div>
+        <div>
+            <label>
+                Shoe Type:
+            </label>
+            <div class="radios">
                 <label>
-                    <img class="inputok" ng-show="glob.subject.gender" src="check.png"/>
-                    Gender:
+                    Normal
                 </label>
-                <div class="radios">
-                    <label>
-                        F
-                    </label>
-                    <input type="radio"  ng-model="glob.subject.gender" value="F" >
-                    <label>
-                        M
-                    </label>
-                    <input type="radio"  ng-model="glob.subject.gender" value="M" >
-                </div>
-            </div>
-            <div>
-                <label for="sheight">
-                    <img class="inputok" ng-show="glob.subject.height >= 100" src="check.png"/>
-                    Height:
-                </label>
-                <input name="sheight" type="number" min="100" max="250" step="0.5" ng-model="glob.subject.height" >
-            </div>
-            <div>
-                <label for="sweight">
-
-                    <img class="inputok" ng-show="glob.subject.weight >= 20" src="check.png"/>
-                    Weight:
-                </label>
-                <input class="flexwidth" name="sweight" type="number" min="20" max="150" step="0.05" ng-model="glob.subject.weight" >
-            </div>
-            <div>
-                <label for="shos">
-
-                    <img class="inputok" ng-show="glob.subject.shoe_size >= 20" src="check.png"/>
-                    Shoe Size:
-                </label>
-                <input name="shos" type="number" min="20" max="55" step="0.5" ng-model="glob.subject.shoe_size">
-            </div>
-            <div>
+                <input type="radio" value="normal" ng-model="glob.walks.shoe_type" ng-change="check_existing(glob.savefile)">
                 <label>
-
-                    <img class="inputok" ng-show="glob.subject.glasses" src="check.png"/>
-                    Glasses:
+                    Re-Step
                 </label>
-                <div class="radios">
-                    <label>
-                        Y
-                    </label>
-                    <input type="radio"  ng-model="glob.subject.glasses" value="Y" >
-                    <label>
-                        N
-                    </label>
-                    <input type="radio"  ng-model="glob.subject.glasses" value="N"  >
-                </div>
-            </div>
-            <div>
-                <label>
-
-                    <img class="inputok" ng-show="glob.subject.dominance" src="check.png"/>
-                    Dominance:
-                </label>
-                <div class="radios">
-                    <label>
-                        L
-                    </label>
-                    <input type="radio"  ng-model="glob.subject.dominance" value="L" >
-                    <label>
-                        R
-                    </label>
-                    <input type="radio"  ng-model="glob.subject.dominance" value="R" >
-                </div>
-            </div>
-            <div>
-                <label for="res">
-
-                    <img class="inputok" ng-show="glob.subject.restep_size" src="check.png"/>
-                    Re-Step Size:
-                </label>
-                <select name="res"  ng-model="glob.subject.restep_size" value="N" required >
-                    <option value="small">small</option>
-                    <option value="medium">medium</option>
-                    <option value="large">large</option>
-                    <option value="xl">extra large</option>
-                </select>
-            </div>
-            <div>
-                <label>
-                    Regular Sport Activity:
-                </label>
-                <input type="text" ng-model="glob.subject.regular_sport" >
-            </div>
-            <div ng-show="glob.subject.regular_sport != 'none'">
-                <div>
-                    <label for="shours">
-
-                        <img class="inputok" ng-show="glob.subject.weekly_hours >= 1" src="check.png"/>
-                        Hours per Week:
-                    </label>
-                    <input name="shours" type="number" step="0.5" min="1" class="flexwidth" type="text" ng-model="glob.subject.weekly_hours">
-                </div>
-            </div>
-            <div>
-                <label for="stime">
-
-                    <img class="inputok" ng-show="glob.subject.stance_time >= 10" src="check.png"/>
-                    One leg stance (dominant) time:
-                </label>
-                <input name="stime" type="number" ng-model="glob.subject.stance_time" min="10" max="50">
-            </div>
-        </div> 
-	
-        <!-- expermient parameters -->
-        <div class="six columns">
-            <div>
-                <label for="nwalk">
-
-                    <img class="inputok" ng-show="glob.walks.number>6" src="check.png"/>
-                    No. of Walks:
-                </label>
-                <input type="number" name="nwalk" ng-model="glob.walks.number" required >
-            </div>
-            <div>
-                <label for="dist">
-                    <img class="inputok" ng-show="glob.walks.distance > 5" src="check.png"/>
-                    Distance:
-                </label>
-                <input type="number" name="dist" ng-model="glob.walks.distance" step="0.5" required>
-            </div>
-            <div>
-                <label>
-                    Shoe Type:
-                </label>
-                <div class="radios">
-                    <label>
-                        Normal
-                    </label>
-                    <input type="radio" value="normal" ng-model="glob.walks.shoe_type" ng-change="check_existing(glob.savefile)">
-                    <label>
-                        Re-Step
-                    </label>
-                    <input type="radio" value="restep" ng-model="glob.walks.shoe_type" ng-change="check_existing(glob.savefile)">
-                </div>
-            </div>
-            <div>
-                <label>
-                    <img class="inputok" ng-show="glob.walks.nirs41" src="check.png"/>
-                    NIRS 41 Side:
-                </label>
-                <div class="radios">
-                    <label>
-                        Right 
-                    </label>
-                    <input type="radio" ng-model="glob.walks.nirs41" value="right">
-                    <label>
-                        Left
-                    </label>
-                    <input type="radio" ng-model="glob.walks.nirs41" value="left" >
-                </div>
-            </div>
-            <div>
-                <div>
-                    <label for="addto">
-                        Add to:
-                    </label>
-                    <input class="flexwidth" name="addto" type="file" ng-model="glob.savefile"  onchange="angular.element(this).scope().check_existing(this)" accept=".xlsx" >
-                </div>
-                <div ng-show="glob.newSubject">
-                    <label for="sfile">
-                        Or Save New:
-                    </label>
-                    <input type="text" ng-model="glob.savefile">
-                </div>
-            </div> 
-            <div ng-show="glob.savefile" >
-                <label>
-                    clear file selection:
-                </label>
-                <button id="clear" ng-click="clearfile()">clear</button>
-            </div>
-            <div>
-                <label for="res">
-                    <img class="inputok" ng-show="glob.walks.researcher" src="check.png"/>
-                    Researcher:
-                </label>
-                <input name="res" type="text" ng-model="glob.walks.researcher" required>
+                <input type="radio" value="restep" ng-model="glob.walks.shoe_type" ng-change="check_existing(glob.savefile)">
             </div>
         </div>
+        <div>
+            <label>
+                <img class="inputok" ng-show="glob.walks.nirs41" src="check.png"/>
+                NIRS 41 Side:
+            </label>
+            <div class="radios">
+                <label>
+                    Right 
+                </label>
+                <input type="radio" ng-model="glob.walks.nirs41" value="R">
+                <label>
+                    Left
+                </label>
+                <input type="radio" ng-model="glob.walks.nirs41" value="L" >
+            </div>
+        </div>
+        <div>
+            <div>
+                <label for="addto">
+                    Add to:
+                </label>
+                <input class="flexwidth" name="addto" type="file" ng-model="glob.savefile"  onchange="angular.element(this).scope().check_existing(this)" accept=".xlsx" >
+            </div>
+            <div ng-show="glob.newSubject">
+                <label for="sfile">
+                    Or Save New:
+                </label>
+                <input type="text" ng-model="glob.savefile">
+            </div>
+        </div> 
+        <div ng-show="glob.savefile" >
+            <label>
+                clear file selection:
+            </label>
+            <button id="clear" ng-click="clearfile()">clear</button>
+        </div>
+        <div>
+            <label for="res">
+                <img class="inputok" ng-show="glob.walks.researcher" src="check.png"/>
+                Researcher:
+            </label>
+            <input name="res" type="text" ng-model="glob.walks.researcher" >
+        </div>
     </div>
+
+	<!-- subject -->
+    <div class="row" ng-show="glob.newSubject">
+        <h4>
+            Subject Details
+        </h4>
+        <div>
+            <label for="sage">
+
+                <img class="inputok" ng-show="glob.subject.age>5" src="check.png"/>
+                Age:
+            </label>
+            <input type="number" class="flexwidth" min="10" max="120" name="sage" type="text"  ng-model="glob.subject.age"  >
+        </div>
+        <div>
+            <label>
+                <img class="inputok" ng-show="glob.subject.gender" src="check.png"/>
+                Gender:
+            </label>
+            <div class="radios">
+                <label>
+                    F
+                </label>
+                <input type="radio"  ng-model="glob.subject.gender" value="F" >
+                <label>
+                    M
+                </label>
+                <input type="radio"  ng-model="glob.subject.gender" value="M" >
+            </div>
+        </div>
+        <div>
+            <label for="sheight">
+                <img class="inputok" ng-show="glob.subject.height >= 100" src="check.png"/>
+                Height (cm):
+            </label>
+            <input class="flexwidth" name="sheight" type="number" min="100" max="250" step="0.5" ng-model="glob.subject.height" >
+        </div>
+        <div>
+            <label for="sweight">
+
+                <img class="inputok" ng-show="glob.subject.weight >= 20" src="check.png"/>
+                Weight (kg):
+            </label>
+            <input class="flexwidth" name="sweight" type="number" min="20" max="150" step="0.05" ng-model="glob.subject.weight" >
+        </div>
+        <div>
+            <label for="shos">
+
+                <img class="inputok" ng-show="glob.subject.shoe_size >= 20" src="check.png"/>
+                Shoe Size:
+            </label>
+            <input class="flexwidth" name="shos" type="number" min="20" max="55" step="0.5" ng-model="glob.subject.shoe_size">
+        </div>
+        <div>
+            <label>
+
+                <img class="inputok" ng-show="glob.subject.glasses" src="check.png"/>
+                Glasses:
+            </label>
+            <div class="radios">
+                <label>
+                    Y
+                </label>
+                <input type="radio"  ng-model="glob.subject.glasses" value="Y" >
+                <label>
+                    N
+                </label>
+                <input type="radio"  ng-model="glob.subject.glasses" value="N"  >
+            </div>
+        </div>
+        <div>
+            <label>
+
+                <img class="inputok" ng-show="glob.subject.dominance" src="check.png"/>
+                Dominance (leg):
+            </label>
+            <div class="radios">
+                <label>
+                    L
+                </label>
+                <input type="radio"  ng-model="glob.subject.dominance" value="L" >
+                <label>
+                    R
+                </label>
+                <input type="radio"  ng-model="glob.subject.dominance" value="R" >
+            </div>
+        </div>
+        <div>
+            <label for="res">
+
+                <img class="inputok" ng-show="glob.subject.restep_size" src="check.png"/>
+                Re-Step Size:
+            </label>
+            <select class="flexwidth" name="res"  ng-model="glob.subject.restep_size" value="N" >
+                <option value="">--</option>
+                <option value="small">small</option>
+                <option value="medium">medium</option>
+                <option value="large">large</option>
+                <option value="xl">extra large</option>
+            </select>
+        </div>
+        <div>
+            <label>
+                Regular Sport Activity:
+            </label>
+            <input type="text" ng-model="glob.subject.regular_sport" >
+        </div>
+        <div ng-show="glob.subject.regular_sport != 'none'">
+            <div>
+                <label for="shours">
+
+                    <img class="inputok" ng-show="glob.subject.weekly_minutes >= 1" src="check.png"/>
+                    Minutes per Week:
+                </label>
+                <input name="shours" type="number" min="30" max="1000" mclass="flexwidth" type="text" ng-model="glob.subject.weekly_minutes">
+            </div>
+        </div>
+        <div>
+            <label for="stime">
+
+                <img class="inputok" ng-show="glob.subject.stance_time >= 10" src="check.png"/>
+                One leg stance (dominant) time:
+            </label>
+            <input name="stime" class="flexwidth" type="number" ng-model="glob.subject.stance_time" min="10" max="50" >
+        </div>
+</div>	
     <center class="row">
-        <button class="button-primary" ng-click="initialize(glob.walks.number)" ng-disabled="subjectDetails.$invalid"/>
+
+        <button class="button-drastic" ng-click="terminate()">exit</button>
+        <button class="button-primary" ng-click="initialize(glob.walks.number)" ng-disabled="!paramsOk"/>
             start the experiment
         </button>
     </center>

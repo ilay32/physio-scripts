@@ -21,8 +21,7 @@
             {{srvMessage}}
         </div>
         <center id="main" ng-include="maincontent" class="row"> </center>
-        <div id="footer">
-            <button class="button-drastic" ng-click="terminate()">exit</button>
+        <div id="footer" class="row">
             <button class="button-primary" ng-click="next()" ng-show="incNext" ng-disabled="nextDisabled">next</button>
             <button ng-click="download()" ng-show="incSaveto">save to</button>
         </div>

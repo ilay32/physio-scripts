@@ -49,11 +49,15 @@ input.flexwidth{
 }
 /* footer */
 #footer {
-    position: fixed;
+    /*position: fixed;
     bottom: 0;
-    width: 100%;
+    width: 100%;*/
     text-align: center;
 }
+#footer button {
+    margin: 10px;
+}
+
 /* walk (and distractor/report) */
 #stopper {
     font-weight: bold;
@@ -82,7 +86,7 @@ input.flexwidth{
 
 /* report */
 button.keyboard {
-    margin: 0 10px;
+    margin: 10px;
 }
 /* util */
 .button-stop {
@@ -132,3 +136,9 @@ button:disabled {
     cursor: not-allowed;
 }
 
+@media only screen and (max-width: 600px) {
+    #stopper span {
+        font-size: 60px;
+    }
+}
+    

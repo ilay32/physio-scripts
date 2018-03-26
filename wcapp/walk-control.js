@@ -87,8 +87,7 @@ angular.module('walkControl', []).controller(
     $scope.formok = false;
     $scope.glob = {
         subject : {
-            id:-1,
-            name: undefined,
+            id:undefined,
             age : undefined,
 			gender: undefined,
             height: undefined,
@@ -98,65 +97,20 @@ angular.module('walkControl', []).controller(
             restep_size: undefined,
             shoe_size: undefined,
             regular_sport: "none",
-            weekly_hours: undefined,
+            weekly_minutes: undefined,
             stance_time: undefined
         },
         walks : {
-            researcher: undefined,
-            distance: undefined,
-            number: undefined,
-            nirs41: undefined,
+            researcher: "yogev",
+            distance: 10,
+            number: 12,
+            nirs41: Math.random() < 0.5 ? "R" : "L",
             shoe_type: Math.random() < 0.5 ? "normal" : "restep",
             start_time: -1
         },
-        savefile: "",
+        savefile: undefined,
         newSubject: true
     };
-    //$scope.Fields = {
-    //    subject : [ 
-    //        {
-    //            model: "glob.subject.id",
-    //            nicename: "Identifier",
-    //            typ: "number",
-    //            attname: "sid",
-    //            change : "ufilename(glob.subject.id)",
-    //        },
-    //        {
-    //            model :"glob.subject.name",
-    //            nicename: "Name",
-    //            typ: "text",
-    //            attname: "name"
-    //        },
-    //        {
-    //            model: $scope.glob.subject.age,
-    //            nicename: "Age",
-    //            typ: "number",
-    //            attname: "age"
-    //        }
-    //    ],
-    //    walks : [
-    //        { 
-    //            model: $scope.glob.walks.number,
-    //            nicename: "No. of Walks",
-    //            typ: "number",
-    //            attname: "nwalk"
-
-    //        },
-    //        {
-    //            model: $scope.glob.walks.distance, 
-    //            nicename: "Distance",
-    //            typ: "number",
-    //            attname: "dwalk"
-    //        },
-    //        {
-    //            model: $scope.glob.walks.savefile,
-    //            nicename: "Save to",
-    //            typ: "text",
-    //            attname: "savef"
-    //        }
-    //    ]
-    //};
-   
     //helper vars
     $scope.incSaveto = false;
     $scope.numSaves = 0;
@@ -165,7 +119,7 @@ angular.module('walkControl', []).controller(
     $scope.srvMessage = "";
     $scope.maincontent = "start.html";
         
-
+    $scope.paramsOk = false;
     $scope.prewalkText = "";
     $scope.stopper_is_running = false;
     $scope.walkTime = 0;
@@ -190,6 +144,38 @@ angular.module('walkControl', []).controller(
 			requestMethod.call(element);
 		} 
  	}
+    $scope.$watch("glob",function(n,v) {
+        $scope.checkParams();
+    },true);
+    $scope.checkParams = function() {
+        var ret = true,
+            id = $scope.glob.subject.id,
+            w = $scope.glob.walks;
+            s = $scope.glob.subject;
+        ret = s.id != undefined && s.id != "";
+        if($scope.glob.newSubject) {
+            ret = ret && (s.age > 10) &&  (s.age < 120);
+			ret = ret && s.gender;
+            ret = ret && (s.height > 100) && (s.height < 250); 
+            ret = ret && (s.weight > 20) && (s.weight < 150);
+            ret = ret && s.glasses;
+            ret = ret && s.dominance;
+            ret = ret && s.restep_size; 
+            ret = ret && (s.shoe_size > 20) && (s.shoe_size < 55);
+            if(s.regular_sport != "none"){
+                ret = ret && (s.weekly_minutes  > 30) && (s.weekly_minutes < 1000);
+            }
+            ret = ret && (s.stance_time > 0) && (s.stance_time < 50);
+        }
+        ret = ret && w.distance > 4;
+        ret = ret && w.nirs41;
+        ret = ret && w.researcher != ""; 
+        ret = ret && /^[\w\-_\.\(\)]+\.[\d\w]{2,4}$/.test($scope.glob.savefile);
+        ret = ret && $scope.glob.walks.start_time == -1;
+
+        $scope.paramsOk = ret;
+    }
+
     $scope.check_existing = function(input) {
         if(typeof(input) == "object") {
             fparts  = input.value.replace("C:\\fakepath\\","").split(".");
@@ -205,12 +191,13 @@ angular.module('walkControl', []).controller(
             $scope.glob.savefile = "";
             $scope.srvMessage = "please select an Excel file";
         }
-        else if($scope.glob.subject.id < 0) {
+        else if($scope.glob.subject.id == undefined || $scope.glob.subject.id == "") {
             $scope.srvMessage = "Please Identify Subject";
             input.value = "";
             $scope.glob.savefile = "";
         }
         else {
+            $scope.glob.savefile = f;
             donechecked = true;
             $scope.srvMessage = "";
             $http({
@@ -227,7 +214,7 @@ angular.module('walkControl', []).controller(
             }).then(
                 function succ(r) {
                     if(r.data == "exists") {
-                        $scope.srvMessage = "The file "+f+" already includes a " + $scope.glob.walks.shoe_type+" sheet. This will write over it";
+                        $scope.srvMessage = "The file "+f+" already includes a " + $scope.glob.walks.shoe_type+" sheet. This will write over it.";
                     }
                     $scope.glob.savefile = f;
                     $scope.glob.newSubject = false;
@@ -250,7 +237,7 @@ angular.module('walkControl', []).controller(
         $scope.srvMessage = "";
         $scope.glob.savefile = "";
         $scope.glob.newSubject = true;
-        if($scope.glob.subject.id > 0) {
+        if($scope.glob.subject.id) {
             $scope.ufilename();
         }
     }
@@ -391,6 +378,7 @@ angular.module('walkControl', []).controller(
         if(cur == arr.length) {
             $scope.nextDisabled = false;
             $scope.next();
+            $scope.stopper_start();
             return;
         }
         $scope.distDigit = arr[cur];

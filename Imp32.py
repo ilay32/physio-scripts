@@ -37,6 +37,4 @@ def installImportOverride():
     sys.path_importer_cache.clear()
     invalidate_caches()
 
-install()
-import openpyxl
 

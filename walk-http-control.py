@@ -1,11 +1,11 @@
 # android qpython3 uses python3.2, which can't stand u'' for unicode
 # this hack hooks into the import and tries to replace u'whatever' with 'whatever'
-from Imp32 import *
-try:
-    x = type(u'')
-except Exception as e:
-    installImportOverride()
-
+#from Imp32 import *
+#try:
+#    x = type(u'')
+#except Exception as e:
+#    installImportOverride()
+#
 import webbrowser,threading,time,json,os,re,glob
 import http.server as hs
 from openpyxl import Workbook,load_workbook
@@ -53,6 +53,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 f = self.findlast(f)
             self.respond(f+e)
         if command['command'] == 'stop':
+            
             print("shutting down server")
             server_stop.start()
             self.respond("the server has shutdown")
@@ -101,7 +102,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         if 'subject' not in wb.sheetnames:
             subsheet = wb.create_sheet(title="subject")
             for i,(k,v) in enumerate(subj.items(),1):
-                if subj['regular_sport'] == "none" and k == 'weekly_hours':
+                if subj['regular_sport'] == "none" and k == 'weekly_minutes':
                     continue;
                 subsheet.cell(row=i,column=1,value=k.replace("_"," "))
                 subsheet.cell(row=i,column=2,value=v)
