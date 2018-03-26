@@ -158,6 +158,7 @@ def killserver():
 
 
 if __name__ == '__main__':
+    os.chdir(os.path.dirname(__file__))
     server_go = threading.Thread(None,runserver)
     server_stop = threading.Thread(None,killserver)
     server_stop.setDaemon(True)
