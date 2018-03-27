@@ -1,12 +1,4 @@
-# android qpython3 uses python3.2, which can't stand u'' for unicode
-# this hack hooks into the import and tries to replace u'whatever' with 'whatever'
-#from Imp32 import *
-#try:
-#    x = type(u'')
-#except Exception as e:
-#    installImportOverride()
-#
-import webbrowser,threading,time,json,os,re,glob
+import webbrowser,threading,time,json,os,re,glob,platform
 import http.server as hs
 from openpyxl import Workbook,load_workbook
 
@@ -88,25 +80,18 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         subj = dat['globals']['subject']
         walks = dat['globals']['walks']
         start = walks['start_time']
-        sheet = walks['shoe_type']
-        if dat['globals']['newSubject']:
+        sheetname  = walks['shoe_type']
+        if dat['globals']['newSubject']: 
             wb = Workbook()
             datsheet = wb.active
-            datsheet.title = walks['shoe_type']
+            datsheet.title = sheetname
         else:
             wb = load_workbook(dest)
-            datsheet = wb.create_sheet(title=sheet)
+            if sheetname in wb.sheetnames:
+                s = wb[sheetname]
+                wb.remove(s)
+            datsheet = wb.create_sheet(sheetname)
         
-        # write subject details in separate sheet
-        # if not already written
-        if 'subject' not in wb.sheetnames:
-            subsheet = wb.create_sheet(title="subject")
-            for i,(k,v) in enumerate(subj.items(),1):
-                if subj['regular_sport'] == "none" and k == 'weekly_minutes':
-                    continue;
-                subsheet.cell(row=i,column=1,value=k.replace("_"," "))
-                subsheet.cell(row=i,column=2,value=v)
-
         cols = [
             "walk no.", 
             "absolute start", 
@@ -118,9 +103,11 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             "distractor digits",
             "remembered as"
         ]
+       
         # header row
         for i,c in enumerate(cols,1):
             datsheet.cell(column=i,row=1,value=c)
+        
         # data
         for i,w in enumerate(dat['walkdata']):
             isdist = str(i) in dat['distractions'].keys()
@@ -141,7 +128,17 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             else:
                 datsheet.cell(row=i,column=1,value=k.replace("_"," "))
                 datsheet.cell(row=i,column=2,value=v)
-        # and finally    
+        # if not adding to existing file, write the subject details 
+        if dat['globals']['newSubject']:
+            subsheet = wb.create_sheet(title="subject")
+            for i,(k,v) in enumerate(subj.items(),1):
+                if subj['regular_sport'] == "none" and k == 'weekly_minutes':
+                    continue;
+                subsheet.cell(row=i,column=1,value=k.replace("_"," "))
+                subsheet.cell(row=i,column=2,value=v)
+            self.didsubject = True
+
+        # and finally save as "dest"
         wb.save(filename = dest)
 
 
@@ -158,7 +155,8 @@ def killserver():
 
 
 if __name__ == '__main__':
-    os.chdir(os.path.dirname(__file__))
+    if platform.machine() == "armv71":
+        os.chdir(os.path.dirname(__file__))
     server_go = threading.Thread(None,runserver)
     server_stop = threading.Thread(None,killserver)
     server_stop.setDaemon(True)
