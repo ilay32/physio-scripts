@@ -12,72 +12,74 @@ logger = logging.getLogger('walkspeed')
 
 class ArduinoSonarRecorder(object):
     def __init__(self):
-        self.read_lines = list()
         self.durations = list()
+        self.marks = list()
         self.recording = False
-        self.cond = threading.Thread(None,self._start)
-        self.start_time = None
+        self.last_reset = None
+        self.cond = None
+        self.ardi = None
+        self.connect()
 
     def start(self):
-        self.cond.start()
-        self.read_lines = list()
-        self.durations  = list()
-        self.marks = list()
-
-
-    def _start(self):
-        #find the arduino usb port
-        # and define the Serial object if found
-        port = ""
-        ardi = None
+        cond = threading.Thread(None,self.get_walks)
+        cond.start()
+        self.cond = cond
+    
+    def connect(self):
         for p in list(list_ports.comports()):
             if "Arduino" in  str(p):
                 port = re.sub(r'\s.*$','',str(p))
                 break
         if port != "":
             ardi = serial.Serial(port,115200,timeout=0.05)
-            time.sleep(0.2)
+            while not ardi.writable():
+                continue;
             logger.info("connected")
         else:
             raise(Exception,"couldn't find port")
-
-        self.recording = True
-        self.start_time = time.time()
-        ardi.reset_input_buffer()
-        ardi.write(b'r')
-        while self.recording:
-            line = ardi.readline()
-            if line:
-                logger.info(line)
-                # this is just for the console
-                self.read_lines.append(line)
-                # now the actual data
-                # c means walk commenced, e means walk ended
-                # (the other option is n, no futher data at this point)
-                c = ardi.read()
-                if c == 'c':
-                    self.marks.append(int(ardi.readline()))
-                elif c == 'e':
-                    self.durations.append(int(ardi.readline())) 
-
-        ardi.write(b's') # tell it to stop -- it just reports how many walks were registered in this go. the reset is done at new start
-        conc = ardi.readline()
-        logger.info(conc)
-        ardi.reset_output_buffer()
-        ardi.reset_input_buffer()
-        ardi.close()
+        self.ardi = ardi
     
+    def disconnect(self):
+        self.ardi.close()
+
+    def get_walks(self):
+        self.durations  = list()
+        self.marks = list()
+        self.recording = True
+        self.last_reset = time.time()
+        self.ardi.write(b'r')
+        while self.recording:
+            line = self.ardi.readline()
+            read_time = time.time() 
+            if line:
+                if "tracker reset" in line:
+                    lag = (read_time - self.last_reset)/2
+                    if lag > 50:
+                        logger.warning("unusual lag: {:f}".format(lag))
+                logger.info(line)
+                # actual data will follow a log line
+                # c means walk commenced, e means walk ended
+                # the third option is n, no futher data at this point
+                c = self.ardi.read()
+                if c == 'c':
+                    self.marks.append(int(self.ardi.readline()))
+                elif c == 'e':
+                    self.durations.append(int(self.ardi.readline())) 
+        self.ardi.write(b's')
+        conclusion = self.ardi.readline()
+        logger.info(conclusion)
+
     def stop(self):
         self.recording = False
         self.cond.join()
-        logger.info(self.durations)
-        logger.info(self.start_time)
-        logger.info(self.marks)
+        logger.info("durations: "+" ".join([str(d) for d in self.durations]))
+        logger.info("times: "+" ".join([str(m) for m in self.marks]))
     
       
 class GUI(FileActionGUI):
     def __init__(self,master):
         super(GUI,self).__init__(master)
+        self.master = master
         row1,row2,row3 = self.set_rows(3)
         desc=Label(row1,text="Measure Average Speed of Walks")
         desc.pack(fill=tk.X,ipadx=10,ipady=10,side=tk.TOP)
@@ -123,12 +125,15 @@ class GUI(FileActionGUI):
         self.save_button = Button(row3,text="SAVE",command=self.save)
         self.save_button.pack(side=tk.LEFT,padx=10)
 
-        self.close_button = Button(row3,text="CLOSE",command=master.destroy)
+        self.close_button = Button(row3,text="CLOSE",command=self.terminate)
         self.close_button.pack(side=tk.LEFT,padx=10)
 
         
-        self.recorder = None 
+        self.recorder = ArduinoSonarRecorder()
     
+    def terminate(self):
+        self.recorder.disconnect()
+        self.master.destroy()
     
     def stop_record(self):
         self.recorder.stop()
@@ -138,12 +143,11 @@ class GUI(FileActionGUI):
             logger.warning("Incorrect Number of Walks", "please set the number of walks to a number between 1 and 20")
         if w != len(durations):
             logger.warning("recording set for {:d} walks, but {:d} were measured".format(w,len(durations)))
+        self.save()
 
 
     def dir_action(self):
-        self.recorder = ArduinoSonarRecorder()
         self.recorder.start()
-    
 
     def save(self):
         f =  self.filename.get()
@@ -151,12 +155,11 @@ class GUI(FileActionGUI):
         f = re.sub(r'[^\w\-\.\_]','',f)
         if f == "": 
             showerror("Invalid File Name","incorrect file name: {:s}".format(self.filename.get()))
-
             return
         target = os.path.join(self.target,f+'.csv')
         self.chosen.set("saving data to: {:s}".format(target))
         durations = self.recorder.durations
-        start = self.recorder.start_time
+        start = self.recorder.last_reset
         marks = self.recorder.marks
         table = pd.DataFrame(index=range(len(durations)),columns=['walk no.','speed','duration','start','end'])
         for i,(d,m) in enumerate(list(zip(durations,marks))):
@@ -165,7 +168,7 @@ class GUI(FileActionGUI):
         table.to_csv(target,index=False)
         with open(target,'a') as f:
             f.write("\n")
-            f.write("start:,{:s},unix stamp:,{:f}".format(time.ctime(start),start))
+            f.write("start:,{:s},unix stamp:,{:f}\n".format(time.ctime(start),start))
         logger.info("file saved")
       
 
