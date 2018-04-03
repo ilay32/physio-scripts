@@ -1,4 +1,4 @@
-import webbrowser,threading,time,json,os,re,glob,platform
+import webbrowser,threading,time,json,os,re,glob,platform,math
 import http.server as hs
 from openpyxl import Workbook,load_workbook
 
@@ -8,6 +8,18 @@ PORT_NUMBER = 8000
 class ExpRunner(hs.SimpleHTTPRequestHandler):
     #savedir = os.path.join(os.path.abspath(os.pardir),"corridor-walks")
     savedir = "corridor-walks"
+    datacols = [
+        "walk no.", 
+        "absolute start", 
+        "absolute end", 
+        "relative start", 
+        "relative end", 
+        "duration", 
+        "speed m/s", 
+        "distractor digits",
+        "remembered as"
+    ]
+    
     def do_HEAD(self):
         self._set_headers()
 
@@ -16,7 +28,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")
-        self.send_header('Content-type', 'text/html')
+        self.send_header("Content-type","application/json")
         self.end_headers()
 
     def respond(self,string):
@@ -29,33 +41,46 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         return hs.SimpleHTTPRequestHandler.do_GET(self)
 
     def do_POST(self):
+        post = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
+        command = post['command']
         self._set_headers()
-        command = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
-        if command['command']  == 'check_existing':
-            dest = os.path.join(ExpRunner.savedir,command['filename'])
+        if command  == "check_existing":
+            dest = os.path.join(ExpRunner.savedir,post['filename'])
             wb = load_workbook(dest)
-            if command['sheet'] in wb.sheetnames:
-                self.respond("exists")
-            else:
-                self.respond("absent")
-
-        if command['command'] == 'checkfile':
-            f,e = os.path.splitext(command['filename'])
+            status = "exists" if post['savesheet'] in wb.sheetnames else "absent"
+            num,pause = "",""
+            if post['savesheet'] == "single":
+                try:
+                    num,pause = self.compute_singletask_params(wb)
+                except Exception as e:
+                    self.respond(json.dumps({"error": str(e)}))
+                    return
+            self.respond(json.dumps({
+                "sheet_status" : status,
+                "numtrials" : num,
+                "pausetime" : pause
+            }))
+        if command  == 'checkfile':
+            f,e = os.path.splitext(post['filename'])
             if os.path.isfile(os.path.join(ExpRunner.savedir,f+e)):
                 f = self.findlast(f)
-            self.respond(f+e)
-        if command['command'] == 'stop':
-            
+            self.respond(json.dumps({"please_saveto": f+e}))
+        
+        if command == 'stop':
             print("shutting down server")
             server_stop.start()
-            self.respond("the server has shutdown")
-        if command['command'] == 'save':
+            self.respond(json.dumps({"response" : "the server has shutdown"}))
+        
+        if command == 'save':
             try:
-                self.save_data(command['data'])
-                self.respond("saved")
-                print("saved to "+command['data']['globals']['savefile'])
+                if post['savesheet'] == 'single':
+                    self.save_single_data(post)
+                else:
+                    self.save_walk_data(post)
+                self.respond(json.dumps({"response" : "saved"}))
+                print("saved to "+post['savefile'])
             except Exception as e:
-                self.respond(str(e))
+                self.respond(json.dumps({"response" : "failed" , "error" : str(e)}))
                 print(str(e))
         #return SimpleHTTPServer.SimpleHTTPRequestHandler.do_POST(self)
     
@@ -72,15 +97,61 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 if i > latest:
                     latest = i
         return  f+"("+str(latest+1)+")"
+    
+    def compute_singletask_params(self,wb):
+        if "restep" not in wb.sheetnames or "normal" not in wb.sheetnames:
+            raise(Exception("the selected file must contain walks data"))
+            return
+        durations = list()
+        cols = ExpRunner.datacols
+        for sheet in ['normal','restep']:
+            for r in wb[sheet].iter_rows():
+                dur = r[cols.index('duration')].value
+                dig = r[cols.index('distractor digits')].value
+                if dig and str.isdigit(dig):
+                    durations.append(dur)
+        if(len(durations) > 0):
+            n,a = math.floor(len(durations)/2),float(sum(durations))/len(durations)
+            print("single: {:d} trials with {:.3f} pausetime".format(n,a))
+            return n,a      
+        else:
+            raise(Exception("could not extract data from file"))
+    
+    def save_single_data(self,p):
+        dest = os.path.join(ExpRunner.savedir,p['savefile'])
+        sheetname = 'single'
+        wb = load_workbook(dest)
+        if sheetname in wb.sheetnames:
+            s = wb[sheetname]
+            wb.remove(s)
+        datsheet = wb.create_sheet(sheetname)
+        
+        # header row
+        datsheet.append(["trial no.", "sequence","answer"])
+        
+        # data
+        for i,t in enumerate(p['data']['trialdata'],1):
+            row = [i,t[0],t[1]]
+            datsheet.append(row)
+        
+        # params
+        datsheet.append([""])
+        glob = p['data']['globals'] 
+        for k in ["nirs41","researcher"]:
+            datsheet.append([k,glob['walks'][k]])
+        datsheet.append(["pausetime",glob['single']['pausetime']])
+        wb.save(filename = dest)
 
-    def save_data(self,dat):
+    
+    def save_walk_data(self,p):
+        dat = p['data'];
         if not os.path.isdir(ExpRunner.savedir):
             os.mkdir(ExpRunner.savedir)
-        dest = os.path.join(ExpRunner.savedir,dat['globals']['savefile'])
+        dest = os.path.join(ExpRunner.savedir,p['savefile'])
         subj = dat['globals']['subject']
         walks = dat['globals']['walks']
         start = walks['start_time']
-        sheetname  = walks['shoe_type']
+        sheetname = p['savesheet']
         if dat['globals']['newSubject']: 
             wb = Workbook()
             datsheet = wb.active
@@ -92,26 +163,14 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 wb.remove(s)
             datsheet = wb.create_sheet(sheetname)
         
-        cols = [
-            "walk no.", 
-            "absolute start", 
-            "absolute end", 
-            "relative start", 
-            "relative end", 
-            "duration", 
-            "speed m/s", 
-            "distractor digits",
-            "remembered as"
-        ]
-       
         # header row
-        for i,c in enumerate(cols,1):
+        for i,c in enumerate(ExpRunner.datacols,1):
             datsheet.cell(column=i,row=1,value=c)
         
         # data
         for i,w in enumerate(dat['walkdata']):
             isdist = str(i) in dat['distractions'].keys()
-            row = [i,w[0],w[1],w[0] - start, w[1] - start, w[1] - w[0],float(1000*walks['number'])/(w[1] - w[0])]
+            row = [i+1,w[0],w[1],w[0] - start, w[1] - start, w[1] - w[0],float(1000*walks['number'])/(w[1] - w[0])]
             if isdist: 
                 row += dat['distractions'][str(i)]
             else:

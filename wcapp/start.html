@@ -2,33 +2,61 @@
     <!-- expermient parameters -->
     <div class="row">
         <h4>
+            {{glob.saveFile}}
             Experiment Parameters
         </h4>
-        <div>
-            <label for="sid">
-
-                <img class="inputok" ng-show="glob.subject.id" src="check.png"/>
-                Subject Identifier:
-            </label>
-            <input class="flexwidth" name="sid" type="text"  ng-model="glob.subject.id" ng-change="ufilename()" >
+        <div class="row">
+            <div class="two columns">
+                <label for="sid">
+                    <img class="inputok" ng-show="glob.subject.id" src="check.png"/>
+                    Subject ID:
+                </label>
+                <input name="sid" class="flexwidth" type="text"  ng-model="glob.subject.id" >
+            </div>
+            <div class="three columns">
+                <label for="sing">
+                    <input type="checkbox" name="sing" value="1" ng-model="glob.isSingle">
+                    Single Task
+                </label>
+            </div>
+            <div class="three columns">
+                <label for="isnew">
+                    <input type="checkbox" name="isnew"  ng-model="glob.newSubject">
+                    New Subject
+                </label>
+                <input type="text" class="flexwidth" ng-model="glob.newfile">
+            </div>
+            <div class="four columns" >
+                <label for="sfile">
+                    Choose Existing:
+                </label>
+                <input name="addto" type="file" ng-disabled="glob.newSubject" ng-model="glob.oldfile" onchange="angular.element(this).scope().registerold(this)" accept=".xlsx" >
+            </div>
         </div>
-
         <div>
-            <label for="nwalk">
-
-                <img class="inputok" ng-show="glob.walks.number>3" src="check.png"/>
-                No. of Walks:
+            <label for="res">
+                <img class="inputok" ng-show="glob.walks.researcher" src="check.png"/>
+                Researcher:
             </label>
-            <input class="flexwidth" type="number" min="3" max="20" name="nwalk" ng-model="glob.walks.number">
+            <input name="res" class="flexwidth" type="text" ng-model="glob.walks.researcher" >
         </div>
-        <div>
-            <label for="dist">
-                <img class="inputok" ng-show="glob.walks.distance > 5" src="check.png"/>
-                Distance:
-            </label>
-            <input type="number" class="flexwidth" name="dist" min="5" max="25" ng-model="glob.walks.distance" step="0.5" >
-        </div>
-        <div>
+        <span ng-show="!glob.isSingle">
+            <div>
+                <label for="nwalk">
+                    <img class="inputok" ng-show="glob.walks.number>3" src="check.png"/>
+                    No. of Walks:
+                </label>
+                <input type="number" min="3" max="20" name="nwalk" ng-model="glob.walks.number">
+            </div>
+            <div> 
+                <label for="dist">
+                    <img class="inputok" ng-show="glob.walks.distance > 5" src="check.png"/>
+                    Distance:
+                </label>
+                <input type="number" class="flexwidth" name="dist" min="5" max="25" ng-model="glob.walks.distance" step="0.5" >
+            </div>
+        </span>
+        <div ng-show="!glob.isSingle">
             <label>
                 Shoe Type:
             </label>
@@ -36,11 +64,11 @@
                 <label>
                     Normal
                 </label>
-                <input type="radio" value="normal" ng-model="glob.walks.shoe_type" ng-change="check_existing(glob.savefile)">
+                <input type="radio" value="normal" ng-model="glob.walks.shoe_type" >
                 <label>
                     Re-Step
                 </label>
-                <input type="radio" value="restep" ng-model="glob.walks.shoe_type" ng-change="check_existing(glob.savefile)">
+                <input type="radio" value="restep" ng-model="glob.walks.shoe_type"> 
             </div>
         </div>
         <div>
@@ -59,33 +87,7 @@
                 <input type="radio" ng-model="glob.walks.nirs41" value="L" >
             </div>
         </div>
-        <div>
-            <div>
-                <label for="addto">
-                    Add to:
-                </label>
-                <input class="flexwidth" name="addto" type="file" ng-model="glob.savefile"  onchange="angular.element(this).scope().check_existing(this)" accept=".xlsx" >
-            </div>
-            <div ng-show="glob.newSubject">
-                <label for="sfile">
-                    Or Save New:
-                </label>
-                <input type="text" ng-model="glob.savefile">
-            </div>
-        </div> 
-        <div ng-show="glob.savefile" >
-            <label>
-                clear file selection:
-            </label>
-            <button id="clear" ng-click="clearfile()">clear</button>
-        </div>
-        <div>
-            <label for="res">
-                <img class="inputok" ng-show="glob.walks.researcher" src="check.png"/>
-                Researcher:
-            </label>
-            <input name="res" type="text" ng-model="glob.walks.researcher" >
-        </div>
+                
     </div>
 
 	<!-- subject -->
@@ -96,7 +98,7 @@
         <div>
             <label for="sage">
 
-                <img class="inputok" ng-show="glob.subject.age>5" src="check.png"/>
+                <img class="inputok" ng-show="glob.subject.age>10" src="check.png"/>
                 Age:
             </label>
             <input type="number" class="flexwidth" min="10" max="120" name="sage" type="text"  ng-model="glob.subject.age"  >
@@ -192,16 +194,15 @@
             <label>
                 Regular Sport Activity:
             </label>
-            <input type="text" ng-model="glob.subject.regular_sport" >
+            <input class="flexwidth" type="text" ng-model="glob.subject.regular_sport" >
         </div>
         <div ng-show="glob.subject.regular_sport != 'none'">
             <div>
                 <label for="shours">
-
                     <img class="inputok" ng-show="glob.subject.weekly_minutes >= 1" src="check.png"/>
                     Minutes per Week:
                 </label>
-                <input name="shours" type="number" min="30" max="1000" mclass="flexwidth" type="text" ng-model="glob.subject.weekly_minutes">
+                <input name="shours" class="flexwidth" type="number" min="30" max="1000" mclass="flexwidth" type="text" ng-model="glob.subject.weekly_minutes">
             </div>
         </div>
         <div>
@@ -216,7 +217,7 @@
     <center class="row">
 
         <button class="button-drastic" ng-click="terminate()">exit</button>
-        <button class="button-primary" ng-click="initialize(glob.walks.number)" ng-disabled="!paramsOk"/>
+        <button class="button-primary" ng-disabled="!paramsOk" ng-click="initialize()" />
             start the experiment
         </button>
     </center>

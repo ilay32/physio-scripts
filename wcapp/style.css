@@ -66,18 +66,19 @@ input.flexwidth{
     margin-bottom: 40px;
     font-family: "sans serif";
     height: calc(100% - 200px);
+    min-height: 200px;
     position: relative;
 }
 #stopper > span {
     font-size: 80px;
     display:inline-block;
-    margin-top: 8%;
+    margin-top: 40px;
 }
 #stopper > .report {
     left: 35%;
 }
 #stopper > .distract {
-    font-size: 300px;
+    font-size: 200px;
 }
 
 #stopper-buttons {
@@ -137,7 +138,7 @@ button:disabled {
 }
 
 @media only screen and (max-width: 600px) {
-    #stopper span {
+    #stopper > span {
         font-size: 50px;
     }
 }
