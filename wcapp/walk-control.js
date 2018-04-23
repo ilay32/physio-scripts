@@ -20,6 +20,9 @@ function frep(f,decimals) {
     var parts = f.toString().split("."),
         units =  parts[0],
         fraction = "0".repeat(decimals);
+    if(decimals == 0) {
+        return units;
+    }
     if(decimals == 1) {
         fraction = parts.length == 2 ? parts[1].charAt(0) : "0";
     }
@@ -134,7 +137,7 @@ function singletaskCycler(nt) {
 }
 
 angular.module('walkControl', []).controller(
-    'RunExp', ['$compile','$scope','$http','$timeout','$interval','$window', function($compile,$scope,$http,$timeout,$interval,$window) {
+    'RunExp', ['$compile','$scope','$http','$timeout','$interval','$window','$q', function($compile,$scope,$http,$timeout,$interval,$window,$q) {
     // subject data -- first define
     // with defaults, then use existing
     // for the template repeat
@@ -180,18 +183,23 @@ angular.module('walkControl', []).controller(
     $scope.numSaves = 0;
     $scope.saveFileExt = ".xlsx";
     $scope.walkTime = 0;
+    $scope.countDtime = undefined;
     $scope.reportKeys = [0,1,2,3,4,5,6,7,8,9,'*'];
     $scope.seqEntered = "";
     $scope.incNext = false;
     $scope.nextDisabled = false;
     $scope.srvMessage = "";
+    $scope.countDmessage = "";
     $scope.maincontent = "start.html";
     $scope.prewalkText = "";
     $scope.stopper_is_running = false;
     $scope.distractorLength = 6;
+    $scope.postWalkDelay = 15;
+    $scope.getReadyText = "";
     
     var state = null;
     var stopper = undefined;
+    var duration = 0;
     
     var log = {
         globals : {},
@@ -300,7 +308,7 @@ angular.module('walkControl', []).controller(
             $scope.srvMessage = "please select file";
             return;
         }
-            fparts = f.split("."),
+        var fparts = f.split("."),
             fname = fparts[0],
             fext = fparts[1];
         if(["xlsx","xls","xlsm"].indexOf(fext) < 0) {
@@ -458,42 +466,58 @@ angular.module('walkControl', []).controller(
         $scope.stopper_is_running = false;
         $scope.nextDisabled = false;
     }
-    
+     
     $scope._stopper_stop = function() {
         if(angular.isDefined(stopper)) {
             $interval.cancel(stopper);
             stopper = undefined;
         }
+        if(!state.finished) {
+            $scope.countDmessage  =  "click next in ";
+            $scope.stopper_countdown(1000,function() {
+                $scope.countDmessage  = "";
+                $scope.countDtime = undefined;
+            },$scope.postWalkDelay*1000);
+        }
     }
 
-    $scope.stopper_start = function() {
+    $scope.stopper_start = function(step) {
         var walk_start = Date.now();
+        var round = Math.floor(Math.log10(1000/step));
+        duration = 0;
         $scope.stopper_is_running = true;
-        stopper = $interval(function(s) {
+        stopper = $interval(function(start,step,r) {
             if($scope.stopper_is_running) {
-                $scope.walkTime = frep((Date.now() - s)/1000,1);
+                duration += step; //must be equal to interval
+                $scope.walkTime = frep(duration/1000,r);
             }
             else {
-                log.walkdata[state.walk] = [s,Date.now()];
+                log.walkdata[state.walk] = [start,start+duration];
                 $scope._stopper_stop();
             }
-        },100,0,true,walk_start);
+        },step,0,true,walk_start,step,round);
     }
-
-    $scope.stopper_countdown = function() {
-        var from = $scope.glob.single.pausetime;
-        var zero = Date.now();
-        $scope.countDtime = frep(from/1000,1);
-        stopper = $interval(function(z) {
-            var cur = Date.now() - z;
-            $scope.countDtime = frep(Math.max(0,(from - cur)/1000),1);
-            // this doesn't work for some reason
-            if(cur >= from) {
-                $scope._stopper_stop();
+    
+    $scope.stopper_countdown = function(step,callback,from) {
+        if(from < 0) {
+            from = parseInt($scope.glob.single.pausetime);
+        }
+        var round = Math.floor(Math.log10(1000/step));
+        duration = from - (from % step);
+        $scope.countDtime = frep(duration/1000,round);
+        stopper = $interval(function(s) {
+            if(duration >= s) {
+                duration -=  s;
+                $scope.countDtime = frep(duration/1000,round);
             }
-        },100,(from + 200 - (from % 100))/100,true,zero); //so i limit the repetitions
-        stopper.then($scope.next)
+        },step,(duration/step)+1,true,step);
+        stopper.then(callback).catch(function(e) {
+            console.log(e);
+        }).finally(function() {
+            stopper = undefined;
+        });
     }
+    
     
     // save the data
     $scope.save = function() {
@@ -508,7 +532,6 @@ angular.module('walkControl', []).controller(
                 if(res == "saved") {
                     $scope.srvMessage = res;
                     $scope.numSaves++;
-                    $scope.incSaveto = true;
                 }
                 else if(res == "failed") {
                     $scope.srvMessage = "couldn't save:\n"+r.data.error;
@@ -523,7 +546,13 @@ angular.module('walkControl', []).controller(
         if(cur == arr.length) {
             $scope.nextDisabled = false;
             $scope.next();
-            $scope.stopper_start();
+            if($scope.glob.isSingle) {
+                $scope.stopper_countdown(50,$scope.next,-1);
+            }
+            else  {
+                $scope.stopper_start(50);
+            }
+            $scope.distDigit = "";
             return;
         }
         $scope.distDigit = arr[cur];
@@ -545,9 +574,10 @@ angular.module('walkControl', []).controller(
             }
         }
         else {
-            digits = Array(dl).fill(1).map((x, y) => x + dl - y - 1);
+            //digits = Array(dl).fill(1).map((x, y) => x + dl - y - 1);
+            digits = ['GO','A','B','C','D','E','F','G','H','I','J'].slice(0,dl).reverse();
         }
-        $scope.recloop(digits,0,1000);
+        $timeout($scope.recloop,2000,true,digits,0,1000);
     }
     
     // the heart of it -- translate the next state
@@ -587,17 +617,13 @@ angular.module('walkControl', []).controller(
         }
         if(state.state == 'walk') {
             $scope.nextDisabled = true;
-            $scope.walkTime = 0.000;
-        }
-        if(state.state == 'trial' && $scope.glob.isSingle) {
-            $scope.stopper_countdown();
-        }
-        if(state.state == 'report' && $scope.glob.isSingle) {
-            $scope._stopper_stop();
+            $scope.walkTime = 0;
         }
         $scope.incNext = ['start','report','digitsboard','trial'].indexOf(state.state) == -1;
+        $scope.incSaveto = state.finished && state.state == 'prewalk';
     }
 }]);
+
 //.directive('reModel', function () {
 //    return {
 //		restrict: 'A',
