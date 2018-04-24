@@ -1,4 +1,4 @@
-function [HSIndx] = CleanCyclesFunc_Adi(FP1,WalkRunTh,RemoveManual,Slope)
+function [GEIndx] = CleanCyclesFunc_Adi(FP1,WalkRunTh,RemoveManual,Slope)
 % This function identify heelstrike from the force data, using RLA
 % trajectory, and removing noisy gait cycles, where force was applied on both plates
 % FP1 - the FP of interest (RFP for positive slopes, LFP for negative slopes.
@@ -95,3 +95,7 @@ if sum(HSIndx(:,2)==0)
     hold on; plot(HSIndx(HSIndx(:,2)==0,1),0,'ko');
 end
 title(['Heel strike and toe-off, at slope ' Slope '%'])
+TOIndx = TOIndx';
+cut = min(length(TOIndx),size(HSIndx,1));
+disp(['TO HS Difference: ' num2str(max(length(TOIndx),size(HSIndx,1)) - cut)]);
+GEIndx = [HSIndx(1:cut,1) TOIndx(1:cut)];
