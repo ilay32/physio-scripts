@@ -1,6 +1,6 @@
 
 %Data analysis - extract heel strike
-clear; close all; clc;
+clear; clc;
 
     
 % choose *.mat file - experiment results and load it
@@ -8,9 +8,11 @@ clear; close all; clc;
 if log_file == 0, error('No log file specified'); end
 absdfile = fullfile(log_path,log_file);
 load(absdfile);
+part = regexp(log_file,'part\d{1}','match');
 
 % define some globals
-titles = {
+stagenames = {'first 0.5 m/s','1.0 m/s', 'second 0.5 m/s', 'adaptation','post adaptation'};
+split_prompts = {
     'Set walking initiation',...
     'Set switching from 0.5 m/s to 1 m/s',...
     'Set switching from 1 m/s to 0.5 m/s',...
@@ -21,8 +23,8 @@ titles = {
     'Set the end of post-adaptation'
 };
 durations = [10,17,17,17,17,115,20]*1000;
-numsplits = length(titles);
-numstages = numsplits/2 + 1;
+numsplits = length(split_prompts);
+numstages = length(stagenames);
 
 
 FP_z(:,1) = R_FP{1}(:,3); % Right
@@ -54,10 +56,10 @@ for side = 1:2
         load(absindfile);
         rlinds(side,:) = ix_final;
     else
-        ix = zeros(numsplits);
+        ix = zeros(1,numsplits);
         Force = FP_z(:,side);
         % plot approximate stages and ask user for marks
-        for split=1:length(titles)
+        for split=1:numsplits
             figure('units','normalized','outerposition',[0 0 1 1]);
             from = sum(ix) + 1;
             if split <= length(durations) 
@@ -66,7 +68,7 @@ for side = 1:2
                 to = size(Force,1); 
             end
             plot(Force(from:to));
-            title([titles{split} suff]);
+            title([split_prompts{split} ' ' suff]);
             xlabel('minutes');
             [t,l] = minutes(1:(to - from));
             xticks(t);
@@ -106,11 +108,38 @@ for side = 1:2
     end
 end
 
+% plot length symmetry of aligned steps of every stage
+for stage=1:numstages
+    fprintf('\nentering %s',stagenames{stage});
+    paired  = AlignSteps(steps(stage,:),1);
+    numsteps = size(paired,1);
+    fprintf('\nfound %d matching steps out of %d left and %d right\n',numsteps,size(steps{stage,2},1),size(steps{stage,1},1));
+    figure('name',['step lengths and symmetry ' part{1}]);
+        
+        subplot(2,1,1);
+        plot((paired(:,1) - paired(:,2)) ./ (paired(:,1) + paired(:,2)));
+        ylabel('symmetry');
+        ylim([-1,1]);
+        title(stagenames{stage});
+        
+        subplot(2,1,2);
+        scatter(1:size(paired,1),paired(:,1),'filled');
+        ylabel('length');
+        ylim([0,1]);
+        hold on;
+        scatter(1:size(paired,1),paired(:,2),'filled');
+        legend({'right','left'});
+        xlabel('step no.');
+        hold off;
+end
+fprintf('\n');
+
 function [ticks,labels] = minutes(sequence)
     global frate;
     ticks = 0:30*frate:length(sequence);
     labels = (0:1:numel(ticks))/2;
 end
+
 
 % [sfile,spath] = uiputfile('*.mat','Save the Step Length Symetry Data');
 % if sfile

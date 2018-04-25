@@ -5,8 +5,8 @@ function [lengths] = StepLengths(start,finish,COPY)
     % start: int starting index for steps
     % finish: int final index for steps
     % COPY: COP data from forceplate along Y axis
-    lookahead = 5;
-    lookbehind = 5;
+    lookahead = 10;
+    lookbehind = 10;
     thresh = 0.2; % 20cm away from Y = 0
     cur = start - lookbehind;
     steps = 0;
