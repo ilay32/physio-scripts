@@ -4,5 +4,7 @@
 !*.js
 !.gitignore
 !wcapp
+!matlabcop
+!*.m
 !*.css
 
