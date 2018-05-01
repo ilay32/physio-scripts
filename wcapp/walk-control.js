@@ -159,9 +159,8 @@ angular.module('walkControl', []).controller(
         },
         walks : {
             researcher: "yogev",
-            distance: 10,
+            distance: 20,
             number: 12,
-            nirs41: Math.random() < 0.5 ? "R" : "L",
             shoe_type: Math.random() < 0.5 ? "normal" : "restep",
             start_time: -1
         },
@@ -169,6 +168,8 @@ angular.module('walkControl', []).controller(
             numtrials: undefined,
             pausetime: undefined
         },
+        nirs41: Math.random() < 0.5 ? "R" : "L",
+        comments : undefined,
         oldfile : undefined,
         newfile: undefined,
         newSubject: false,
@@ -194,7 +195,7 @@ angular.module('walkControl', []).controller(
     $scope.prewalkText = "";
     $scope.stopper_is_running = false;
     $scope.distractorLength = 6;
-    $scope.postWalkDelay = 15;
+    $scope.postWalkDelay = 10;
     $scope.getReadyText = "";
     
     var state = null;
@@ -273,7 +274,7 @@ angular.module('walkControl', []).controller(
         
         ok = s.id != undefined && s.id != "";
         ok = ok && $scope.saveFile;
-        ok = ok && w.nirs41;
+        ok = ok && $scope.glob.nirs41;
         ok = ok && w.researcher != ""; 
         
         if($scope.glob.newSubject) {
@@ -299,7 +300,7 @@ angular.module('walkControl', []).controller(
         $scope.paramsOk = ok;
     }
     
-    // make sure existing date doesn't get
+    // make sure existing data doesn't get
     // written over, and in the single task case,
     // that the average duration is there
     $scope.check_existing = function() {
@@ -343,6 +344,12 @@ angular.module('walkControl', []).controller(
                             $scope.glob.single.numtrials = d.numtrials;
                             $scope.glob.single.pausetime = d.pausetime;
                         }
+                    }
+                    if(d.nirs41 != undefined) {
+                        $scope.glob.nirs41 = d.nirs41;
+                    }
+                    else {
+                        console.log(d);
                     }
                     $scope.checkParams();
                 },
@@ -464,7 +471,6 @@ angular.module('walkControl', []).controller(
     
     $scope.stopper_stop = function() {
         $scope.stopper_is_running = false;
-        $scope.nextDisabled = false;
     }
      
     $scope._stopper_stop = function() {
@@ -474,13 +480,18 @@ angular.module('walkControl', []).controller(
         }
         if(!state.finished) {
             $scope.countDmessage  =  "click next in ";
+            $scope.nextDisabled = true;
             $scope.stopper_countdown(1000,function() {
                 $scope.countDmessage  = "";
+                $scope.nextDisabled = false;
                 $scope.countDtime = undefined;
             },$scope.postWalkDelay*1000);
         }
+        $scope.next();
     }
-
+    
+    // show ascending numbers every 'step' millis, 
+    // then record the data and enter the stop routine
     $scope.stopper_start = function(step) {
         var walk_start = Date.now();
         var round = Math.floor(Math.log10(1000/step));
@@ -498,6 +509,8 @@ angular.module('walkControl', []).controller(
         },step,0,true,walk_start,step,round);
     }
     
+    // show descending numbers starting at 'from' every 'step' millis
+    // then call 'callback'
     $scope.stopper_countdown = function(step,callback,from) {
         if(from < 0) {
             from = parseInt($scope.glob.single.pausetime);
@@ -544,7 +557,6 @@ angular.module('walkControl', []).controller(
     }
     $scope.recloop = function(arr,cur,delay) {
         if(cur == arr.length) {
-            $scope.nextDisabled = false;
             $scope.next();
             if($scope.glob.isSingle) {
                 $scope.stopper_countdown(50,$scope.next,-1);
@@ -561,7 +573,6 @@ angular.module('walkControl', []).controller(
     }
     
     $scope.distractor = function(isdist) {
-        $scope.nextDisabled = true;
         var digits;
         var dl = $scope.distractorLength;
         if(isdist) {
@@ -616,24 +627,10 @@ angular.module('walkControl', []).controller(
             $scope.distractor(state.is_distractor());
         }
         if(state.state == 'walk') {
-            $scope.nextDisabled = true;
             $scope.walkTime = 0;
         }
-        $scope.incNext = ['start','report','digitsboard','trial'].indexOf(state.state) == -1;
+        $scope.incNext = ['start','report','digitsboard','trial','walk'].indexOf(state.state) == -1;
         $scope.incSaveto = state.finished && state.state == 'prewalk';
     }
 }]);
 
-//.directive('reModel', function () {
-//    return {
-//		restrict: 'A',
-//		compile: function (tElement, tAttrs) {
-//			// for some unknown-to-me reason, the input must
-//			// be wrapped in a span or div:
-//			var tplElement = angular.element('<span><input></span>');
-//			var inputEl = tplElement.find('input');
-//			inputEl.attr('ng-model', tAttrs.reModel);
-//			tElement.replaceWith(tplElement);
-//		}
-//	};
-//}); 

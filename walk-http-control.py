@@ -58,7 +58,8 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             self.respond(json.dumps({
                 "sheet_status" : status,
                 "numtrials" : num,
-                "pausetime" : pause
+                "pausetime" : pause,
+                "nirs41" : self.findnirs41(wb) 
             }))
         if command  == 'checkfile':
             f,e = os.path.splitext(post['filename'])
@@ -84,6 +85,13 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 print(str(e))
         #return SimpleHTTPServer.SimpleHTTPRequestHandler.do_POST(self)
     
+    def findnirs41(self,wrkbk):
+        for s in wrkbk.sheetnames:
+            for row in wrkbk[s].iter_rows():
+                if row[0].value == "nirs41": 
+                    return row[1].value
+        return
+
     def findlast(self,file_base):
         f = file_base
         fs = glob.glob(os.path.join(ExpRunner.savedir,f+"([0-9])*"))
@@ -137,12 +145,13 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         # params
         datsheet.append([""])
         glob = p['data']['globals'] 
-        for k in ["nirs41","researcher"]:
-            datsheet.append([k,glob['walks'][k]])
+        datsheet.append(["researcher",glob['walks']['researcher']])
         datsheet.append(["pausetime",glob['single']['pausetime']])
+        if glob.get('comments') is not None:
+            datsheet.append(["comments",glob['comments'].replace("\n"," ")])
         wb.save(filename = dest)
 
-    
+     
     def save_walk_data(self,p):
         dat = p['data'];
         if not os.path.isdir(ExpRunner.savedir):
@@ -187,6 +196,11 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             else:
                 datsheet.cell(row=i,column=1,value=k.replace("_"," "))
                 datsheet.cell(row=i,column=2,value=v)
+        
+        # write the comment if there is one 
+        if dat['globals'].get('comments') is not None:
+            datsheet.append(["comments",dat['globals']['comments'].replace("\n"," ")])
+
         # if not adding to existing file, write the subject details 
         if dat['globals']['newSubject']:
             subsheet = wb.create_sheet(title="subject")
@@ -195,9 +209,8 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                     continue;
                 subsheet.cell(row=i,column=1,value=k.replace("_"," "))
                 subsheet.cell(row=i,column=2,value=v)
-            self.didsubject = True
-
-        # and finally save as "dest"
+            # new subject -- specify their nirs41 location
+            subsheet.append(['nirs41',dat['globals']['nirs41']]) # and finally save as "dest"
         wb.save(filename = dest)
 
 
