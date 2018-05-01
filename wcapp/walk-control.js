@@ -195,7 +195,7 @@ angular.module('walkControl', []).controller(
     $scope.prewalkText = "";
     $scope.stopper_is_running = false;
     $scope.distractorLength = 6;
-    $scope.postWalkDelay = 10;
+    $scope.postWalkDelay = 25;
     $scope.getReadyText = "";
     
     var state = null;
@@ -479,10 +479,10 @@ angular.module('walkControl', []).controller(
             stopper = undefined;
         }
         if(!state.finished) {
-            $scope.countDmessage  =  "click next in ";
+            $scope.countDmessage  =  "starting in";
             $scope.nextDisabled = true;
             $scope.stopper_countdown(1000,function() {
-                $scope.countDmessage  = "";
+                $scope.countDmessage  = "click next";
                 $scope.nextDisabled = false;
                 $scope.countDtime = undefined;
             },$scope.postWalkDelay*1000);
@@ -594,6 +594,7 @@ angular.module('walkControl', []).controller(
     // the heart of it -- translate the next state
     // to the next display (and/or action)
     $scope.next = function(){
+
         $timeout(function() {
             $scope.srvMessage = "";
         },2000);
@@ -604,14 +605,10 @@ angular.module('walkControl', []).controller(
             return;
         }
         state.next();
+        $scope.maincontent = state.state+'.html';
         $scope.prewalkText = "Please prepare subject for"; 
         if(!$scope.glob.isSingle) {
-            if(state.next_is_distractor()){
-                $scope.prewalkText += " distractor task";
-            }
-            else {
-                $scope.prewalkText += " walk "+(state.walk+2)+" countdown";
-            }
+            $scope.prewalkText += " walk "+(state.walk+2)+" "+(state.next_is_distractor() ? "distractor task" : "countdown");
         }
         else {
             $scope.prewalkText += " trial "+(state.trial+2);
@@ -622,8 +619,8 @@ angular.module('walkControl', []).controller(
         if(state.state == 'prewalk' && (state.walk >= 0 || state.trial >= 0)) {
             $scope.save();
         }
-        $scope.maincontent = state.state+'.html';
         if(state.state == 'digitsboard') {
+            $scope.countDmessage = "";
             $scope.distractor(state.is_distractor());
         }
         if(state.state == 'walk') {
