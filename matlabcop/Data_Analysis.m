@@ -1,7 +1,9 @@
-
-%Data analysis - extract heel strike
+% This Programs Analyses 2-plate COP Data
+% First, it (optionally) prompts the user to mark the walking session
+% stages
+% With the stages, it finds step lengths and computes step symmetry
+% accordingly
 clear; clc;
-
     
 % choose *.mat file - experiment results and load it
 [log_file, log_path] = uigetfile('C:\Users\soferil\misc-data\*.mat', 'Select data file');
@@ -91,8 +93,9 @@ for side = 1:2
     end
 end
 
-% find step lengths directly from COP within each stage
+% find HS/TO timings directly from COP within each stage
 for side = 1:2
+    Force = FP_z(:,side);
     COP = R_COP;
     if side == 2
         COP = L_COP;
@@ -102,37 +105,28 @@ for side = 1:2
         if (split > 1 & split < 5) | mod(split,2) == 0
             s = rlinds(side,split-1);
             e = rlinds(side,split);
-            steps{stage,side} = StepLengths(s,e,COP{1,1}(:,1));
+            steps{stage,side} = StepTimes(s,e,COP{1,1}(:,1),Force);
             stage = stage + 1;
         end
     end
 end
 
 % plot length symmetry of aligned steps of every stage
+plotseparate = input('plot the step lenghts and symmetries per-stage? Enter 1 to plot ');
+glob = zeros(0,2);
 for stage=1:numstages
     fprintf('\nentering %s',stagenames{stage});
-    paired  = AlignSteps(steps(stage,:),1);
+    paired  = AlignSteps(steps(stage,:),R_COP{1,1},L_COP{1,1},1);
     numsteps = size(paired,1);
     fprintf('\nfound %d matching steps out of %d left and %d right\n',numsteps,size(steps{stage,2},1),size(steps{stage,1},1));
-    figure('name',['step lengths and symmetry ' part{1}]);
-        
-        subplot(2,1,1);
-        plot((paired(:,1) - paired(:,2)) ./ (paired(:,1) + paired(:,2)));
-        ylabel('symmetry');
-        ylim([-1,1]);
-        title(stagenames{stage});
-        
-        subplot(2,1,2);
-        scatter(1:size(paired,1),paired(:,1),'filled');
-        ylabel('length');
-        ylim([0,1]);
-        hold on;
-        scatter(1:size(paired,1),paired(:,2),'filled');
-        legend({'right','left'});
-        xlabel('step no.');
-        hold off;
+    globsteps = 1;
+    glob = [glob;paired];
+    if plotseparate
+        plotsteps(paired,part{1},stagenames{stage});
+    end 
 end
 fprintf('\n');
+plotsteps(glob,part{1});
 
 function [ticks,labels] = minutes(sequence)
     global frate;
@@ -140,7 +134,39 @@ function [ticks,labels] = minutes(sequence)
     labels = (0:1:numel(ticks))/2;
 end
 
-
+function  plotsteps(paired_steps,prepost,toptitle)
+    figure('name',['step lengths and symmetry ' prepost]);
+    subplot(2,1,1);
+    
+    x = (1:length(paired_steps));
+    y = ((paired_steps(:,1) - paired_steps(:,2)) ./ (paired_steps(:,1) + paired_steps(:,2)))';
+    symsd = std(y);
+    
+    fill([x,fliplr(x)],[y + symsd,fliplr(y - symsd)],[0.75,0.75,0.75],'LineStyle','none');
+    hold on;
+    if nargin == 3
+        title(toptitle);
+    else
+        title(prepost);
+    end
+  
+    plot(x,mean(y)*ones(1,size(x,2)));
+    plot(x,y);
+    ylabel('steplength symmetry');
+    ylim([-1,1]);
+    legend('1 SD','mean','symmetry');
+    hold off;
+    
+    subplot(2,1,2);
+    scatter(1:size(paired_steps,1),paired_steps(:,1),'filled');
+    ylabel('length');
+    ylim([0,1]);
+    hold on;
+    scatter(1:size(paired_steps,1),paired_steps(:,2),'filled');
+    legend({'right','left'});
+    xlabel('step no.');
+    hold off;
+end
 % [sfile,spath] = uiputfile('*.mat','Save the Step Length Symetry Data');
 % if sfile
 %     save(fullfile(spath,sfile),Symm);

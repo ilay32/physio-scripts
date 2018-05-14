@@ -1,4 +1,4 @@
-function [lengths] = StepLengths(start,finish,COPY)
+function [timings] = StepTimes(start,finish,COPY,Fz)
     % this function takes cleaned COP data from one plate and a global index range
     % and returns step lengths along with their global indices. 
     % Every row represents a step: [ start(ind) length(meters) end(ind) ]
@@ -10,12 +10,21 @@ function [lengths] = StepLengths(start,finish,COPY)
     thresh = 0.2; % 20cm away from Y = 0
     cur = start - lookbehind;
     steps = 0;
+    proportion = 0.3;
+    weight = mean(findpeaks(Fz,'MinPeakDistance',100))/2; %very simplistically
+    assert(weight > 300, 'subject is too light ~ 30kg');
+    assert(weight < 2000, 'subject is too heavy ~ 200kg');
+    halfweight = proportion * weight;
     while cur <= finish
         % heel strike is the first numeric value in step
         while isnan(COPY(cur)) | COPY(cur) < thresh
             cur = cur + 1;
         end
-        % found the HS so step start = cur
+        % found the HS so step starts when force on the plate is at least halfweight
+        while Fz(cur) < halfweight
+            cur = cur + 1;
+        end
+        
         step_start = cur;
         
         % scan a lookahead window for all NaN or very small
@@ -24,7 +33,7 @@ function [lengths] = StepLengths(start,finish,COPY)
             % reset the end index each time. see comment below.
             step_end = 0;
             forward = COPY(cur:cur+lookahead);
-            if all(isnan(forward) | forward < thresh)
+            if all(isnan(forward) | forward < thresh) | all(Fz(cur:cur+lookahead) < halfweight)
                 step_end = cur-1;
             elseif cur  > finish - lookahead
                 disp(forward);
@@ -35,11 +44,13 @@ function [lengths] = StepLengths(start,finish,COPY)
         
         % if step_end = 0 it means the stage finish mark is in the middle
         % of a step on this plate
-        if step_end  - step_start > lookbehind
+        if step_end  > step_start
             steps = steps + 1;
-            step = COPY(step_start + lookahead:step_end - lookbehind);
+            step = COPY(step_start:step_end);
+            [~,mxind] = max(step);
+            [~,mnind] = min(step);
             if max(step) > min(step)
-                lengths(steps,:) = [step_start, max(step) - min(step),step_end];
+                timings(steps,:) = [step_start + mxind,step_start + mnind]; % HS TO
             else
                 disp(step);
             end
