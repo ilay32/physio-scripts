@@ -7,14 +7,17 @@ body,html {
 #main {
     height: calc(100% - 100px);
 }
-#server-message {
+.corner-message {
     position: fixed;
     top:0;
-    left:0;
     height: 30px;
     padding: 10px;
-    background-color: #efe899;
     z-index:1;
+}
+
+#server-message  {
+    left:0;
+    background-color: #efe899;
 }
 
 
@@ -69,14 +72,29 @@ input.flexwidth{
     min-height: 200px;
     position: relative;
 }
-#stopper > span {
+#stopper > * {
+    margin-top: 40px;
     font-size: 80px;
     display:inline-block;
-    margin-top: 40px;
 }
-#stopper > .report {
+#stopper .report-char {
+    border-bottom: 2px solid;
+    color: white;
+    font-weight: bold;
+    display: block;
+    width: 50px;
+    height: 100px;
+}
+
+#report {
     left: 35%;
 }
+
+#report td {
+    padding: 10px 20px;
+    border-bottom: none;
+}
+
 #stopper > .distract {
     font-size: 200px;
 }
@@ -88,6 +106,22 @@ input.flexwidth{
 /* report */
 button.keyboard {
     margin: 10px;
+}
+
+/* get ready */
+#get-ready-overlay {
+    position: fixed;
+    opacity: 0.4;
+    color: black;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    text-align: center;
+}
+#get-ready-overlay span {
+    top: 5%;
+    display: inline-block;
 }
 /* util */
 .button-stop {
@@ -130,7 +164,8 @@ button.keyboard {
     background-color: #587a4f;
 }
 .button-primary:disabled, .button-primary:disabled:hover {
-    background-color: #7fb4c4;
+    background-color: #cacfd1;
+    border-color:#ccc;
 }
 
 button:disabled {

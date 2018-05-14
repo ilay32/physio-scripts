@@ -17,10 +17,10 @@
     </head>
        
     <body ng-controller="RunExp">
-        <div id="server-message" ng-show="srvMessage">
+        <div id="server-message" class="corner-message" ng-show="srvMessage">
             {{srvMessage}}
         </div>
-        <center id="main" ng-include="maincontent" class="row"> </center>
+         <center id="main" ng-include="maincontent" class="row"> </center>
         <div id="footer" class="row">
             <button class="button-primary" ng-click="next()" ng-show="incNext" ng-disabled="nextDisabled">next</button>
             <button ng-click="download()" ng-show="incSaveto">save to</button>

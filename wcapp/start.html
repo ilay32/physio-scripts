@@ -61,30 +61,30 @@
                 Shoe Type:
             </label>
             <div class="radios">
+                <input type="radio" value="normal" ng-model="glob.walks.shoe_type" >
                 <label>
                     Normal
                 </label>
-                <input type="radio" value="normal" ng-model="glob.walks.shoe_type" >
+                <input type="radio" value="restep" ng-model="glob.walks.shoe_type"> 
                 <label>
                     Re-Step
                 </label>
-                <input type="radio" value="restep" ng-model="glob.walks.shoe_type"> 
             </div>
         </div>
-        <div>
+        <div ng-show="glob.newSubject">
             <label>
-                <img class="inputok" ng-show="glob.walks.nirs41" src="check.png"/>
+                <img class="inputok" ng-show="glob.nirs41" src="check.png"/>
                 NIRS 41 Side:
             </label>
             <div class="radios">
+                <input type="radio" ng-model="glob.nirs41" value="R">
                 <label>
                     Right 
                 </label>
-                <input type="radio" ng-model="glob.walks.nirs41" value="R">
+                <input type="radio" ng-model="glob.nirs41" value="L" >
                 <label>
                     Left
                 </label>
-                <input type="radio" ng-model="glob.walks.nirs41" value="L" >
             </div>
         </div>
                 
@@ -109,14 +109,15 @@
                 Gender:
             </label>
             <div class="radios">
+                <input type="radio"  ng-model="glob.subject.gender" value="F" >
                 <label>
                     F
                 </label>
-                <input type="radio"  ng-model="glob.subject.gender" value="F" >
+
+                <input type="radio"  ng-model="glob.subject.gender" value="M" >
                 <label>
                     M
                 </label>
-                <input type="radio"  ng-model="glob.subject.gender" value="M" >
             </div>
         </div>
         <div>
@@ -149,14 +150,18 @@
                 Glasses:
             </label>
             <div class="radios">
+                <input type="radio"  ng-model="glob.subject.glasses" value="reading" >
                 <label>
-                    Y
+                    Reading
                 </label>
-                <input type="radio"  ng-model="glob.subject.glasses" value="Y" >
+                <input type="radio"  ng-model="glob.subject.glasses" value="driving"  >
                 <label>
-                    N
+                    Driving
                 </label>
-                <input type="radio"  ng-model="glob.subject.glasses" value="N"  >
+                <input type="radio" ng-model="glob.subject.glasses" value="none" />
+                <label>
+                    None
+                </label>
             </div>
         </div>
         <div>
@@ -166,14 +171,14 @@
                 Dominance (leg):
             </label>
             <div class="radios">
+                <input type="radio"  ng-model="glob.subject.dominance" value="L" >
                 <label>
                     L
                 </label>
-                <input type="radio"  ng-model="glob.subject.dominance" value="L" >
+                <input type="radio"  ng-model="glob.subject.dominance" value="R" >
                 <label>
                     R
                 </label>
-                <input type="radio"  ng-model="glob.subject.dominance" value="R" >
             </div>
         </div>
         <div>
@@ -213,12 +218,20 @@
             </label>
             <input name="stime" class="flexwidth" type="number" ng-model="glob.subject.stance_time" min="10" max="50" >
         </div>
-</div>	
+    </div>	
+    <div>
+        <label for="comments">
+            Comments:
+        </label>
+        <textarea name="comments" class="flexwidth" ng-model="glob.comments"></textarea>
+    </div>
     <center class="row">
-
         <button class="button-drastic" ng-click="terminate()">exit</button>
         <button class="button-primary" ng-disabled="!paramsOk" ng-click="initialize()" />
             start the experiment
+        </button>
+        <button class="button-go" ng-click="demo_sequence()">
+            start demo
         </button>
     </center>
 </form>

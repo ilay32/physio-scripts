@@ -1,10 +1,7 @@
-import tkFileDialog,serial,time,re,os,logging,threading
+import serial,time,re,os,logging,threading
 import serial.tools.list_ports as list_ports
 import pandas as pd
-import Tkinter as tk
-from Tkinter import Tk,Label,Button,Entry,Scale,StringVar
-from guihelpers import FileActionGUI
-from tkMessageBox import showerror
+from guihelpers import *
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('walkspeed')
@@ -21,6 +18,8 @@ class ArduinoSonarRecorder(object):
         self.connect()
 
     def start(self):
+        self.marks = list()
+        self.durations = list()
         cond = threading.Thread(None,self.get_walks)
         cond.start()
         self.cond = cond
@@ -49,10 +48,10 @@ class ArduinoSonarRecorder(object):
         self.last_reset = time.time()
         self.ardi.write(b'r')
         while self.recording:
-            line = self.ardi.readline()
-            read_time = time.time() 
+            line = self.ardi.readline().decode('ascii')
             if line:
                 if "tracker reset" in line:
+                    read_time = time.time() 
                     lag = (read_time - self.last_reset)/2
                     if lag > 50:
                         logger.warning("unusual lag: {:f}".format(lag))
@@ -61,13 +60,13 @@ class ArduinoSonarRecorder(object):
                 # c means walk commenced, e means walk ended
                 # the third option is n, no futher data at this point
                 c = self.ardi.read()
-                if c == 'c':
+                if c == b'c':
                     self.marks.append(int(self.ardi.readline()))
-                elif c == 'e':
+                elif c == b'e':
                     self.durations.append(int(self.ardi.readline())) 
         self.ardi.write(b's')
         conclusion = self.ardi.readline()
-        logger.info(conclusion)
+        logger.info(conclusion.decode('ascii'))
 
     def stop(self):
         self.recording = False

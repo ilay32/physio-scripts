@@ -1,7 +1,13 @@
 <div id="stopper" class="row">
-    <span class="report">
-        {{seqEntered}}
-    </span>
+    <table id="report" cellspacing="20">
+        <tr>
+            <td ng-repeat="i in reportSlots">
+                <span class="report-char">
+                    {{seqEntered.charAt(i)}}
+                </span>
+            </td>
+        </tr>
+    </table>
 </div>
 <div id="keyboard" >
     <button ng-repeat="k in reportKeys" class="keyboard" ng-click="rpress(k)">{{k}}</button>
