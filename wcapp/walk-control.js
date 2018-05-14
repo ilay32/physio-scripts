@@ -684,7 +684,7 @@ angular.module('walkControl', []).controller(
             $scope.walkTime = 0;
         }
         $scope.incNext = ['start','report','digitsboard','trial','walk'].indexOf(state.state) == -1;
-        $scope.incSaveto = state.finished && state.state == 'prewalk';
+        $scope.incSaveto = state.finished && state.state == 'prewalk' && !$scope.isDemo;
     }
 }]);
 
