@@ -72,14 +72,29 @@ input.flexwidth{
     min-height: 200px;
     position: relative;
 }
-#stopper > span {
+#stopper > * {
+    margin-top: 40px;
     font-size: 80px;
     display:inline-block;
-    margin-top: 40px;
 }
-#stopper > .report {
+#stopper .report-char {
+    border-bottom: 2px solid;
+    color: white;
+    font-weight: bold;
+    display: block;
+    width: 50px;
+    height: 100px;
+}
+
+#report {
     left: 35%;
 }
+
+#report td {
+    padding: 10px 20px;
+    border-bottom: none;
+}
+
 #stopper > .distract {
     font-size: 200px;
 }
@@ -149,7 +164,8 @@ button.keyboard {
     background-color: #587a4f;
 }
 .button-primary:disabled, .button-primary:disabled:hover {
-    background-color: #7fb4c4;
+    background-color: #cacfd1;
+    border-color:#ccc;
 }
 
 button:disabled {

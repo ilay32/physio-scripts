@@ -47,7 +47,12 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         if command  == "check_existing":
             dest = os.path.join(ExpRunner.savedir,post['filename'])
             wb = load_workbook(dest)
-            status = "exists" if post['savesheet'] in wb.sheetnames else "absent"
+            attempted = post['savesheet'] 
+            other = 'restep' if attempted == 'normal' else 'normal'
+            status = "exists" if attempted in wb.sheetnames else "absent"
+            if status == "exists" and other in wb.sheetnames and attempted != "single":
+                status = "both_exist"
+            firstcond = self.find_in_kvrow(wb,"first condition") 
             num,pause = "",""
             if post['savesheet'] == "single":
                 try:
@@ -57,9 +62,10 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                     return
             self.respond(json.dumps({
                 "sheet_status" : status,
+                "first" : firstcond,
                 "numtrials" : num,
                 "pausetime" : pause,
-                "nirs41" : self.findnirs41(wb) 
+                "nirs41" : self.find_in_kvrow(wb,"nirs41") 
             }))
         if command  == 'checkfile':
             f,e = os.path.splitext(post['filename'])
@@ -85,10 +91,10 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 print(str(e))
         #return SimpleHTTPServer.SimpleHTTPRequestHandler.do_POST(self)
     
-    def findnirs41(self,wrkbk):
+    def find_in_kvrow(self,wrkbk,field):
         for s in wrkbk.sheetnames:
             for row in wrkbk[s].iter_rows():
-                if row[0].value == "nirs41": 
+                if row[0].value == field:
                     return row[1].value
         return
 
@@ -117,7 +123,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 dur = r[cols.index('duration')].value
                 dig = r[cols.index('distractor digits')].value
                 if dig and str.isdigit(dig):
-                    durations.append(dur)
+                    durations.append(dur*1000)
         if(len(durations) > 0):
             n,a = math.floor(len(durations)/2),float(sum(durations))/len(durations)
             print("single: {:d} trials with {:.3f} pausetime".format(n,a))
@@ -129,39 +135,56 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         dest = os.path.join(ExpRunner.savedir,p['savefile'])
         sheetname = 'single'
         wb = load_workbook(dest)
+        g = p['data']['globals'] 
+        start = g['start_time']
         if sheetname in wb.sheetnames:
             s = wb[sheetname]
             wb.remove(s)
         datsheet = wb.create_sheet(sheetname)
         
         # header row
-        datsheet.append(["trial no.", "sequence","answer"])
-        
+        datsheet.append(["trial no.", "retention start","sequence","answer"])
         # data
         for i,t in enumerate(p['data']['trialdata'],1):
-            row = [i,t[0],t[1]]
+            s,r,a = t; # sequence retention (starting point) answer
+            row = [i,float(r - start)/1000,s,a]
             datsheet.append(row)
         
         # params
         datsheet.append([""])
-        glob = p['data']['globals'] 
-        datsheet.append(["researcher",glob['walks']['researcher']])
-        datsheet.append(["pausetime",glob['single']['pausetime']])
-        if glob.get('comments') is not None:
-            datsheet.append(["comments",glob['comments'].replace("\n"," ")])
+        datsheet.append(["researcher",g['walks']['researcher']])
+        datsheet.append(["pausetime",float(g['single']['pausetime'])/100])
+        self.comment_and_start(g,datsheet)
         wb.save(filename = dest)
 
-     
+    def comment_and_start(self,globj,wbsheet):
+        # write the start time 
+        start = globj['start_time']
+        abstart = float(start)/1000
+        wbsheet.append([
+            "start:",
+            time.ctime(abstart),
+            "unix stamp:",
+            abstart
+        ])
+
+        # write the comment if there is one 
+        if globj.get('comments') is not None:
+            wbsheet.append(["preliminary comments",globj['comments'].replace("\n"," ")])
+        if globj.get('postcomments') is not None:
+            wbsheet.append(["post hoc comments",globj['postcomments'].replace("\n"," ")])
+ 
     def save_walk_data(self,p):
         dat = p['data'];
         if not os.path.isdir(ExpRunner.savedir):
             os.mkdir(ExpRunner.savedir)
         dest = os.path.join(ExpRunner.savedir,p['savefile'])
-        subj = dat['globals']['subject']
-        walks = dat['globals']['walks']
-        start = walks['start_time']
+        g = dat['globals']
+        subj = g['subject']
+        walks = g['walks']
+        start = g['start_time']
         sheetname = p['savesheet']
-        if dat['globals']['newSubject']: 
+        if g['newSubject']: 
             wb = Workbook()
             datsheet = wb.active
             datsheet.title = sheetname
@@ -179,7 +202,8 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         # data
         for i,w in enumerate(dat['walkdata']):
             isdist = str(i) in dat['distractions'].keys()
-            row = [i+1,w[0],w[1],w[0] - start, w[1] - start, w[1] - w[0],float(1000*walks['number'])/(w[1] - w[0])]
+            s,e = w;
+            row = [i+1,s,e,float(s - start)/1000, float(e - start)/1000,float(e - s)/1000,1000*float(walks['distance'])/(e - s)]
             if isdist: 
                 row += dat['distractions'][str(i)]
             else:
@@ -187,22 +211,14 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             datsheet.append(row)
 
         # write the parameters in the same sheet
-        for i,(k,v) in enumerate(walks.items(),len(dat['walkdata'])+3):  
-            if k == 'start_time' :
-                datsheet.cell(row=i,column=1,value="start:")
-                datsheet.cell(row=i,column=2,value=time.ctime(float(start)/1000))
-                datsheet.cell(row=i,column=3,value="unix stamp:")
-                datsheet.cell(row=i,column=4,value=float(start)/1000)
-            else:
-                datsheet.cell(row=i,column=1,value=k.replace("_"," "))
-                datsheet.cell(row=i,column=2,value=v)
+        for i,(k,v) in enumerate(walks.items(),len(dat['walkdata'])+3):
+            datsheet.cell(row=i,column=1,value=k.replace("_"," "))
+            datsheet.cell(row=i,column=2,value=v)
         
-        # write the comment if there is one 
-        if dat['globals'].get('comments') is not None:
-            datsheet.append(["comments",dat['globals']['comments'].replace("\n"," ")])
+        self.comment_and_start(g,datsheet)
 
         # if not adding to existing file, write the subject details 
-        if dat['globals']['newSubject']:
+        if g['newSubject']:
             subsheet = wb.create_sheet(title="subject")
             for i,(k,v) in enumerate(subj.items(),1):
                 if subj['regular_sport'] == "none" and k == 'weekly_minutes':
@@ -210,7 +226,9 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 subsheet.cell(row=i,column=1,value=k.replace("_"," "))
                 subsheet.cell(row=i,column=2,value=v)
             # new subject -- specify their nirs41 location
-            subsheet.append(['nirs41',dat['globals']['nirs41']]) # and finally save as "dest"
+            subsheet.append(['nirs41',g['nirs41']]) 
+            subsheet.append(['first condition',walks['shoe_type']])
+            # and finally save as "dest"
         wb.save(filename = dest)
 
 
@@ -227,8 +245,8 @@ def killserver():
 
 
 if __name__ == '__main__':
-    if platform.machine() == "armv71":
-        os.chdir(os.path.dirname(__file__))
+    # on android this has to be manually uncommented
+    #os.chdir(os.path.dirname(__file__))
     server_go = threading.Thread(None,runserver)
     server_stop = threading.Thread(None,killserver)
     server_stop.setDaemon(True)

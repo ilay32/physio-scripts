@@ -1,7 +1,20 @@
-<h2>
-    {{prewalkText}}
-    <br>
-    <span id="postwalk-countdown" ng-show="countDmessage">
-        {{countDmessage}} {{countDtime}}
-    </span>
-</h2>
+<div class="row">
+    <h2 class="twelve columns">
+        {{prewalkText}}
+        <br>
+        <span id="postwalk-countdown" ng-show="countDmessage">
+            {{countDmessage}} {{countDtime}}
+        </span>
+    </h2>
+    <div ng-show="!countDmessage">
+        <div class="three columns">
+            <label for="postcomments">
+                Comments:
+            </label>
+        </div>
+        <div class="nine columns">
+            <textarea class="u-full-width" name="postcomments" class="flexwidth" ng-model="glob.postcomments"></textarea>
+        </div>
+    </div>
+</div>
+

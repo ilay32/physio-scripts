@@ -161,15 +161,16 @@ angular.module('walkControl', []).controller(
             researcher: "yogev",
             distance: 20,
             number: 12,
-            shoe_type: Math.random() < 0.5 ? "normal" : "restep",
-            start_time: -1
+            shoe_type: Math.random() < 0.5 ? "normal" : "restep"
         },
         single: {
             numtrials: undefined,
             pausetime: undefined
         },
+        start_time: -1,
         nirs41: Math.random() < 0.5 ? "R" : "L",
         comments : undefined,
+        postcomments: undefined,
         oldfile : undefined,
         newfile: undefined,
         newSubject: false,
@@ -178,6 +179,7 @@ angular.module('walkControl', []).controller(
     
     /** helper vars **/
     $scope.saveFile = undefined;
+    $scope.isDemo = false;
     $scope.saveSheet = undefined;
     $scope.paramsOk = false;
     $scope.incSaveto = false;
@@ -194,9 +196,10 @@ angular.module('walkControl', []).controller(
     $scope.maincontent = "start.html";
     $scope.prewalkText = "";
     $scope.stopper_is_running = false;
-    $scope.distractorLength = 6;
+    $scope.distractorLength = undefined;
+    $scope.reportSlots = [];
     $scope.postWalkDelay = 25;
-    $scope.getReadyText = "";
+    
     
     var state = null;
     var stopper = undefined;
@@ -224,6 +227,16 @@ angular.module('walkControl', []).controller(
         $scope.glob.oldfile = input.value.replace("C:\\fakepath\\","");
         $scope.check_existing();
     }
+
+    $scope.set_distractor_length = function(l) {
+        $scope.reportSlots = [];
+        for(i=0;i<l;i++) {
+            $scope.reportSlots.push(i);
+        }
+        $scope.distractorLength = l;
+    }
+
+    $scope.set_distractor_length(6);
 
     $scope.$watch("glob",function(n,v) {
         var checkexisting = false;
@@ -276,6 +289,7 @@ angular.module('walkControl', []).controller(
         ok = ok && $scope.saveFile;
         ok = ok && $scope.glob.nirs41;
         ok = ok && w.researcher != ""; 
+        ok = ok && $scope.glob.start_time == -1;
         
         if($scope.glob.newSubject) {
             ok = ok && (s.age >= 10) &&  (s.age <= 120);
@@ -294,9 +308,8 @@ angular.module('walkControl', []).controller(
         
         if(!$scope.glob.isSingle) {
             ok = ok && w.distance > 4;
-            ok = ok && w.start_time == -1;
         }
-         
+        
         $scope.paramsOk = ok;
     }
     
@@ -332,10 +345,10 @@ angular.module('walkControl', []).controller(
                 function succ(r) {
                     var d = r.data;
                     $scope.saveFile = $scope.glob.oldfile; 
-                    if(d.sheet_status == "exists") {
-                        $scope.srvMessage = "The file "+f+" already includes a " + $scope.saveSheet+" sheet. This will write over it.";
-                    }
                     if($scope.glob.isSingle) {
+                        if(d.sheet_status == "exists") {
+                            $scope.srvMessage = "The file "+f+" already includes a single sheet. This will write over it.";
+                        }
                         if(d.error) {
                             $scope.srvMessage = d.error;
                             $scope.saveFile = undefined;
@@ -343,6 +356,19 @@ angular.module('walkControl', []).controller(
                         else {
                             $scope.glob.single.numtrials = d.numtrials;
                             $scope.glob.single.pausetime = d.pausetime;
+                        }
+                    }
+                    else {
+                        if(d.sheet_status == "both_exist") {
+                            $scope.srvMessage = "The file "+f+" already includes both normal and restep sheets. If you continue, the "+$scope.saveSheet +" sheet will be written over";
+                        }
+                        else {
+                            if(d.sheet_status == "exists") {
+                                $scope.glob.walks.shoe_type = $scope.saveSheet == 'restep' ? 'normal' : 'restep';
+                            }
+                            if($scope.glob.walks.shoe_type == d.first) {
+                                $scope.srvMessage = "Something is wrong. Call Ilay and don't continue";
+                            }
                         }
                     }
                     if(d.nirs41 != undefined) {
@@ -374,7 +400,9 @@ angular.module('walkControl', []).controller(
     // keyboard
 	$scope.rpress = function(k) {
         if($scope.reportKeys.indexOf(parseInt(k)) > -1 || k == '*') {
-            $scope.seqEntered += k;
+            if($scope.seqEntered.length < $scope.distractorLength) {
+                $scope.seqEntered += k;
+            }
         }
         else if(k == 'fixone') {
             $scope.seqEntered = $scope.seqEntered.substring(0,$scope.seqEntered.length - 1);
@@ -397,16 +425,28 @@ angular.module('walkControl', []).controller(
         }
     };
     
+    $scope.demo_sequence = function() {
+        $scope.isDemo = true;
+        $scope.glob.walks.number = 6;
+        $scope.set_distractor_length(3);
+        $scope.postWalkDelay = 2;
+        $scope.glob.isSingle = false;
+        $scope.initialize();
+    }
+
     $scope.initialize = function() {
+        $scope.glob.start_time = Date.now();
         if(!$scope.glob.isSingle) { 
             state = new stateCycler($scope.glob.walks.number);
-            $scope.glob.walks.start_time = Date.now();
         } 
         else {
             state = new singletaskCycler($scope.glob.single.numtrials);
         }
-        $scope.srvMessage = "data will be saved to "+$scope.saveFile+"/"+$scope.saveSheet;
-        log.globals = $scope.glob; 
+        if(!$scope.isDemo) {
+            $scope.srvMessage = "data will be saved to "+$scope.saveFile+"/"+$scope.saveSheet;
+            log.globals = $scope.glob; 
+        }
+        $scope.post_walk();
         $scope.next();
     }
     
@@ -443,6 +483,7 @@ angular.module('walkControl', []).controller(
 
     /** button actions **/
     $scope.download = function() {
+        $scope.save();
         if($scope.numSaves < 1) {
             $scope.srvMessage = "nothing to save yet";
             return;
@@ -479,17 +520,24 @@ angular.module('walkControl', []).controller(
             stopper = undefined;
         }
         if(!state.finished) {
-            $scope.countDmessage  =  "starting in";
-            $scope.nextDisabled = true;
-            $scope.stopper_countdown(1000,function() {
-                $scope.countDmessage  = "click next";
-                $scope.nextDisabled = false;
-                $scope.countDtime = undefined;
-            },$scope.postWalkDelay*1000);
+            $scope.post_walk();
         }
         $scope.next();
     }
     
+    $scope.post_walk = function() {
+        if(state.finished) {
+            return;
+        }
+        $scope.nextDisabled = true;
+        $scope.countDmessage = "starting in";
+        $scope.stopper_countdown(1000,function() {
+            $scope.countDmessage  = "click next";
+            $scope.nextDisabled = false;
+            $scope.countDtime = undefined;
+        },$scope.postWalkDelay*1000);
+    };
+
     // show ascending numbers every 'step' millis, 
     // then record the data and enter the stop routine
     $scope.stopper_start = function(step) {
@@ -512,9 +560,6 @@ angular.module('walkControl', []).controller(
     // show descending numbers starting at 'from' every 'step' millis
     // then call 'callback'
     $scope.stopper_countdown = function(step,callback,from) {
-        if(from < 0) {
-            from = parseInt($scope.glob.single.pausetime);
-        }
         var round = Math.floor(Math.log10(1000/step));
         duration = from - (from % step);
         $scope.countDtime = frep(duration/1000,round);
@@ -534,6 +579,9 @@ angular.module('walkControl', []).controller(
     
     // save the data
     $scope.save = function() {
+        if($scope.isDemo) {
+            return;
+        }
         $http.post('/', {
             command: 'save',
             data : log,
@@ -559,7 +607,12 @@ angular.module('walkControl', []).controller(
         if(cur == arr.length) {
             $scope.next();
             if($scope.glob.isSingle) {
-                $scope.stopper_countdown(50,$scope.next,-1);
+                // register the timer start time
+                log.trialdata[parseInt(state.trial)].push(Date.now());
+                $scope.stopper_countdown(50,function() {
+                    $scope.next();
+                    $scope.post_walk();
+                },parseInt($scope.glob.single.pausetime));
             }
             else  {
                 $scope.stopper_start(50);
@@ -578,7 +631,7 @@ angular.module('walkControl', []).controller(
         if(isdist) {
             digits = randomK(dl,10);
             if($scope.glob.isSingle) {
-                log.trialdata.push([digits.join("")]);
+                log.trialdata[parseInt(state.trial)] = [digits.join("")];
             }
             else {
                 log.distractions[state.walk] = [digits.join("")];
@@ -594,27 +647,31 @@ angular.module('walkControl', []).controller(
     // the heart of it -- translate the next state
     // to the next display (and/or action)
     $scope.next = function(){
-
         $timeout(function() {
             $scope.srvMessage = "";
         },2000);
-        
         if(state.state == 'prewalk' && state.finished) {
+            $scope.save();
             delete state;
             window.location.replace('http://localhost:8000/wcapp/'); 
             return;
         }
         state.next();
         $scope.maincontent = state.state+'.html';
-        $scope.prewalkText = "Please prepare subject for"; 
-        if(!$scope.glob.isSingle) {
-            $scope.prewalkText += " walk "+(state.walk+2)+" "+(state.next_is_distractor() ? "distractor task" : "countdown");
+        var k = "",
+            n = "";
+        if($scope.glob.isSingle) {
+            k = "D";
+            n = state.trial + 2;
         }
         else {
-            $scope.prewalkText += " trial "+(state.trial+2);
+            k = state.next_is_distractor() ? "D" : "C";
+            n = state.walk + 2;
         }
+        $scope.prewalkText = k+n;
         if(state.finished) {
             $scope.prewalkText = "The End";
+            $scope.countDmessage = "";
         }
         if(state.state == 'prewalk' && (state.walk >= 0 || state.trial >= 0)) {
             $scope.save();
