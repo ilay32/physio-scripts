@@ -37,7 +37,10 @@ class FileActionGUI(object):
     
     
     def define_file(self):
-        specific = askopenfilename(filetypes=[("Data Sheets", "*Analyzed.xls*")],initialdir=self.home)
+        announcer = "Data File"
+        types = ["xls*","csv","tsv","txt"]
+        ftypes = [(announcer,"*"+t) for t in types]
+        specific = askopenfilename(filetypes=ftypes,initialdir=self.home)
         if specific:
             try:
                 assert os.path.isfile(specific), "something's wrong. can't locate {:s}".format(specific)

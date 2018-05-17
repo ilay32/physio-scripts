@@ -16,10 +16,8 @@ class ArduinoSonarRecorder(object):
         self.cond = None
         self.ardi = None
         self.connect()
-
+    
     def start(self):
-        self.marks = list()
-        self.durations = list()
         cond = threading.Thread(None,self.get_walks)
         cond.start()
         self.cond = cond
@@ -42,10 +40,12 @@ class ArduinoSonarRecorder(object):
         self.ardi.close()
 
     def get_walks(self):
-        self.durations  = list()
+        self.durations = list()
         self.marks = list()
         self.recording = True
+        reset_acknowledged = False
         self.last_reset = time.time()
+        # issue the reset command
         self.ardi.write(b'r')
         while self.recording:
             line = self.ardi.readline().decode('ascii')
@@ -55,15 +55,19 @@ class ArduinoSonarRecorder(object):
                     lag = (read_time - self.last_reset)/2
                     if lag > 50:
                         logger.warning("unusual lag: {:f}".format(lag))
-                logger.info(line)
-                # actual data will follow a log line
-                # c means walk commenced, e means walk ended
-                # the third option is n, no futher data at this point
-                c = self.ardi.read()
-                if c == b'c':
-                    self.marks.append(int(self.ardi.readline()))
-                elif c == b'e':
-                    self.durations.append(int(self.ardi.readline())) 
+                    reset_acknowledged = True
+                if not reset_acknowledged:
+                    logger.warning("dumping "+line)
+                else:
+                    logger.info(line)
+                    # actual data will follow a log line
+                    # c means walk commenced, e means walk ended
+                    # the third option is n, no futher data at this point
+                    c = self.ardi.read()
+                    if c == b'c':
+                        self.marks.append(int(self.ardi.readline()))
+                    elif c == b'e':
+                        self.durations.append(int(self.ardi.readline())) 
         self.ardi.write(b's')
         conclusion = self.ardi.readline()
         logger.info(conclusion.decode('ascii'))
@@ -142,9 +146,11 @@ class GUI(FileActionGUI):
             logger.warning("Incorrect Number of Walks", "please set the number of walks to a number between 1 and 20")
         if w != len(durations):
             logger.warning("recording set for {:d} walks, but {:d} were measured".format(w,len(durations)))
-        self.save()
-
-
+        if len(durations) > 0:
+            self.save()
+        else:
+            logger.warning("no data to save")
+    
     def dir_action(self):
         self.recorder.start()
 
