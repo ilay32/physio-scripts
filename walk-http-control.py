@@ -153,7 +153,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         # params
         datsheet.append([""])
         datsheet.append(["researcher",g['walks']['researcher']])
-        datsheet.append(["pausetime",float(g['single']['pausetime'])/100])
+        datsheet.append(["pausetime",float(g['single']['pausetime'])/1000])
         self.comment_and_start(g,datsheet)
         wb.save(filename = dest)
 
