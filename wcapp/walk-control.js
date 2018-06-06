@@ -636,10 +636,12 @@ angular.module('walkControl', []).controller(
             else {
                 log.distractions[state.walk] = [digits.join("")];
             }
+            // just for the display
+            digits.push('GO');
         }
         else {
             //digits = Array(dl).fill(1).map((x, y) => x + dl - y - 1);
-            digits = ['GO','A','B','C','D','E','F','G','H','I','J'].slice(0,dl).reverse();
+            digits = ['GO','A','B','C','D','E','F','G','H','I','J'].slice(0,dl+1).reverse();
         }
         $timeout($scope.recloop,2000,true,digits,0,1000);
     }
