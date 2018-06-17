@@ -636,10 +636,12 @@ angular.module('walkControl', []).controller(
             else {
                 log.distractions[state.walk] = [digits.join("")];
             }
+            // just for the display
+            digits.push('GO');
         }
         else {
             //digits = Array(dl).fill(1).map((x, y) => x + dl - y - 1);
-            digits = ['GO','A','B','C','D','E','F','G','H','I','J'].slice(0,dl).reverse();
+            digits = ['GO','A','B','C','D','E','F','G','H','I','J'].slice(0,dl+1).reverse();
         }
         $timeout($scope.recloop,2000,true,digits,0,1000);
     }
@@ -684,7 +686,7 @@ angular.module('walkControl', []).controller(
             $scope.walkTime = 0;
         }
         $scope.incNext = ['start','report','digitsboard','trial','walk'].indexOf(state.state) == -1;
-        $scope.incSaveto = state.finished && state.state == 'prewalk' && !$scope.isDemo;
+        $scope.incSaveto = false; //state.finished && state.state == 'prewalk' && !$scope.isDemo;
     }
 }]);
 
