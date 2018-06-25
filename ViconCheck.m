@@ -1,2805 +1,1139 @@
-function ViconCheck()
-%% FIGURE GUI 
+function ViconCheck
+tarfile = '';
 close all;
+tip = [-5000,5000];
+
+%% setup gui
 h = figure('Units', 'normalized', 'Color', [.925 .914 .847], 'Position', [0 0 1 0.91]);
 set(h,'NextPlot', 'add', 'NumberTitle', 'off', 'Toolbar', 'figure')
-Folder = uicontrol('String', 'Select folder', 'Units', 'normalized','FontSize',12,'FontWeight','Bold',...
-    'Position', [.01 .95 .1 .04] , 'callback', @chooseFolderButtonselected_cb,...
-    'TooltipString', 'choose folder 1');  
-pathFolder = uicontrol('String', 'CSV Path', 'Units', 'normalized', 'Style', 'Text',...
-    'Position', [.01 .91 .1 .03], 'BackgroundColor',  [1 1 1]);
-currentFile = uicontrol('String', 'CSV File', 'Units', 'normalized', 'Style', 'Text',...
-    'Position', [.01 .87 .1 .03], 'BackgroundColor',  [1 1 1]);
-PertubationNumber = uicontrol('String', 'Pertubation Number', 'Units', 'normalized', 'Style', 'Text',...
-    'Position', [.01 .82 .11 .03], 'BackgroundColor',  [1 1 1],'FontWeight','Bold','FontSize',12);
+Choose = uicontrol('String', 'Select File to Process', 'Units', 'normalized','FontSize',12,'FontWeight','Bold',...
+    'Position', [.01 .95 .1 .04] , 'callback', @setTarget,...
+    'TooltipString', 'choose file for processing');   %#ok<NASGU>
+%TargetDir = uicontrol('String', 'CSV Path', 'Units', 'normalized', 'Style', 'Text',...
+%    'Position', [.01 .91 .1 .03], 'BackgroundColor',  [1 1 1]);
+%TargetFile = uicontrol('String', 'CSV File', 'Units', 'normalized', 'Style', 'Text',...
+%    'Position', [.01 .87 .1 .03], 'BackgroundColor',  [1 1 1]);
+%PertubationNumber = uicontrol('String', 'Pertubation Number', 'Units', 'normalized', 'Style', 'Text',...
+%    'Position', [.01 .82 .11 .03], 'BackgroundColor',  [1 1 1],'FontWeight','Bold','FontSize',12);
 ListBoxPertubation = uicontrol('style','listbox','units','normalized','FontSize',12,'FontWeight','Bold',...
-        'Position',[.01 .15 .05 .64],'string',{},...
-        'callback', @listBoxPertu_call);
+        'Position',[.01 .15 .05 .64],'string',{},'callback', @listBoxPertu_call);
+
 uiwait(h)
-newPath=get(pathFolder,'string')
-newPath=newPath{2,1}
-files=dir(newPath);
-for ind=3:size(files,1)
-    if ~isempty(strfind(files(ind).name,'Vdata')) && isempty(strfind(files(ind).name,'Vdata2'))
-        Vdata=importdata([newPath '\' files(ind).name]);
-    end
-    if ~isempty(strfind(files(ind).name,'Vdata2')) && ~isempty(strfind(files(ind).name,'Vdata'))
-        Vdata2=importdata([newPath '\' files(ind).name]);
-    end
-end 
+
+%% load the data
+vcd = ViconData(tarfile).LoadData();
+Vdata = vcd.fixed;
+Vdata2 = vcd.mutables;
 set(ListBoxPertubation,'string',{Vdata.StringPer}')
+
 Vdata3 = Vdata2; % for hidden data
-isPlotted = zeros(size(Vdata));
-plotHandleBamper = zeros(size(Vdata));
-plotHandleLeftCG = zeros(size(Vdata));
-plotHandleRightCG = zeros(size(Vdata));
-plotHandleLeftHCG = zeros(size(Vdata));
-plotHandleRightHCG = zeros(size(Vdata));
-plotHandleLeftTCG = zeros(size(Vdata));
-plotHandleRightTCG = zeros(size(Vdata));
-plotHandleCG = zeros(size(Vdata));
-plotHandleLeftStep = zeros(size(Vdata));
-plotHandleRightStep = zeros(size(Vdata));
-plotHandleLeftStepA = zeros(size(Vdata));
-plotHandleRightStepA = zeros(size(Vdata));
-plotHandleLeftArm = zeros(size(Vdata));
-plotHandleRightArm = zeros(size(Vdata));
-isPlotted2 = zeros(size(Vdata));
-plotHandleBamper2 = zeros(size(Vdata));
-plotHandleCG2 = zeros(size(Vdata));
-plotHandleLeftStep2 = zeros(size(Vdata));
-plotHandleRightStep2 = zeros(size(Vdata));
-plotHandleLeftArm2 = zeros(size(Vdata));
-plotHandleRightArm2 = zeros(size(Vdata));
+plotHandles = struct;
+for v={...
+        'Bamper',...
+        'LeftCG',...
+        'RightCG',...
+        'LeftHCG',...
+        'RightHCG',...
+        'LeftTCG',...
+        'RightTCG',...
+        'CG',...
+        'LeftStep',...
+        'RightStep',...
+        'LeftStepA',...
+        'RightStepA',...
+        'LeftArm',...
+        'RightArm',...
+        'Bamper2',...
+        'CG2',...
+        'LeftStep2',...
+        'RightStep2',...
+        'LeftArm2',...
+        'RightArm2',...
+    }
+    plotHandles.handles.(v{:}) = zeros(size(Vdata));
+    plotHandles.isplotted = struct;
+    plotHandles.isplotted.fixed = zeros(size(Vdata));
+    plotHandles.isplotted.mutables = zeros(size(Vdata));
+end
+     
 drawButton = uicontrol('String', 'Load', 'Units', 'normalized','FontSize',12,...
-                        'Position', [.020 .06 .062 .058] , 'callback', @drawButtonselected_cb,...
-                        'TooltipString', ' Plot selection ');
+    'position', [.020 .06 .062 .058] , 'callback', @drawButtonselected_cb,...
+    'tooltipString', ' Plot selection '); %#ok<NASGU>
+
 saveButton = uicontrol('String', 'Save', 'Units', 'normalized','FontSize',12,...
-    'Position', [.100 .06 .062 .058] , 'callback', @saveButtonselected_cb,...
-    'TooltipString', ' average ');
+    'position', [.100 .06 .062 .058] , 'callback', @saveButtonselected_cb,...
+    'tooltipString', ' average ');%#ok<NASGU>
+
 exportButton = uicontrol('String', 'Export', 'Units', 'normalized','FontSize',12,...
-    'Position', [.180 .06 .062 .058] , 'callback', @exportButtonselected_cb,...
-    'TooltipString', ' export '); 
- patientInfoLabel = uicontrol('String', 'Patient information', 'Units', 'normalized','FontSize',12, 'Style', 'Text',...
-                             'FontWeight', 'bold','Position', [.845 .93 .13 .05], 'BackgroundColor',  [.925 .914 .847]);     
-% 
-% %%patient name                        
- patientNameLabel =  uicontrol('String', '', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
-                             'Position', [.84 .91 .150 .03], 'BackgroundColor',  [1 1 1]);
-%no step check box
- checkBoxStep = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[.17 .15 .05 .03],'string','no step',...
-                 'callback', @checkBoxSteps_call);
+    'position', [.180 .06 .062 .058] , 'callback', @exportButtonselected_cb,...
+    'tooltipString', ' export '); %#ok<NASGU>
+
+patientInfoLabel = uicontrol('String', 'Patient information', 'Units', 'normalized','FontSize',12, 'Style', 'Text',...
+    'fontweight', 'bold','Position', [.845 .93 .13 .05], 'BackgroundColor',  [.925 .914 .847]); %#ok<NASGU>    
+
+patientNameLabel =  uicontrol('String', '', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
+    'position', [.84 .91 .150 .03], 'BackgroundColor',  [1 1 1]);
+
+checkBoxSteps = uicontrol('style','checkbox','units','normalized','FontSize',11,...
+    'position',[.17 .15 .05 .03],'string','no step','callback', @checkBoxSteps_call);
+
 listBoxStep = uicontrol('style','listbox','units','normalized','FontSize',11,...
-                  'Position',[.395 .13 .05 .05],'string',{'Right';'Left';'No Step'},...
-                 'callback', @listBoxSteps_call);
-patientFirstLeg =  uicontrol('String', 'Side Of First Step:', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
-                        'Position', [.340 .13 .05 .05]);
- %hide steps check box
- checkBoxHideSteps = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-      'Position',[.46 .06 .09 .03],'string','hide first step', 'Foregroundcolor', 'b',...
-     'callback', @checkBoxHideSteps_call);
- 
+    'position',[.395 .13 .05 .05],'string',{'Right';'Left';'No Step'},'callback', @listBoxSteps_call);
+
+PatientFirstLeg =  uicontrol('String', 'Side Of First Step:', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
+    'position', [.340 .13 .05 .05]);%#ok<NASGU>
+
 EndFirstStep = uicontrol('String', 'end of all step', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
-                             'FontWeight', 'bold','Position', [.46 .1 .09 .03],'Foregroundcolor','c');  
-%no arm movements check box
- checkBoxRightArms = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[0.47,0.15,0.12,0.03],'string','no Right arms movement',...
-                 'callback', @checkBoxRightArms_call); 
+    'fontweight', 'bold','Position', [.46 .1 .09 .03],'Foregroundcolor','c');%#ok<NASGU>  
+
+checkBoxRightArms = uicontrol('style','checkbox','units','normalized','FontSize',11,...
+    'position',[0.47,0.15,0.12,0.03],'string','no Right arms movement',...
+    'callback', @checkBoxArms_call); 
+
 checkBoxLeftArms = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[0.66,0.15,0.12,0.03],'string','no Left arms movement',...
-                 'callback', @checkBoxLeftArms_call); 
-%no bamper movement check box             
- checkBoxBamper = uicontrol('style','checkbox','units','normalized','enable', 'off','FontSize',11,...
-                  'Position',[.170 .57 .11 .03],'string','no bamper movement',...
-                 'callback', @checkBoxBamper_call); 
-%hide bamper check box
- checkBoxHideBamper = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[.26 .1 .09 .03],'string','hide bamper', 'Foregroundcolor', 'k',...
-                 'callback', @checkBoxHideBamper_call);                          
- %no CG checkbox            
- checkBoxCG = uicontrol('style','checkbox','units','normalized', 'enable', 'off','FontSize',11,...
-                  'Position',[0.49,0.57,0.1,0.03],'string','no CG out of bound',...
-                 'callback', @checkBoxCG_call); 
- %hide CG check box            
- checkBoxHideCG = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[0.26,0.06,0.09,0.03],'string','hide CG', 'Foregroundcolor', [0.8003 0.1524 0.8443],...
-                 'callback', @checkBoxHideCG_call);              
-% hide Right arm movement check box
- checkBoxHideRightArms = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[.36 .1 .09 .03],'string','hide Right arm', 'Foregroundcolor', 'r',...
-                 'callback', @checkBoxHideRightArms_call); 
-% hide Left arm movements check box
+    'position',[0.66,0.15,0.12,0.03],'string','no Left arms movement','callback', @checkBoxArms_call); 
+
+checkBoxBamper = uicontrol('style','checkbox','units','normalized','enable', 'off','FontSize',11,...
+    'position',[.170 .57 .11 .03],'string','no bamper movement','callback', @checkBoxBamper_call); 
+
+checkBoxCG = uicontrol('style','checkbox','units','normalized', 'enable', 'off','FontSize',11,...
+    'position',[0.49,0.57,0.1,0.03],'string','no CG out of bound','callback', @checkBoxCG_call); 
+
+checkBoxHideSteps = uicontrol('style','checkbox','units','normalized','FontSize',11,...
+    'position',[.46 .06 .09 .03],'string','hide first step', 'Foregroundcolor', 'b',...
+    'callback', @checkBoxHide);
+
+checkBoxHideBamper = uicontrol('style','checkbox','units','normalized','FontSize',11,...
+    'position',[.26 .1 .09 .03],'string','hide Bamper', 'Foregroundcolor', 'k','callback',@checkBoxHide);                          
+ 
+checkBoxHideCG = uicontrol('style','checkbox','units','normalized','FontSize',11,...
+    'position',[0.26,0.06,0.09,0.03],'string','hide CG', 'Foregroundcolor',...
+    [0.8003 0.1524 0.8443],'callback',@checkBoxHide);
+
+checkBoxHideRightArms = uicontrol('style','checkbox','units','normalized','FontSize',11,...
+    'position',[.36 .1 .09 .03],'string','hide Right arm', 'Foregroundcolor', 'r',...
+    'callback', @checkBoxHide); 
+
 checkBoxHideLeftArms = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-    'Position',[.36 .06 .09 .03],'string','hide Left arm', 'Foregroundcolor', [0.3922 0.7782 0.5277],...
-    'callback', @checkBoxHideLeftArms_call);
+    'position',[.36 .06 .09 .03],'string','hide Left arm', 'Foregroundcolor', [0.3922 0.7782 0.5277],...
+    'callback', @checkBoxHide);
+
 checkBoxFall = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[.56 .06 .05 .03],'string','Fall',...
-                 'callback', @checkBoxFall_call);
+    'position',[.56 .06 .05 .03],'string','Fall','callback', @checkBoxFall_call);
+
 checkBoxMS = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-                  'Position',[.56 .1 .05 .03],'string','MS',...
-                 'callback', @checkBoxMS_call);
+    'position',[.56 .1 .05 .03],'string','MS','callback', @checkBoxMS_call);
+
 %slider
 slider = uicontrol('Style','slider','units','normalized','Position',[.82 .1 .14 .03],'Callback',@slider_call);
-typeOfArmMove=uicontrol('Style','edit','units','normalized','FontSize',11,'Position',[0.70 0.06 0.10 0.03],'string','','Callback',@typeArm_call);
-typeOfLegMove=uicontrol('Style','edit','units','normalized','FontSize',11,'Position',[0.70 0.10 0.10 0.03],'string','','Callback',@typeLeg_call);
-TypeLegs_Move = uicontrol('String', 'Type Of Legs Move:', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
-                             'FontWeight', 'bold','Position', [0.60 0.10 0.10 0.03], 'BackgroundColor',  [.925 .914 .847]);
+
+typeOfArmMove=uicontrol('Style','edit','units','normalized','FontSize',11,...
+    'Position',[0.70 0.06 0.10 0.03],'string','','Callback',@simplecb);
+
+
+typeOfLegMove=uicontrol('Style','edit','units','normalized','FontSize',11,...
+    'Position',[0.70 0.10 0.10 0.03],'string','','Callback',@typeLeg_call);
+
+typeLegs_Move = uicontrol('String', 'Type Of Legs Move:', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
+    'fontweight', 'bold','Position', [0.60 0.10 0.10 0.03], 'BackgroundColor',  [.925 .914 .847]);%#ok<NASGU>
+
 TypeArms_Move = uicontrol('String', 'Type Of Arms Move:', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
- 'FontWeight', 'bold','Position', [0.60 0.06 0.10 0.03], 'BackgroundColor',  [.925 .914 .847]);
-set(gcf,'WindowButtonUpFcn',@releaseCallback); %set release callback for SF line 
-ispressed = 0; %flag for SF line being pressed
-%CG haxes
-haxesCG = axes('Units', 'normalized','Position', [.49 .635 .3 .300], 'Box', 'on');%, 'XTick', [], 'YTick', []);
-xlabel('Time', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-ylabel('Position', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-title(haxesCG, 'CG and feet movement')
-haxesCGLine1 = imline(haxesCG,[0 0], [0 0]); %bamper line 1
-haxesCGLine1.setColor('k')
-addNewPositionCallback(haxesCGLine1,@(pos)callback_line1(pos));
-haxesCGLine2 = imline(haxesCG,[0 0], [0 0]); %bamper line 2
-haxesCGLine2.setColor('k')
-addNewPositionCallback(haxesCGLine2,@(pos)callback_line2(pos));
-%SF line
-haxesSFLine1 = line([0 0], [0 0],'Color', [0.6557 0.1067 0.3111],'LineWidth',1.5,'Parent', haxesCG, 'ButtonDownFcn',@SFLine1Callback);
-haxesCGLine3 = imline(haxesCG,[0 0], [0 0]); %step line 1
-haxesCGLine3.setColor('b');
-addNewPositionCallback(haxesCGLine3,@(pos)callback_line3(pos));
-haxesCGLine4 = imline(haxesCG,[0 0], [0 0]); %step line 2
-haxesCGLine4.setColor('c');
-addNewPositionCallback(haxesCGLine4,@(pos)callback_line4(pos));
-haxesCGLine5 = imline(haxesCG,[0 0], [0 0]); %rightarms line 1
-haxesCGLine5.setColor('r');
-addNewPositionCallback(haxesCGLine5,@(pos)callback_line5(pos));
-haxesCGLine6 = imline(haxesCG,[0 0], [0 0]); %rightarms line 2
-haxesCGLine6.setColor('r');
-addNewPositionCallback(haxesCGLine6,@(pos)callback_line6(pos));
-haxesCGLine7 = imline(haxesCG,[0 0], [0 0]); %CG line 1
-haxesCGLine7.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesCGLine7,@(pos)callback_line7(pos));
-haxesCGLine8 = imline(haxesCG,[0 0], [0 0]); %CG line 2
-haxesCGLine8.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesCGLine8,@(pos)callback_line8(pos));
-haxesCGLine9 = imline(haxesCG,[0 0], [0 0]);%leftArms line1
-haxesCGLine9.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesCGLine9,@(pos)callback_line9(pos));
-haxesCGLine10 = imline(haxesCG,[0 0], [0 0]);%leftArmsline2
-haxesCGLine10.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesCGLine10,@(pos)callback_line10(pos));
-haxesCGLine11 = imline(haxesCG,[0 0], [0 0]);% end first step
-haxesCGLine11.setColor('b');
-addNewPositionCallback(haxesCGLine11,@(pos)callback_line11(pos));
+    'fontweight', 'bold','Position', [0.60 0.06 0.10 0.03], 'BackgroundColor',  [.925 .914 .847]);%#ok<NASGU>
 
-%bamper haxes
-haxesBamper = axes('Units', 'normalized','Position', [.15 .635 .3 .300], 'Box', 'on');%, 'XTick', [], 'YTick', []);, 'XTick', [], 'YTick', []);
-xlabel('Time', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-ylabel('Position', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-title(haxesBamper, 'Bamper X movement')
-haxesBamperLine1 = imline(haxesBamper,[0 0], [0 0]);
-addNewPositionCallback(haxesBamperLine1,@(pos)callback_line1(pos));
-haxesBamperLine1.setColor('k')
-haxesBamperLine2 = imline(haxesBamper,[0 0], [0 0]);
-addNewPositionCallback(haxesBamperLine2,@(pos)callback_line2(pos));
-haxesBamperLine2.setColor('k')
-haxesSFLine3 = line([0 0], [0 0],'Color', [0.6557 0.1067 0.3111],'LineWidth',1.5, 'ButtonDownFcn',@SFLine1Callback);
-haxesBamperLine3 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine3.setColor('b');
-addNewPositionCallback(haxesBamperLine3,@(pos)callback_line3(pos));
-haxesBamperLine4 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine4.setColor('c');
-addNewPositionCallback(haxesBamperLine4,@(pos)callback_line4(pos));
-haxesBamperLine5 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine5.setColor('r');
-addNewPositionCallback(haxesBamperLine5,@(pos)callback_line5(pos));
-haxesBamperLine6 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine6.setColor('r');
-addNewPositionCallback(haxesBamperLine6,@(pos)callback_line6(pos));
-haxesBamperLine7 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine7.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesBamperLine7,@(pos)callback_line7(pos));
-haxesBamperLine8 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine8.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesBamperLine8,@(pos)callback_line8(pos));
-haxesBamperLine9 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine9.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesBamperLine9,@(pos)callback_line9(pos));
-haxesBamperLine10 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine10.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesBamperLine10,@(pos)callback_line10(pos));
+set(gcf,'windowButtonUpFcn',@releaseCallback); % set release callback for SF line 
+ispressed = 0; % flag for SF line being pressed
 
-haxesBamperLine11 = imline(haxesBamper,[0 0], [0 0]);
-haxesBamperLine11.setColor('b');
-addNewPositionCallback(haxesBamperLine11,@(pos)callback_line11(pos));
 
-%arms haxes
-haxesArms = axes('Units', 'normalized','Position', [.49 .225 .3 .300], 'Box', 'on');%, 'XTick', [], 'YTick', []);, 'XTick', [], 'YTick', []);
-xlabel('Time', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-ylabel('Position', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-title(haxesArms, 'Change in arms distance from CG')
-haxesArmsLine1 = imline(haxesArms,[0 0], [0 0]);
-addNewPositionCallback(haxesArmsLine1,@(pos)callback_line1(pos));
-haxesArmsLine1.setColor('k')
-haxesArmsLine2 = imline(haxesArms,[0 0], [0 0]);
-addNewPositionCallback(haxesArmsLine2,@(pos)callback_line2(pos));
-haxesArmsLine2.setColor('k')
-haxesSFLine4 = line([0 0], [0 0],'Color', [0.6557 0.1067 0.3111],'LineWidth',1.5, 'ButtonDownFcn',@SFLine1Callback);
-haxesArmsLine3 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine3.setColor('b');
-addNewPositionCallback(haxesArmsLine3,@(pos)callback_line3(pos));
-haxesArmsLine4 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine4.setColor('c');
-addNewPositionCallback(haxesArmsLine4,@(pos)callback_line4(pos));
-haxesArmsLine5 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine5.setColor('r');
-addNewPositionCallback(haxesArmsLine5,@(pos)callback_line5(pos));
-haxesArmsLine6 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine6.setColor('r');
-addNewPositionCallback(haxesArmsLine6,@(pos)callback_line6(pos));
-haxesArmsLine7 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine7.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesArmsLine7,@(pos)callback_line7(pos));
-haxesArmsLine8 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine8.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesArmsLine8,@(pos)callback_line8(pos));
-haxesArmsLine9 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine9.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesArmsLine9,@(pos)callback_line9(pos));
-haxesArmsLine10 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine10.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesArmsLine10,@(pos)callback_line10(pos));
-haxesArmsLine11 = imline(haxesArms,[0 0], [0 0]);
-haxesArmsLine11.setColor('b');
-addNewPositionCallback(haxesArmsLine11,@(pos)callback_line11(pos));
-% step haxes
-haxesStep = axes('Units', 'normalized','Position', [.15 .225 .3 .300], 'Box', 'on');%, 'XTick', [], 'YTick', []);, 'XTick', [], 'YTick', []);
-xlabel('Time', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-ylabel('Position', 'fontname' , 'Cambria' , 'fontweight' , 'b')
-title(haxesStep, 'Step')
-haxesStepLine1 = imline(haxesStep,[0 0], [0 0]);
-addNewPositionCallback(haxesStepLine1,@(pos)callback_line1(pos));
-haxesStepLine1.setColor('k')
-haxesStepLine2 = imline(haxesStep,[0 0], [0 0]);
-addNewPositionCallback(haxesStepLine2,@(pos)callback_line2(pos));
-haxesStepLine2.setColor('k')
-haxesSFLine2 = line([0 0], [0 0],'Color', [0.6557 0.1067 0.3111],'LineWidth',1.5, 'ButtonDownFcn',@SFLine1Callback);
-haxesStepLine3 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine3.setColor('b');
-addNewPositionCallback(haxesStepLine3,@(pos)callback_line3(pos));
-haxesStepLine4 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine4.setColor('c');
-addNewPositionCallback(haxesStepLine4,@(pos)callback_line4(pos));
-haxesStepLine5 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine5.setColor('r');
-addNewPositionCallback(haxesStepLine5,@(pos)callback_line5(pos));
-haxesStepLine6 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine6.setColor('r');
-addNewPositionCallback(haxesStepLine6,@(pos)callback_line6(pos));
-haxesStepLine7 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine7.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesStepLine7,@(pos)callback_line7(pos));
-haxesStepLine8 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine8.setColor([0.8003 0.1524 0.8443]);
-addNewPositionCallback(haxesStepLine8,@(pos)callback_line8(pos));
-haxesStepLine9 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine9.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesStepLine9,@(pos)callback_line9(pos));
-haxesStepLine10 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine10.setColor([0.3922 0.7782 0.5277]);
-addNewPositionCallback(haxesStepLine10,@(pos)callback_line10(pos));
-haxesStepLine11 = imline(haxesStep,[0 0], [0 0]);
-haxesStepLine11.setColor('b');
-addNewPositionCallback(haxesStepLine11,@(pos)callback_line11(pos));
-% [.83 .270 .14 .650]
-haxesSF = axes('Units', 'normalized','Position', [.83 .18 .14 .70], 'Box', 'on');
+%% whatf are haxes?
+haxes = struct;
+subs = {'CG','Bamper','Step','Arms'};
+colors = {'k','k','b','c','r','r',...
+    [0.8003,0.1524,0.8443],[0.8003,0.1524,0.8443],...
+    [0.3922 0.7782 0.5277],[0.3922 0.7782 0.5277],'b'...
+};
 
-title(haxesSF, 'stick figure')   
+
+for sub = 1:length(subs)
+    ax = axes();
+    xlabel(ax,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b')
+    ylabel(ax,'Position', 'fontname' , 'Cambria' , 'fontweight' , 'b')
+    SFLines{sub} = line([0 0], [0 0],'Color', [0.6557 0.1067 0.3111],...
+        'lineWidth',1.5,'Parent',ax,'ButtonDownFcn',@SFLine1Callback); %#ok<SHVAI>
+    lines = {};
+    s = struct;
+    for j=1:11
+        l = imline(ax,[0 0], [0 0]);
+        l.setColor(colors{j});
+        addNewPositionCallback(l,@(pos)linecb(pos,j));
+        lines{j} = l;
+    end
+    s.lines = lines;
+    s.coords = ax;
+    haxes.(subs{sub}) = s;
+end
+
+function linecb(pos,ind)
+    haxes.CG.lines{ind}.setPosition(pos);
+    haxes.Bamper.lines{ind}.setPosition(pos);
+    haxes.Step.lines{ind}.setPosition(pos);
+    haxes.Arms.lines{ind}.setPosition(pos);
+end
+
+function simplecb(hObject,~,~)
+    if strcmp(hObject.Style,'edit')
+        val = hObject.String;
+    else
+        val = hObject.Value;
+    end
+    if hObject == typeOfArmMove
+        datName = 'TypeArmMove';
+    elseif hObject == typeOfLegMove
+        datName = 'TypeLegMove';
+    elseif hObject == checkBoxMS
+        datName = 'MS';
+    elseif hObject == checkBoxFall
+        datName = 'Fall';
+    else
+        error('simplecb registered as callback for inappropriate element');
+    end
+    disp(val);
+    pertNumber = ListBoxPertubation.Value;
+    Vdata2(pertNumber).(datName) = val;
+    Vdata(pertNumber).(datName) = val;
+end
+
+%cg
+set(haxes.CG.coords,'Units', 'normalized','Position', [.49 .635 .3 .300], 'Box', 'on');
+title(haxes.CG.coords, 'CG and feet movement')
+
+% bamper axes
+set(haxes.Bamper.coords,'Units', 'normalized','Position', [.15 .635 .3 .300], 'Box', 'on');
+title(haxes.Bamper.coords,'Bamper X movement')
+
+% arms axes
+set(haxes.Arms.coords,'Units', 'normalized','Position', [.49 .225 .3 .300], 'Box', 'on');
+title(haxes.Arms.coords,'Change in arms distance from CG')
+
+% step axes
+set(haxes.Step.coords,'Units', 'normalized','Position', [.15 .225 .3 .300], 'Box', 'on');
+title(haxes.Step.coords, 'Step')
+
+% stick figures
+haxes.SF = axes('Units', 'normalized','Position', [.83 .18 .14 .70], 'Box', 'on');
+title(haxes.SF, 'Stick Figure')   
 
 
 %% functions of the GUI 
-function chooseFolderButtonselected_cb(hObject, eventdata, handles)
-flag=0;
-[FileName,PathName,~]  = uigetfile({'*.csv'});
-set(currentFile, 'string',{'corrent file:' FileName})
-set(pathFolder,'string',{'corrent path:' PathName})
-if ~isempty(strfind(FileName,'Walk')) || ~isempty(strfind(FileName,'walk'))
-    set(currentFile,'value',12)
-else
-    set(currentFile,'value',24)
-end
-if  get(currentFile,'value')==12 % walking
-    set(ListBoxPertubation,'string',{'1';'2';'3';'4';'5';'6';'7';'8';'9';'10';'11';'12'},'Position',[.01 .50 .05 .32])
-else
-    if get(currentFile,'value')==24% standing
-        set(ListBoxPertubation,'string',{'1';'2';'3';'4';'5';'6';'7';'8';'9';'10';'11';'12';'13';'14';'15';'16';'17';'18';'19';'20';'21';'22';'23';'24'},'Position',[.01 .15 .05 .64])
+function setTarget(~,~,~)
+    [f,p,indicator]  = uigetfile('C:\Users\Public\Stick-Figures\*.csv');
+    if indicator == 0
+        return;
     end
+    if isempty(regexpi(f,'(walk|stand)','match'))
+        errordlg('The Data File Must Contain the Word "Standing" or "Walking" (case insensitive)',...
+            'Incorrect File Name','replace');
+    end
+    h.set('name',['processing: ',p,f]);
+    tarfile = fullfile(p,f);
+    uiresume(h);
 end
-PatientName=FileName(1:end-4)
-newPath=[PathName PatientName];
-if ~isdir([PathName '\' PatientName])
-    mkdir(newPath)
-    flag=1;
-else
-    files=dir(newPath);
-    for i=3:size(files,1)
-        if ~isempty(strfind(files(i).name,'Vdata')) && isempty(strfind(files(i).name,'Vdata2'))
-            Vdata=importdata([newPath '\' files(i).name]);
-        end
-        if ~isempty(strfind(files(i).name,'Vdata2')) && ~isempty(strfind(files(i).name,'Vdata'))
-            Vdata2=importdata([newPath '\' files(i).name]);
-        end
-    end   
-end
-set(pathFolder,'string',{'corrent path:' newPath});
- fileName=[PathName FileName];
- stepName=PatientName;
- if ~isempty(strfind(PatientName,'Stand'))
-     ST_DT=strfind(PatientName,'Stand')
- elseif ~isempty(strfind(PatientName,'stand'))
-     ST_DT=strfind(PatientName,'stand')
- elseif ~isempty(strfind(PatientName,'Walk'))
-     ST_DT=strfind(PatientName,'Walk')
- elseif  ~isempty(strfind(PatientName,'walk'))
-     ST_DT=strfind(PatientName,'walk')
- end
-name=PatientName(1:ST_DT-1);
-% creating or updating the Vdata and Vdata2 (.MAT) files.
-if flag % if this file doesn't have Vdata - Update the Vdata file
-    UpdateMat(fileName, name, stepName)
-end
-uiresume(h)
-end
-function listBoxPertu_call(hObject, eventdata, handles)   
-contents = cellstr(get(ListBoxPertubation,'String')); 
-NewText = contents{get(ListBoxPertubation,'Value')}; 
-NewColor = sprintf('<HTML><BODY bgcolor="%s">%s', 'green', NewText);
-namestr = cellstr(get(ListBoxPertubation, 'String')); 
-validx = get(ListBoxPertubation, 'Value'); 
-newstr = regexprep(NewColor, '"red"','"blue"'); 
-namestr{validx} = newstr; 
-set(ListBoxPertubation, 'String', namestr)
+
+function listBoxPertu_call(~,~,~)   
+    contents = cellstr(ListBoxPertubation.String); 
+    validx = ListBoxPertubation.Value; 
+    NewText = contents{validx}; 
+    NewColor = sprintf('<HTML><BODY bgcolor="%s">%s', 'green', NewText);
+    newstr = regexprep(NewColor, '"red"','"blue"'); 
+    contents{validx} = newstr; 
+    ListBoxPertubation.String = contents;
 end 
-% update the Vdata.mat files
-function UpdateMat(fileName, name, stepName) 
-    try
-    modelOutput =  importdata(fileName, ',', 5) %read CG
-    tf = isfield(modelOutput, 'data')
-    while tf==0
-        tf = isfield(modelOutput, 'data')
+
+
+function drawButtonselected_cb(~,~)
+    pertNumber =get(ListBoxPertubation,'value');
+    if Vdata(pertNumber).edited == 1 % edited-0 (not analyzed) edited -1 (analyzed)
+        israw = 2;
+        set(typeOfLegMove,'String',Vdata2(pertNumber).TypeLegMove);
+        set(typeOfArmMove,'String',Vdata2(pertNumber).TypeArmMove);
+        set(checkBoxFall,'Value',Vdata2(pertNumber).Fall);
+        set(checkBoxMS,'Value',Vdata2(pertNumber).MS);
+    else         
+        israw = 1;
+        set(typeOfLegMove,'string','');
+        set(typeOfArmMove,'string','');
+        set(checkBoxFall,'Value',0);
+        set(checkBoxMS,'Value',0);
     end
-    % Angles of Elbow and Shoulder
-    LElbowAng=modelOutput.data(:,42);
-    LShoulderAng=modelOutput.data(:,144:146);
-    RElbowAng=modelOutput.data(:,234);
-    RShoulderAng=modelOutput.data(:,336:338);
-            
-    viconData =  importdata(fileName, ',', 11 + length(modelOutput.data)) %read marker positions
-
-    bamperX = viconData.data(:,end-2); %get bamper data
-    bamperMovement = bamperX - bamperX(1); %bamper movement
-    leftAnkleX = viconData.data(:,93)  - bamperMovement;  %left ankle lateral position, substruct bamper movement
-    rightAnkleX = viconData.data(:,111) - bamperMovement; %right ankle lateral position, substruct bamper movement
-    leftAnkleY = viconData.data(:,94); %left ankle anterior
-    rightAnkleY = viconData.data(:,112);%right ankle anterior
-    %%%%
-    leftAnkleZ = viconData.data(:,95);
-    rightAnkleZ = viconData.data(:,113);
-    %%%%
-    leftHeelY=viconData.data(:,97);
-    rightHeelY=viconData.data(:,115);
-    leftToeY= viconData.data(:,100);
-    rightToeY=viconData.data(:,118);
-    rightArmX  = viconData.data(:,69) -  viconData.data(1,69) - bamperMovement; %right arm lateral position, substruct bamper movement
-    rightArmY  = viconData.data(:,70) -  viconData.data(1,70); % right arm lateral movement
-    rightArmZ  = viconData.data(:,71) -  viconData.data(1,71); %right arm aupward movement
-    leftArmX  = viconData.data(:,48) -  viconData.data(1,48) - bamperMovement; %right arm lateral position, substruct bamper movement
-    leftArmY  = viconData.data(:,49) -  viconData.data(1,49); % right arm lateral movement
-    leftArmZ  = viconData.data(:,50) -  viconData.data(1,50);%right arm upward
-    
-    modelOutput.data(:,3)  = modelOutput.data(:,3) - bamperMovement; %cgx
-    searchIndex = 0;
-    if get(currentFile,'value')==24
-    % standing files have 24 segments (perturbations)
-        for ind  = 1:24
-     %for lateral movements we get pertubations from bamper and for anterior movements get it from the ankle
-            if mod(ind, 2) == 0 % left or right pertubation
-                pertubationsTime= findPertubations(bamperX, searchIndex,2);   %lateral              
-            else % front or back pertubation
-                pertubationsTime= findPertubations(leftAnkleY, searchIndex,1);   %anterior     
-            end   
-            %each segment is from 2 seconds before perturbation start til 3 seconds
-            %after perturbation end
-                timeSlot = [pertubationsTime(1) - 240, pertubationsTime(2) + 360]; 
-                lAnkleX = leftAnkleX(timeSlot(1):timeSlot(2));
-                rAnkleX = rightAnkleX(timeSlot(1):timeSlot(2));
-                
-                lHeelY = leftHeelY(timeSlot(1):timeSlot(2));
-                lToeY= leftToeY(timeSlot(1):timeSlot(2));
-                rHeelY = rightHeelY(timeSlot(1):timeSlot(2));
-                rToeY= rightToeY(timeSlot(1):timeSlot(2));
-                CGX = modelOutput.data(timeSlot(1):timeSlot(2),3);
-                CGX_plot=CGX;
-                CGY = modelOutput.data(timeSlot(1):timeSlot(2),4); 
-                CGY_plot=CGY;
-                CGZ = modelOutput.data(timeSlot(1):timeSlot(2),5);
-                CGZ_plot=CGZ;
-                %stepping is in x and y plane
-                %leftStepping = sqrt((lAnkleX - lAnkleX(1)).^2 + (leftAnkleY(timeSlot(1):timeSlot(2)) - leftAnkleY(timeSlot(1))).^2+(leftAnkleZ(timeSlot(1):timeSlot(2)) - leftAnkleZ(timeSlot(1))).^2);
-                %rightStepping = sqrt((rAnkleX - rAnkleX(1)).^2 + (rightAnkleY(timeSlot(1):timeSlot(2)) - rightAnkleY(timeSlot(1))).^2+(rightAnkleZ(timeSlot(1):timeSlot(2)) - rightAnkleZ(timeSlot(1))).^2);              
-                leftStepping = sqrt(lAnkleX.^2 + (leftAnkleY(timeSlot(1):timeSlot(2))).^2)%+(leftAnkleZ(timeSlot(1):timeSlot(2))).^2);
-                rightStepping = sqrt(rAnkleX.^2 + (rightAnkleY(timeSlot(1):timeSlot(2))).^2)%+(rightAnkleZ(timeSlot(1):timeSlot(2))).^2);              
-
-                %arms movement is in x y z plane and the cg is reduced
-                leftArmTotal = sqrt((leftArmX(timeSlot(1):timeSlot(2)) - CGX).^2 + (leftArmY(timeSlot(1):timeSlot(2)) - CGY).^2 + (leftArmZ(timeSlot(1):timeSlot(2)) - CGZ).^2);
-                rightArmTotal = sqrt((rightArmX(timeSlot(1):timeSlot(2)) - CGX).^2 + (rightArmY(timeSlot(1):timeSlot(2)) - CGY).^2 + (rightArmZ(timeSlot(1):timeSlot(2)) - CGZ).^2);                                    
-                %bias to zero
-                leftStepping = leftStepping - leftStepping(1);
-                rightStepping = rightStepping - rightStepping(1);
-                leftArmTotal = leftArmTotal - leftArmTotal(1);
-                rightArmTotal = rightArmTotal - rightArmTotal(1);
-                %find first step foot, last step foot, and the stepping time
-                %from perturbations
-                [steppingTime, firstStep,EndFirstStep, lastStep] = findStepping(leftStepping(241:end), rightStepping(241:end),'Standing');
-                steppingTime = 240 + steppingTime; %add the 2 seconds beforre the perturbation
-                %find arms movement from perturbation
-                [RightarmsTime,LeftarmsTime] =findArms(leftArmTotal(241:end), rightArmTotal(241:end));
-                RightarmsTime=RightarmsTime+240; LeftarmsTime=LeftarmsTime+240;
-                lAnkleX = lAnkleX - CGX(1);
-                rAnkleX = rAnkleX - CGX(1);
-                lHeelY = lHeelY - CGY(1);
-                rToeY= rToeY - CGY(1);
-                rHeelY = rHeelY - CGY(1);
-                lToeY= lToeY - CGY(1);
-                CGX = CGX - CGX(1);
-                CGY = CGY - CGY(1);
-                CGZ = CGZ - CGZ(1);
-                %find when CG is out of legs
-                if mod(ind, 2) == 0 % left or right pertubation
-                    pertubation_type=1;
-                    cgOut = findCG(lAnkleX, rAnkleX,[],[], CGX,pertubation_type);
-                else % front or back pertubation
-                    pertubation_type=2,
-                    cgOut = findCG(lHeelY, lToeY,rHeelY, rToeY, CGY,pertubation_type); 
-                end
-                searchIndex = pertubationsTime(2) + 700;
-                %save all data to vdata and and data that can be changed to vdata2            
-                Vdata(ind).bamper = bamperMovement(timeSlot(1):timeSlot(2));
-                Vdata(ind).leftAnkleX = lAnkleX;
-                Vdata(ind).rightAnkleX = rAnkleX;
-                Vdata(ind).leftStepping = leftStepping;
-                Vdata(ind).rightStepping = rightStepping;
-                Vdata(ind).CGX = CGX;
-                Vdata(ind).CGX_plot=CGX_plot; 
-                Vdata(ind).CGY = CGY;
-                Vdata(ind).CGY_plot=CGY_plot;
-                Vdata(ind).CGZ = CGZ;
-                Vdata(ind).CGZ_plot=CGZ_plot;
-                Vdata(ind).leftToeY=lToeY;
-                Vdata(ind).leftHeelY =lHeelY;
-                Vdata(ind).rightToeY=rToeY;
-                Vdata(ind).rightHeelY =rHeelY;
-                Vdata(ind).leftArmTotal = leftArmTotal;
-                Vdata(ind).rightArmTotal = rightArmTotal;
-                Vdata(ind).name = name;
-                Vdata(ind).step = stepName;
-                Vdata(ind).pertubationsTime = pertubationsTime;
-                Vdata(ind).steppingTime = steppingTime;
-                Vdata(ind).firstStep = firstStep;
-                Vdata(ind).EndFirstStep = EndFirstStep+240;         
-                Vdata(ind).lastStep = lastStep;
-                Vdata(ind).RightarmsTime = RightarmsTime;
-                Vdata(ind).LeftarmsTime = LeftarmsTime;
-                Vdata(ind).edited = false;
-                Vdata(ind).cgOut = cgOut;
-                Vdata(ind).TypeArmMove=[];
-                Vdata(ind).TypeLegMove=[];
-                Vdata(ind).Fall=0;
-                Vdata(ind).MS=0;%multiple steps
-                Vdata(ind).SFdATA = viconData.data((timeSlot(1):timeSlot(2)),3:end);
-                namestr = cellstr(get(ListBoxPertubation, 'String')); 
-                Vdata(ind).StringPer=namestr{ind};
-                Vdata(ind).LElbowAng=LElbowAng(timeSlot(1):timeSlot(2));
-                Vdata(ind).LShoulderAng=LShoulderAng((timeSlot(1):timeSlot(2)),1:3);       
-                Vdata(ind).RElbowAng=RElbowAng(timeSlot(1):timeSlot(2));
-                Vdata(ind).RShoulderAng=RShoulderAng((timeSlot(1):timeSlot(2)),1:3); 
-
-                Vdata2(ind).pertubationsTime = pertubationsTime;
-                Vdata2(ind).steppingTime = steppingTime;
-                Vdata2(ind).firstStep = firstStep;
-                Vdata2(ind).EndFirstStep = EndFirstStep+240;         
-                Vdata2(ind).lastStep = lastStep;
-                Vdata2(ind).RightarmsTime = RightarmsTime;
-                Vdata2(ind).LeftarmsTime = LeftarmsTime;
-                Vdata2(ind).cgOut = cgOut;  
-                Vdata2(ind).TypeArmMove=[];
-                Vdata2(ind).TypeLegMove=[];
-                Vdata2(ind).Fall=0;
-                Vdata2(ind).MS=0;%multiple steps 
-                
-        end
-        a=get(pathFolder,'string')
-        save([a{2,1} '\Vdata_' stepName], 'Vdata');
-        save([a{2,1} '\Vdata2_' stepName], 'Vdata2');
-    else 
-            % walking
-            for ind  = 1:12
-                pertubationsTime= findPertubations(bamperX, searchIndex,2);                 
-
-                timeSlot = [pertubationsTime(1) - 240, pertubationsTime(2) + 360];
-                lAnkleX = leftAnkleX(timeSlot(1):timeSlot(2));
-                rAnkleX = rightAnkleX(timeSlot(1):timeSlot(2));
-
-                leftStepping = lAnkleX - lAnkleX(1);
-                rightStepping = rAnkleX - rAnkleX(1);
-                %%%%%
-                %leftStepping = sqrt(lAnkleX.^2 + (leftAnkleY(timeSlot(1):timeSlot(2))).^2)%+(leftAnkleZ(timeSlot(1):timeSlot(2))).^2);
-                %rightStepping = sqrt(rAnkleX.^2 + (rightAnkleY(timeSlot(1):timeSlot(2))).^2)%+(rightAnkleZ(timeSlot(1):timeSlot(2))).^2);              
-                %%%%%%
-                %leftStepping = leftStepping - leftStepping(1);
-                %rightStepping = rightStepping - rightStepping(1);
-                CGX = modelOutput.data(timeSlot(1):timeSlot(2),3);
-                CGX_plot=CGX; 
-                CGY = modelOutput.data(timeSlot(1):timeSlot(2),4); 
-                CGZ = modelOutput.data(timeSlot(1):timeSlot(2),5); 
-                leftArmTotal = leftArmX(timeSlot(1):timeSlot(2)) - CGX;
-                rightArmTotal = rightArmX(timeSlot(1):timeSlot(2)) - CGX; 
-                leftArmTotal = leftArmTotal - leftArmTotal(1);
-                rightArmTotal = rightArmTotal - rightArmTotal(1);
-                [steppingTime, firstStep,EndFirstStep, lastStep] = findStepping(leftStepping(241:end), rightStepping(241:end),'Walking');%check only in x direction
-                steppingTime = 240 + steppingTime;
-                [RightarmsTime,LeftarmsTime] =findArms(leftArmX(240 + timeSlot(1):timeSlot(2)), rightArmX(240 + timeSlot(1):timeSlot(2)));%check only movement in x direction
-                RightarmsTime=RightarmsTime+240; LeftarmsTime=LeftarmsTime+240;
-                lAnkleX = lAnkleX - CGX(1);
-                rAnkleX = rAnkleX - CGX(1);
-                CGX = CGX - CGX(1);
-                pertubation_type=1 % left right pertubation
-                cgOut = findCG(lAnkleX, rAnkleX,[],[], CGX,pertubation_type);
-                searchIndex = pertubationsTime(2) + 700;
-
-                Vdata(ind).bamper = bamperMovement(timeSlot(1):timeSlot(2));
-                Vdata(ind).leftAnkleX = lAnkleX;
-                Vdata(ind).rightAnkleX = rAnkleX;
-                Vdata(ind).leftStepping = leftStepping;
-                Vdata(ind).rightStepping = rightStepping;
-                Vdata(ind).CGX = CGX;  
-                Vdata(ind).CGX_plot=CGX_plot; 
-                Vdata(ind).CGY = CGY;
-                Vdata(ind).CGZ = CGZ;
-                Vdata(ind).leftArmTotal = leftArmTotal;
-                Vdata(ind).rightArmTotal = rightArmTotal;
-                Vdata(ind).name = name;
-                Vdata(ind).step = stepName;
-                Vdata(ind).pertubationsTime = pertubationsTime;
-                Vdata(ind).steppingTime = steppingTime;
-                Vdata(ind).firstStep = firstStep;
-                Vdata(ind).EndFirstStep = EndFirstStep +240;
-                Vdata(ind).lastStep = lastStep;              
-                Vdata(ind).RightarmsTime = RightarmsTime;
-                Vdata(ind).LeftarmsTime = LeftarmsTime;
-                Vdata(ind).edited = false;
-                Vdata(ind).cgOut = cgOut;
-                Vdata(ind).SFdATA = viconData.data((timeSlot(1):timeSlot(2)),3:end);
-                Vdata(ind).TypeArmMove=[];
-                Vdata(ind).TypeLegMove=[];
-                Vdata(ind).Fall=0;
-                Vdata(ind).MS=0;%multiple steps
-                namestr = cellstr(get(ListBoxPertubation, 'String')); 
-                Vdata(ind).StringPer=namestr{ind};
-                Vdata(ind).LElbowAng=LElbowAng(timeSlot(1):timeSlot(2));
-                Vdata(ind).LShoulderAng=LShoulderAng((timeSlot(1):timeSlot(2)),1:3);       
-                Vdata(ind).RElbowAng=RElbowAng(timeSlot(1):timeSlot(2));
-                Vdata(ind).RShoulderAng=RShoulderAng((timeSlot(1):timeSlot(2)),1:3); 
-
-                Vdata2(ind).pertubationsTime = pertubationsTime;
-                Vdata2(ind).steppingTime = steppingTime;
-                Vdata2(ind).firstStep = firstStep;
-                Vdata2(ind).EndFirstStep = EndFirstStep +240;
-                Vdata2(ind).lastStep = lastStep;            
-                Vdata2(ind).RightarmsTime = RightarmsTime;
-                Vdata2(ind).LeftarmsTime = LeftarmsTime;
-                Vdata2(ind).cgOut = cgOut;
-                Vdata2(ind).TypeArmMove=[];
-                Vdata2(ind).TypeLegMove=[];
-                Vdata2(ind).Fall=0;
-                Vdata2(ind).MS=0;%multiple steps
-           end
-            a=get(pathFolder,'string')
-            save([a{2,1} '\Vdata_' stepName], 'Vdata');
-            save([a{2,1} '\Vdata2_' stepName], 'Vdata2');
-        end
-    clear bamperX leftAnkleX rightAnkleX leftAnkleY rightAnkleY leftArmX leftArmY leftArmZ rightArmX rightArmY rightArmZ name stepName rawData viconData
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function drawButtonselected_cb(h,ev)
-    try 
-     pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-     listbox=get(ListBoxPertubation, 'String');
-     currentbox=listbox{get(ListBoxPertubation,'value'),1};
-     
-      if Vdata(pertNumber).edited==1 % edited-0 (not analyzed) edited -1 (analyzed)   
-          israw = 2;
-          set(typeOfLegMove,'string',Vdata2(pertNumber).TypeLegMove);
-          set(typeOfArmMove,'string',Vdata2(pertNumber).TypeArmMove);
-         set(checkBoxFall,'Value',Vdata2(pertNumber).Fall);
-         set(checkBoxMS,'Value',Vdata2(pertNumber).MS);
-      else         
-         israw = 1;
-         set(typeOfLegMove,'string','');
-         set(typeOfArmMove,'string','');
-         set(checkBoxFall,'Value',0);
-         set(checkBoxMS,'Value',0);
-     end
     clearButtonselected_cb([],[]);
-    DrawCOP(patientName, step, pertNumber, israw)
-    %set(displayInfoButton, 'visible', 'on')
-    set(patientNameLabel,'string', patientName)
-        
-    catch me
-        h = errordlg(me.getReport)
-     end
+    DrawCOP(pertNumber, israw);
+    set(patientNameLabel,'string',vcd.subjname)
 end
-function clearButtonselected_cb(h,ev)
-    try
-    %Clear graphs
-    %cla(haxesCG)       
-    %cla(haxesStep)
-    %cla(haxesBamper)
-    %cla(haxesArms)
-    set(plotHandleBamper(isPlotted == 1),'Visible','off')
-    set(plotHandleCG(isPlotted == 1),'Visible','off')
-    set(plotHandleRightStep(isPlotted == 1),'Visible','off')
-    set(plotHandleLeftStep(isPlotted == 1),'Visible','off')
-    set(plotHandleRightStepA(isPlotted == 1),'Visible','off')
-    set(plotHandleLeftStepA(isPlotted == 1),'Visible','off')
-    set(plotHandleLeftArm(isPlotted == 1),'Visible','off')
-    set(plotHandleRightArm(isPlotted == 1),'Visible','off')
-    set(plotHandleLeftCG(isPlotted == 1),'Visible','off')
-    set(plotHandleRightCG(isPlotted == 1),'Visible','off')
-    set(plotHandleLeftHCG(isPlotted == 1),'Visible','off')
-    set(plotHandleRightHCG(isPlotted == 1),'Visible','off')
-    set(plotHandleLeftTCG(isPlotted == 1),'Visible','off')
-    set(plotHandleRightTCG(isPlotted == 1),'Visible','off')
-    set(plotHandleBamper(isPlotted2 == 1),'Visible','off')
-    set(plotHandleCG(isPlotted2 == 1),'Visible','off')
-    set(plotHandleRightStep(isPlotted2 == 1),'Visible','off')
-    set(plotHandleLeftStep(isPlotted2 == 1),'Visible','off')
-    set(plotHandleLeftArm(isPlotted2 == 1),'Visible','off')
-    set(plotHandleRightArm(isPlotted2 == 1),'Visible','off')
-    set(plotHandleLeftCG(isPlotted2 == 1),'Visible','off')
-    set(plotHandleRightCG(isPlotted2 == 1),'Visible','off')
-    %empty matrixes of the plot
-    isPlotted = zeros(size(Vdata));
-    plotHandleBamper = zeros(size(Vdata));
-    plotHandleCG = zeros(size(Vdata));
-    plotHandleLeftCG = zeros(size(Vdata))   
-    plotHandleRightCG = zeros(size(Vdata))
-    plotHandleLeftHCG = zeros(size(Vdata))   
-    plotHandleRightHCG = zeros(size(Vdata))
-    plotHandleLeftTCG = zeros(size(Vdata))   
-    plotHandleRightTCG = zeros(size(Vdata))
-    plotHandleRightStep = zeros(size(Vdata))
-    plotHandleLeftStep = zeros(size(Vdata))
-    plotHandleRightStepA = zeros(size(Vdata))
-    plotHandleLeftStepA = zeros(size(Vdata))
-    plotHandleLeftArm = zeros(size(Vdata))
-    plotHandleRightArm = zeros(size(Vdata))
-    isPlotted2 = zeros(size(Vdata));
-    plotHandleBamper2 = zeros(size(Vdata));
-    plotHandleCG2 = zeros(size(Vdata));
-    plotHandleRightStep2 = zeros(size(Vdata));
-    plotHandleLeftStep2 = zeros(size(Vdata));
-    plotHandleLeftArm2 = zeros(size(Vdata));
-    plotHandleRightArm2 = zeros(size(Vdata));
+
+function clearButtonselected_cb(~,~)
+    fields = fieldnames(plotHandles.handles);
+    for i=1:length(fields)
+        %o = plotHandles.handles.(fields{i});
+        %set(o(plotHandles.isplotted.fixed == 1),'Visible','off');
+        plotHandles.handles.(fields{i}) = zeros(size(Vdata));
+    end
+    plotHandles.isplotted.fixed = zeros(size(Vdata));
+    plotHandles.isplotted.mutables = zeros(size(Vdata));
     set(patientNameLabel,'string', '')
-    catch me
-        h = errordlg(me.getReport)
-    end
 end
-function DrawCOP(patientName, step, pertNumber, israw)
-    try
-    if israw == 1
-    isPlotted(pertNumber) = 1;
-    
-    set(checkBoxHideRightArms,'value', 0);
-    set(checkBoxHideLeftArms,'value', 0);
-    set(checkBoxHideSteps,'value', 0);
-    set(checkBoxHideCG,'value', 0);
-    set(checkBoxHideBamper,'value', 0);
-    
-    axes(haxesBamper); 
-    set(haxesSFLine3, 'YData', [-5000 5000])
-    set(haxesSFLine3, 'XData', [1 1])
-     hold on
-    plotHandleBamper(pertNumber) = plot(haxesBamper, Vdata(pertNumber).bamper,'color', 'k' ,'LineWidth',1.5); hold on
-        
-    ylim(haxesBamper,[min(Vdata(pertNumber).bamper)-100, max(Vdata(pertNumber).bamper)+ 100])
-    xlim(haxesBamper,[1 length(Vdata(pertNumber).bamper)])
-    title(haxesBamper, 'Bamper X movement');  
-    haxesBamperLine1.setPosition([240 240], [-50000 50000]);
-    haxesBamperLine2.setPosition([length(Vdata(pertNumber).bamper)-360 length(Vdata(pertNumber).bamper)-360], [-50000 50000]);
-    haxesBamperLine3.setPosition([Vdata(pertNumber).steppingTime(1) Vdata(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesBamperLine4.setPosition([Vdata(pertNumber).steppingTime(2) Vdata(pertNumber).steppingTime(2)], [-50000 50000]);
-    haxesBamperLine5.setPosition([Vdata(pertNumber).RightarmsTime(1) Vdata(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesBamperLine6.setPosition([Vdata(pertNumber).RightarmsTime(2) Vdata(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesBamperLine7.setPosition([Vdata(pertNumber).cgOut(1) Vdata(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesBamperLine8.setPosition([Vdata(pertNumber).cgOut(2) Vdata(pertNumber).cgOut(2)], [-50000 50000]);
-    haxesBamperLine9.setPosition([Vdata(pertNumber).LeftarmsTime(1) Vdata(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesBamperLine10.setPosition([Vdata(pertNumber).LeftarmsTime(2) Vdata(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesBamperLine11.setPosition([Vdata(pertNumber).EndFirstStep Vdata(pertNumber).EndFirstStep], [-50000 50000]);
 
-    xlabel(haxesBamper,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    ylabel(haxesBamper,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    if Vdata(pertNumber).pertubationsTime(1)< 0
-        set(checkBoxBamper, 'value', 1);
-    else
-        set(checkBoxBamper, 'value', 0);
-    end
-    set(slider,'min',1);
-    set(slider,'max', length(Vdata(pertNumber).bamper));
-    set(slider,'value',1);
-    
-    axes(haxesCG);
-    set(haxesSFLine1, 'YData', [-5000 5000])
-    set(haxesSFLine1, 'XData', [1 1])
-    hold on
-    if mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-        plotHandleLeftCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).leftAnkleX,'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleRightCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).rightAnkleX,'color', 'r' ,'LineWidth',1.5); hold on
-        
-        plotHandleLeftHCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleLeftTCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', 'r' ,'LineWidth',1.5); hold on
-        plotHandleRightHCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', [0.5 0.2 0.7] ,'LineWidth',1.5); hold on
-        plotHandleRightTCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', [0.4 0.3 0.6] ,'LineWidth',1.5); hold on
-        
-        plotHandleCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).CGX,'color', 'b' ,'LineWidth',1.5); hold on
-        legend([plotHandleLeftCG(pertNumber), plotHandleRightCG(pertNumber),...
-        plotHandleCG(pertNumber)], 'left', 'right', 'CG')
-        ylim(haxesCG,[min(min(Vdata(pertNumber).rightAnkleX,Vdata(pertNumber).leftAnkleX))-100 max(max(Vdata(pertNumber).leftAnkleX,Vdata(pertNumber).rightAnkleX))+ 100])
-        xlim(haxesCG,[1, length(Vdata(pertNumber).bamper)])
-    else% front back pertubation\
-        plotHandleLeftCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleRightCG(pertNumber) = plot(haxesCG,[-50000 -50000],'color', 'r' ,'LineWidth',1.5); hold on
-        plotHandleLeftHCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).leftHeelY,'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleLeftTCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).leftToeY,'color',[ 0.1 0.6 0.4] ,'LineWidth',1.5); hold on
-        plotHandleRightHCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).rightHeelY,'color', 'r' ,'LineWidth',1.5); hold on
-        plotHandleRightTCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).rightToeY,'color', [0.9 0.3 0.1] ,'LineWidth',1.5); hold on
-        plotHandleCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).CGY,'color', 'b' ,'LineWidth',1.5); hold on
-        legend([plotHandleLeftHCG(pertNumber), plotHandleLeftTCG(pertNumber),...
-        plotHandleRightHCG(pertNumber), plotHandleRightTCG(pertNumber),plotHandleCG(pertNumber)], 'leftHeelY', 'leftToeY','rightHeelY', 'rightToeY', 'CGY')
-        ylim(haxesCG,[min(min(Vdata(pertNumber).leftToeY),min(Vdata(pertNumber).rightToeY))-100 max(max(Vdata(pertNumber).leftHeelY),max(Vdata(pertNumber).rightHeelY))+ 100])
-        xlim(haxesCG,[1, length(Vdata(pertNumber).bamper)])
-    end
-    xlabel(haxesCG,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    ylabel(haxesCG,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    title(haxesCG, 'CG and feet movement');
-   haxesBamperLine1.setPosition([240 240], [-50000 50000]);
-    haxesBamperLine2.setPosition([length(Vdata(pertNumber).bamper)-360 length(Vdata(pertNumber).bamper)-360], [-50000 50000]);
-   haxesCGLine3.setPosition([Vdata(pertNumber).steppingTime(1) Vdata(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesCGLine4.setPosition([Vdata(pertNumber).steppingTime(2) Vdata(pertNumber).steppingTime(2)], [-50000 50000]);
-    haxesCGLine5.setPosition([Vdata(pertNumber).RightarmsTime(1) Vdata(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesCGLine6.setPosition([Vdata(pertNumber).RightarmsTime(2) Vdata(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesCGLine7.setPosition([Vdata(pertNumber).cgOut(1) Vdata(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesCGLine8.setPosition([Vdata(pertNumber).cgOut(2) Vdata(pertNumber).cgOut(2)], [-50000 50000]);
-    haxesCGLine9.setPosition([Vdata(pertNumber).LeftarmsTime(1) Vdata(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesCGLine10.setPosition([Vdata(pertNumber).LeftarmsTime(2) Vdata(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesCGLine11.setPosition([Vdata(pertNumber).EndFirstStep Vdata(pertNumber).EndFirstStep], [-50000 50000]);
-    if Vdata(pertNumber).cgOut(1)< 0
-        set(checkBoxCG, 'value', 1);
-    else
-        set(checkBoxCG, 'value', 0);
+function DrawCOP(pertNumber, israw)
+    d1 = Vdata(pertNumber);
+    d2 = Vdata2(pertNumber);
+    function set_line_positions(obj,source)
+        %% to check
+        %obj.lines{1}.setPosition([240 240],tip);
+        %obj.lines{2}.setPosition([length(d.bamper)-360 length(d.bamper)-360], [-50000 50000]);
+        haxes.Bamper.lines{1}.setPosition([240,240],tip);
+        l = length(d1.bamper)-360;
+        haxes.Bamper.lines{2}.setPosition([l,l],tip);
+
+
+        datas = {'','','steppingTime','','RightarmsTime','','cgOut','','LeftarmsTime'};
+        for i=3:2:9
+            info = source.(datas{i});
+            obj.lines{i}.setPosition([info(1) info(1)],tip);
+            obj.lines{i+1}.setPosition([info(2) info(2)],tip);
+        end
+        obj.lines{11}.setPosition([source.EndFirstStep source.EndFirstStep],tip);
+        xlabel(obj.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        ylabel(obj.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
     end
     
-    axes(haxesStep);
-    hold on
-    set(haxesSFLine2, 'YData', [-50000 50000])
-    set(haxesSFLine2, 'XData', [1 1])
-    if length(Vdata)==24
-     plotHandleLeftStep(pertNumber) = plot(haxesStep, Vdata(pertNumber).leftStepping,'color', 'g' ,'LineWidth',1.5); hold on
-     plotHandleRightStep(pertNumber) = plot(haxesStep, Vdata(pertNumber).rightStepping,'color', 'r' ,'LineWidth',1.5); hold on
-%         VelocityL=(Vdata(pertNumber).leftStepping(2:end)-Vdata(pertNumber).leftStepping(1:end-1))*120;
-%        VelocityR=(Vdata(pertNumber).rightStepping(2:end)-Vdata(pertNumber).rightStepping(1:end-1))*120;
-%         AccL=(VelocityL(2:end)-VelocityL(1:end-1))*120;
-%        AccR=(VelocityR(2:end)-VelocityR(1:end-1))*120;
-%    
-%         plotHandleLeftStepA(pertNumber) = plot(haxesStep,AccL ,'color', 'c' ,'LineWidth',1.5); hold on
-%         plotHandleRightStepA(pertNumber) = plot(haxesStep, AccR ,'color', 'm' ,'LineWidth',1.5); hold on
-%         ylabel(haxesStep,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-%         title(haxesStep, 'Step Acceleration');
-%          legend([plotHandleLeftStepA(pertNumber), plotHandleRightStepA(pertNumber)...
-%        ], 'left', 'right')
-     
-     %plotHandleLeftStep(pertNumber) = plot(haxesStep, Vdata(pertNumber).leftAnkleX,'color', 'g' ,'LineWidth',1.5); hold on
-    %plotHandleRightStep(pertNumber) = plot(haxesStep, Vdata(pertNumber).rightAnkleX,'color', 'r' ,'LineWidth',1.5); hold on
-    else % walking 
-        plotHandleLeftStep(pertNumber) =plot(haxesStep,0,0,'b'); hold on
-       plotHandleRightStep(pertNumber)= plot(haxesStep,0,0); hold on
-    end
-    if length(Vdata)==12%mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-       
-        VelocityL=(Vdata(pertNumber).leftStepping(2:end)-Vdata(pertNumber).leftStepping(1:end-1))*120;
-       VelocityR=(Vdata(pertNumber).rightStepping(2:end)-Vdata(pertNumber).rightStepping(1:end-1))*120;
-        AccL=(VelocityL(2:end)-VelocityL(1:end-1))*120;
-       AccR=(VelocityR(2:end)-VelocityR(1:end-1))*120;
-   
-        plotHandleLeftStepA(pertNumber) = plot(haxesStep,AccL ,'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleRightStepA(pertNumber) = plot(haxesStep, AccR ,'color', 'r' ,'LineWidth',1.5); hold on
-        ylabel(haxesStep,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        title(haxesStep, 'Step Acceleration');
-         legend([plotHandleLeftStepA(pertNumber), plotHandleRightStepA(pertNumber)...
-       ], 'left', 'right')
-    else
-       plotHandleLeftStepA(pertNumber) =plot(haxesStep,0,0,'b'); hold on
-       plotHandleRightStepA(pertNumber)= plot(haxesStep,0,0); hold on
-       ylabel(haxesStep,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    title(haxesStep, 'Step');
-     legend([plotHandleLeftStep(pertNumber), plotHandleRightStep(pertNumber)...
-       ], 'left', 'right')
-   end % if walking
-    xlabel(haxesStep,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    
-    haxesBamperLine1.setPosition([240 240], [-50000 50000]);
-    haxesBamperLine2.setPosition([length(Vdata(pertNumber).bamper)-360 length(Vdata(pertNumber).bamper)-360], [-50000 50000]);
-    haxesStepLine3.setPosition([Vdata(pertNumber).steppingTime(1) Vdata(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesStepLine4.setPosition([Vdata(pertNumber).steppingTime(2) Vdata(pertNumber).steppingTime(2)], [-50000 50000]);
-    haxesStepLine5.setPosition([Vdata(pertNumber).RightarmsTime(1) Vdata(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesStepLine6.setPosition([Vdata(pertNumber).RightarmsTime(2) Vdata(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesStepLine7.setPosition([Vdata(pertNumber).cgOut(1) Vdata(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesStepLine8.setPosition([Vdata(pertNumber).cgOut(2) Vdata(pertNumber).cgOut(2)], [-50000 50000]);
-    haxesStepLine9.setPosition([Vdata(pertNumber).LeftarmsTime(1) Vdata(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesStepLine10.setPosition([Vdata(pertNumber).LeftarmsTime(2) Vdata(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesStepLine11.setPosition([Vdata(pertNumber).EndFirstStep Vdata(pertNumber).EndFirstStep], [-50000 50000]);
-
-    xlim(haxesStep,[1, length(Vdata(pertNumber).bamper)])
-    %ylim(haxesStep,[min(min(Vdata(pertNumber).leftStepping),min(Vdata(pertNumber).rightStepping))-100 max(max(Vdata(pertNumber).leftStepping),max(Vdata(pertNumber).rightStepping))+ 100])
-    if length(Vdata)==12%mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-        ylim(haxesStep,[min(min(AccL),min(AccR))-20 max(max(AccL),max(AccR))+20])
-    else
-        ylim(haxesStep,[min(min(Vdata(pertNumber).leftStepping),min(Vdata(pertNumber).rightStepping))-100 max(max(Vdata(pertNumber).leftStepping),max(Vdata(pertNumber).rightStepping))+ 100])
-
-    end
-    %legend('slider','left', 'right')
-   
-    if Vdata(pertNumber).steppingTime(1)< 0
-        set(checkBoxStep, 'value', 1);
-        set(listBoxStep,'value', 3);
-
-    else
-        set(checkBoxStep, 'value', 0);
-        if Vdata(pertNumber).firstStep==1
-            set(listBoxStep,'value', 1);
+    function plot_source(israw)
+        if israw == 1
+            source = d1;
         else
-            set(listBoxStep,'value', 2);
+            source = d2;
         end
-    end
-    
-    axes(haxesArms);
-    hold on
-    set(haxesSFLine4, 'YData', [-50000 50000])
-    set(haxesSFLine4, 'XData', [1 1])
-    plotHandleLeftArm(pertNumber) = plot(haxesArms, Vdata(pertNumber).leftArmTotal,'color', 'g' ,'LineWidth',1.5); hold on
-    plotHandleRightArm(pertNumber) = plot(haxesArms, Vdata(pertNumber).rightArmTotal,'color', 'r' ,'LineWidth',1.5); hold on
-    xlabel(haxesArms,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    ylabel(haxesArms,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    title(haxesArms, 'Change in arms distance from CG');
-    haxesBamperLine1.setPosition([240 240], [-50000 50000]);
-    haxesBamperLine2.setPosition([length(Vdata(pertNumber).bamper)-360 length(Vdata(pertNumber).bamper)-360], [-50000 50000]);
-   haxesStepLine3.setPosition([Vdata(pertNumber).steppingTime(1) Vdata(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesStepLine4.setPosition([Vdata(pertNumber).steppingTime(2) Vdata(pertNumber).steppingTime(2)], [-50000 50000]); 
-    haxesStepLine5.setPosition([Vdata(pertNumber).RightarmsTime(1) Vdata(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesStepLine6.setPosition([Vdata(pertNumber).RightarmsTime(2) Vdata(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesStepLine7.setPosition([Vdata(pertNumber).cgOut(1) Vdata(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesStepLine8.setPosition([Vdata(pertNumber).cgOut(2) Vdata(pertNumber).cgOut(2)], [-50000 50000]);    
-    haxesStepLine9.setPosition([Vdata(pertNumber).LeftarmsTime(1) Vdata(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesStepLine10.setPosition([Vdata(pertNumber).LeftarmsTime(2) Vdata(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesStepLine11.setPosition([Vdata(pertNumber).EndFirstStep Vdata(pertNumber).EndFirstStep], [-50000 50000]);
-    
-    ylim(haxesArms,[min(min(Vdata(pertNumber).leftArmTotal),min(Vdata(pertNumber).rightArmTotal))-100 max(max(Vdata(pertNumber).leftArmTotal),max(Vdata(pertNumber).rightArmTotal))+ 100])
-    xlim(haxesArms,[1, length(Vdata(pertNumber).bamper)])
-    %legend('slider', 'left', 'right')
-    legend([plotHandleLeftArm(pertNumber), plotHandleRightArm(pertNumber)...
-       ], 'left', 'right')
-    if Vdata(pertNumber).RightarmsTime(1)< 0
-        set(checkBoxRightArms, 'value', 1);
-    else
-        set(checkBoxRightArms, 'value', 0);
-    end
-     if Vdata(pertNumber).LeftarmsTime(1)< 0
-        set(checkBoxLeftArms, 'value', 1);
-    else
-        set(checkBoxLeftArms, 'value', 0);
-    end
-    
-    set(slider,'min',1);
-    set(slider,'max', length(Vdata(pertNumber).bamper));
-    set(slider,'value',1);
-    
-    %ColorLines();  
-   
-    else % isdraw==2;
-   
-    isPlotted(pertNumber) = 1;
-    axes(haxesBamper);
-    set(haxesSFLine3, 'YData', [-50000 50000])
-    set(haxesSFLine3, 'XData', [1 1])
-    hold on
-    plotHandleBamper(pertNumber) = plot(haxesBamper, Vdata(pertNumber).bamper,'color', 'k' ,'LineWidth',1.5); hold on     
-    xlabel(haxesBamper,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    ylabel(haxesBamper,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    title(haxesBamper, 'Bamper X movement');
-   haxesBamperLine1.setPosition([Vdata2(pertNumber).pertubationsTime(1) Vdata2(pertNumber).pertubationsTime(1)], [-50000 50000]);
-    haxesBamperLine2.setPosition([Vdata2(pertNumber).pertubationsTime(2) Vdata2(pertNumber).pertubationsTime(2)], [-50000 50000]);
-     haxesBamperLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesBamperLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-50000 50000]);
-    haxesBamperLine5.setPosition([Vdata2(pertNumber).RightarmsTime(1) Vdata2(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesBamperLine6.setPosition([Vdata2(pertNumber).RightarmsTime(2) Vdata2(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesBamperLine7.setPosition([Vdata2(pertNumber).cgOut(1) Vdata2(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesBamperLine8.setPosition([Vdata2(pertNumber).cgOut(2) Vdata2(pertNumber).cgOut(2)], [-50000 50000]);
-    haxesBamperLine9.setPosition([Vdata2(pertNumber).LeftarmsTime(1) Vdata2(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesBamperLine10.setPosition([Vdata2(pertNumber).LeftarmsTime(2) Vdata2(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesBamperLine11.setPosition([Vdata2(pertNumber).EndFirstStep Vdata2(pertNumber).EndFirstStep], [-50000 50000]);  
-    ylim(haxesBamper,[min(Vdata( pertNumber).bamper)-100 max(Vdata(pertNumber).bamper)+ 100])
-    xlim(haxesBamper,[1, length(Vdata(pertNumber).bamper)])
-    if Vdata2(pertNumber).pertubationsTime(1)< 0
-        set(checkBoxBamper, 'value', 1);
-    else
-        set(checkBoxBamper, 'value', 0);
-    end
-     set(slider,'min',1);
-    set(slider,'max', length(Vdata(pertNumber).bamper));
-    set(slider,'value',1);
-    axes(haxesCG);
-    hold on
-    set(haxesSFLine1, 'YData', [-50000 50000])
-    set(haxesSFLine1, 'XData', [1 1])
-    if mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-        plotHandleLeftCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).leftAnkleX,'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleRightCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).rightAnkleX,'color', 'r' ,'LineWidth',1.5); hold on
-        
-        plotHandleLeftHCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleLeftTCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', 'r' ,'LineWidth',1.5); hold on
-        plotHandleRightHCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', [0.5 0.2 0.7] ,'LineWidth',1.5); hold on
-        plotHandleRightTCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', [0.4 0.3 0.6] ,'LineWidth',1.5); hold on
-                
-        plotHandleCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).CGX,'color', 'b' ,'LineWidth',1.5); hold on
-        legend([plotHandleLeftCG(pertNumber), plotHandleRightCG(pertNumber),...
-        plotHandleCG(pertNumber)], 'left', 'right', 'CG')
-        ylim(haxesCG,[min(min(Vdata(pertNumber).rightAnkleX,Vdata(pertNumber).leftAnkleX))-100 max(max(Vdata(pertNumber).leftAnkleX,Vdata(pertNumber).rightAnkleX))+ 100])
-        xlim(haxesCG,[1, length(Vdata(pertNumber).bamper)])
-    else% front back pertubation
-        plotHandleLeftCG(pertNumber) = plot(haxesCG, [-50000 -50000],'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleRightCG(pertNumber) = plot(haxesCG,[-50000 -50000],'color', 'r' ,'LineWidth',1.5); hold on
-        
-       plotHandleLeftHCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).leftHeelY,'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleLeftTCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).leftToeY,'color', [ 0.1 0.6 0.4] ,'LineWidth',1.5); hold on
-        plotHandleRightHCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).rightHeelY,'color',  'r' ,'LineWidth',1.5); hold on
-        plotHandleRightTCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).rightToeY,'color',[0.9 0.3 0.1] ,'LineWidth',1.5); hold on
-        plotHandleCG(pertNumber) = plot(haxesCG, Vdata(pertNumber).CGY,'color', 'b' ,'LineWidth',1.5); hold on
-        legend([plotHandleLeftHCG(pertNumber), plotHandleLeftTCG(pertNumber),...
-        plotHandleRightHCG(pertNumber), plotHandleRightTCG(pertNumber),plotHandleCG(pertNumber)], 'leftHeelY', 'leftToeY','rightHeelY', 'rightToeY', 'CGY')
-        ylim(haxesCG,[min(min(Vdata(pertNumber).leftToeY),min(Vdata(pertNumber).rightToeY))-100 max(max(Vdata(pertNumber).leftHeelY),max(Vdata(pertNumber).rightHeelY))+ 100])
-        xlim(haxesCG,[1, length(Vdata(pertNumber).bamper)])
-    end
-    xlabel(haxesCG,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    ylabel(haxesCG,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    title(haxesCG, 'CG and feet movement')
-   haxesBamperLine1.setPosition([Vdata2(pertNumber).pertubationsTime(1) Vdata2(pertNumber).pertubationsTime(1)], [-50000 50000]);
-    haxesBamperLine2.setPosition([Vdata2(pertNumber).pertubationsTime(2) Vdata2(pertNumber).pertubationsTime(2)], [-50000 50000]);
-    haxesCGLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesCGLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-50000 50000]);     
-    haxesCGLine5.setPosition([Vdata2(pertNumber).RightarmsTime(1) Vdata2(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesCGLine6.setPosition([Vdata2(pertNumber).RightarmsTime(2) Vdata2(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesCGLine7.setPosition([Vdata2(pertNumber).cgOut(1) Vdata2(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesCGLine8.setPosition([Vdata2(pertNumber).cgOut(2) Vdata2(pertNumber).cgOut(2)], [-50000 50000]);    
-    haxesCGLine9.setPosition([Vdata2(pertNumber).LeftarmsTime(1) Vdata2(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesCGLine10.setPosition([Vdata2(pertNumber).LeftarmsTime(2) Vdata2(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesCGLine11.setPosition([Vdata2(pertNumber).EndFirstStep Vdata2(pertNumber).EndFirstStep], [-50000 50000]);
-    if Vdata2(pertNumber).cgOut(1)< 0
-        set(checkBoxCG, 'value', 1);
-    else
-        set(checkBoxCG, 'value', 0);
-    end
-    
-    axes(haxesStep);
-    hold on
-    set(haxesSFLine2, 'YData', [-50000 50000])
-    set(haxesSFLine2, 'XData', [1 1])
-    if length(Vdata)==24
-    plotHandleLeftStep(pertNumber) = plot(haxesStep, Vdata( pertNumber).leftStepping,'color', 'g' ,'LineWidth',1.5); hold on
-    plotHandleRightStep(pertNumber) = plot(haxesStep, Vdata( pertNumber).rightStepping,'color', 'r' ,'LineWidth',1.5); hold on
-    else % walking 
-        plotHandleLeftStep(pertNumber) =plot(haxesStep,0,0,'b'); hold on
-       plotHandleRightStep(pertNumber)= plot(haxesStep,0,0); hold on
-        
-    end
-    
-    if length(Vdata)==12%mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-        VelocityL=(Vdata(pertNumber).leftStepping(2:end)-Vdata(pertNumber).leftStepping(1:end-1))*120;
-        VelocityR=(Vdata(pertNumber).rightStepping(2:end)-Vdata(pertNumber).rightStepping(1:end-1))*120;
-        AccL=(VelocityL(2:end)-VelocityL(1:end-1))*120;
-        AccR=(VelocityR(2:end)-VelocityR(1:end-1))*120;
+        plotHandles.isplotted.fixed(pertNumber) = 1;
+        set(checkBoxHideRightArms,'value', 0);
+        set(checkBoxHideLeftArms,'value', 0);
+        set(checkBoxHideSteps,'value', 0);
+        set(checkBoxHideCG,'value', 0);
+        set(checkBoxHideBamper,'value', 0);
 
-        plotHandleLeftStepA(pertNumber) = plot(haxesStep,AccL ,'color', 'g' ,'LineWidth',1.5); hold on
-        plotHandleRightStepA(pertNumber) = plot(haxesStep, AccR ,'color', 'r' ,'LineWidth',1.5); hold on
-        ylabel(haxesStep,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        title(haxesStep, 'Step Acceleration');
-         legend([plotHandleLeftStepA(pertNumber), plotHandleRightStepA(pertNumber)...
-         ], 'left', 'right')
-    else
-       plotHandleLeftStepA(pertNumber) =plot(haxesStep,0,0); hold on
-       plotHandleRightStepA(pertNumber)= plot(haxesStep,0,0); hold on
-        ylabel(haxesStep,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        title(haxesStep, 'Step');
-         legend([plotHandleLeftStep(pertNumber), plotHandleRightStep(pertNumber)...
-           ], 'left', 'right')
-    end % if walking or left/right perturbation
-%     
-    xlabel(haxesStep,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-   % ylabel(haxesStep,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    %title(haxesStep, 'Step');
-  haxesBamperLine1.setPosition([Vdata2(pertNumber).pertubationsTime(1) Vdata2(pertNumber).pertubationsTime(1)], [-50000 50000]);
-    haxesBamperLine2.setPosition([Vdata2(pertNumber).pertubationsTime(2) Vdata2(pertNumber).pertubationsTime(2)], [-50000 50000]);
-     haxesStepLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesStepLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-50000 50000]);     
-    haxesStepLine5.setPosition([Vdata2(pertNumber).RightarmsTime(1) Vdata2(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesStepLine6.setPosition([Vdata2(pertNumber).RightarmsTime(2) Vdata2(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesStepLine7.setPosition([Vdata2(pertNumber).cgOut(1) Vdata2(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesStepLine8.setPosition([Vdata2(pertNumber).cgOut(2) Vdata2(pertNumber).cgOut(2)], [-50000 50000]);
-   haxesStepLine9.setPosition([Vdata2(pertNumber).LeftarmsTime(1) Vdata2(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesStepLine10.setPosition([Vdata2(pertNumber).LeftarmsTime(2) Vdata2(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesStepLine11.setPosition([Vdata2(pertNumber).EndFirstStep Vdata2(pertNumber).EndFirstStep], [-50000 50000]);
-    if length(Vdata)==12%mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-        ylim(haxesStep,[min(min(AccL),min(AccR))-20 max(max(AccL),max(AccR))+20])
-    else
-        ylim(haxesStep,[min(min(Vdata(pertNumber).leftStepping),min(Vdata(pertNumber).rightStepping))-100 max(max(Vdata( pertNumber).leftStepping),max(Vdata(pertNumber).rightStepping))+ 100])
-    end
+        axes(haxes.Bamper.coords); 
+        set(SFLines{3}, 'YData',tip,'XData',[1,1])
+        hold on
+        plotHandles.handles.Bamper(pertNumber) = plot(haxes.Bamper.coords,d1.bamper,'color', 'k' ,'LineWidth',1.5); 
+        ylim(haxes.Bamper.coords,[min(d1.bamper)-100, max(d1.bamper)+ 100]);
+        xlim(haxes.Bamper.coords,[1 length(d1.bamper)]);
+        title(haxes.Bamper.coords, 'Bamper X movement');  
         
-    xlim(haxesStep,[1, length(Vdata(pertNumber).bamper)])
-    %legend('slider','left', 'right')
-    
-    if Vdata2(pertNumber).steppingTime(1)< 0
-        set(checkBoxStep, 'value', 1);
-        set(listBoxStep,'value',3);
-    else
-        set(checkBoxStep, 'value', 0);
-        if Vdata2(pertNumber).firstStep==1
-            set(listBoxStep, 'value', 1);
-        elseif Vdata2(pertNumber).firstStep==2  
-            set(listBoxStep, 'value', 2);
-        elseif Vdata2(pertNumber).firstStep==3
-            set(listBoxStep, 'value', 3);
-            set(checkBoxStep, 'value', 1);
+        set_line_positions(haxes.Bamper,source);
+        
+        if d1.pertubationsTime(1)< 0
+            set(checkBoxBamper, 'value', 1);
+        else
+            set(checkBoxBamper, 'value', 0);
+        end
+        set(slider,'min',1);
+        set(slider,'max', length(d1.bamper));
+        set(slider,'value',1)
+
+        axes(haxes.CG.coords);
+        set(SFLines{1}, 'YData',tip,'XData',[1,1])
+        hold on
+        if mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
+            plotHandles.handles.LeftCG(pertNumber) = plot(haxes.CG.coords,d1.leftAnkleX,'color', 'g' ,'LineWidth',1.5); 
+            hold on
+            plotHandles.handles.RightCG(pertNumber) = plot(haxes.CG.coords, d1.rightAnkleX,'color', 'r' ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.LeftHCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'g' ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.LeftTCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'r' ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.RightHCG(pertNumber) = plot(haxes.CG.coords,tip,'color', [0.5 0.2 0.7] ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.RightTCG(pertNumber) = plot(haxes.CG.coords,tip,'color', [0.4 0.3 0.6] ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.CG(pertNumber) = plot(haxes.CG.coords, d1.CGX,'color', 'b' ,'LineWidth',1.5); 
+            hold on
+            legend([plotHandles.handles.LeftCG(pertNumber), plotHandles.handles.RightCG(pertNumber),...
+                        plotHandles.handles.CG(pertNumber)], 'left', 'right', 'CG');
+            ylim(haxes.CG.coords,[min(min(d1.rightAnkleX,d1.leftAnkleX))-100 max(max(d1.leftAnkleX,d1.rightAnkleX))+ 100])
+            xlim(haxes.CG.coords,[1, length(d1.bamper)])
+        else % front back pertubation\
+            plotHandles.handles.LeftCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'g' ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.RightCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'r' ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.LeftHCG(pertNumber) = plot(haxes.CG.coords, d1.leftHeelY,'color', 'g' ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.LeftTCG(pertNumber) = plot(haxes.CG.coords,d1.leftToeY,'color',[ 0.1 0.6 0.4],'LineWidth',1.5);
+            hold on
+            plotHandles.handles.RightHCG(pertNumber) = plot(haxes.CG.coords,d1.rightHeelY,'color', 'r' ,'LineWidth',1.5); 
+            hold on
+            plotHandles.handles.RightTCG(pertNumber) = plot(haxes.CG.coords, d1.rightToeY,'color', [0.9 0.3 0.1] ,'LineWidth',1.5);
+            hold on
+            plotHandles.handles.CG(pertNumber) = plot(haxes.CG.coords, Vdata(pertNumber).CGY,'color', 'b' ,'LineWidth',1.5);
+            hold on
+            legend([plotHandles.handles.LeftHCG(pertNumber), plotHandles.handles.LeftTCG(pertNumber),...
+                plotHandles.handles.RightHCG(pertNumber), plotHandles.handles.RightTCG(pertNumber),...
+                plotHandles.handles.CG(pertNumber)], 'leftHeelY', 'leftToeY','rightHeelY', 'rightToeY', 'CGY');
+            ylim(haxes.CG.coords,[min(min(d1.leftToeY),min(d1.rightToeY))-100 max(max(d1.leftHeelY),max(d1.rightHeelY))+ 100])
+            xlim(haxes.CG.coords,[1, length(d1.bamper)])
+        end
+
+        xlabel(haxes.CG.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        ylabel(haxes.CG.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        title(haxes.CG.coords, 'CG and feet movement');
+        set_line_positions(haxes.CG,source); % check first two -- they are bamper in orig for some reason
+        if d1.cgOut(1)< 0
+            set(checkBoxCG, 'value', 1);
+        else
+            set(checkBoxCG, 'value', 0);
+        end
+
+        axes(haxes.Step.coords);
+        hold on
+        set(SFLines{2}, 'YData',tip, 'XData', [1 1])
+        
+        if strcmp(vcd.condition,'stand')
+            plotHandles.LeftStep(pertNumber) = plot(haxes.Step.coords,d1.leftStepping,'color', 'g' ,'LineWidth',1.5); 
+            hold on
+            plotHandles.RightStep(pertNumber) = plot(haxes.Step.coords,d1.rightStepping,'color', 'r' ,'LineWidth',1.5);
+            hold on
+            plotHandles.RightStep(pertNumber) = plot(haxes.Step.coords,d1.rightAnkleX,'color', 'r' ,'LineWidth',1.5);
+            hold on
+            plotHandles.LeftStepA(pertNumber) =plot(haxes.Step.coords,0,0,'b');
+            hold on
+            plotHandles.RightStepA(pertNumber)= plot(haxes.Step.coords,0,0);
+            hold on
+            ylabel(haxes.Step.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+            title(haxes.Step.coords, 'Step');
+            legend([plotHandles.LeftStep(pertNumber),...
+                plotHandles.RightStep(pertNumber)], 'left', 'right');
+
+        else % walking 
+            plotHandles.LeftStep(pertNumber) = plot(haxes.Step.coords,0,0,'b');
+            hold on
+            plotHandles.RightStep(pertNumber)= plot(haxes.Step.coords,0,0);
+            hold on
+            VelocityL = (d1.leftStepping(2:end)-d1.leftStepping(1:end-1))*vcd.datarate;
+            VelocityR = (d1.rightStepping(2:end)-d1.rightStepping(1:end-1))*vcd.datarate;
+            AccL=(VelocityL(2:end)-VelocityL(1:end-1))*vcd.datarate;
+            AccR=(VelocityR(2:end)-VelocityR(1:end-1))*vcd.datarate;
+            plotHandles.LeftStepA(pertNumber) = plot(haxes.Step.coords,AccL ,'color', 'g' ,'LineWidth',1.5);
+            hold on
+            plotHandles.RightStepA(pertNumber) = plot(haxes.Step.coords, AccR ,'color', 'r' ,'LineWidth',1.5);
+            hold on
+            ylabel(haxes.Step.coords,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+            title(haxes.Step.coords, 'Step Acceleration');
+            legend([plotHandles.LeftStepA(pertNumber), plotHandles.Right,StepA(pertNumber)], 'left', 'right');
+        end
+        xlabel(haxes.Step.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        set_line_positions(haxes.Step,source);
+        xlim(haxes.Step.coords,[1, length(d1.bamper)])
+        if strcmp(vcd.condition,'walkl')
+            ylim(haxes.Step.coords,[min(min(AccL),min(AccR))-20 max(max(AccL),max(AccR))+20])
+        else
+            ylim(haxes.Step.coords,[min(min(d1.leftStepping),min(Vdata(pertNumber).rightStepping))-100 max(max(Vdata(pertNumber).leftStepping),max(Vdata(pertNumber).rightStepping))+ 100])
+
+        end
+        
+        %legend('slider','left', 'right')
+
+        if d1.steppingTime(1)< 0
+            set(checkBoxSteps, 'value', 1);
+            set(listBoxStep,'value', 3);
+
+        else
+            set(checkBoxSteps, 'value', 0);
+            if Vdata(pertNumber).firstStep==1
+                set(listBoxStep,'value', 1);
+            else
+                set(listBoxStep,'value', 2);
+            end
+        end
+
+        axes(haxes.Arms.coords);
+        hold on
+        set(SFLines{4}, 'YData', tip,'XData', [1 1]);
+        plotHandles.LeftArm(pertNumber) = plot(haxes.Arms.coords,d1.leftArmTotal,'color', 'g' ,'LineWidth',1.5);
+        hold on
+        plotHandles.RightArm(pertNumber) = plot(haxes.Arms.coords,d1.rightArmTotal,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        xlabel(haxes.Arms.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        ylabel(haxes.Arms.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        title(haxes.Arms.coords, 'Change in arms distance from CG');
+        set_line_positions(haxes.Step,source); % again?
+        ylim(haxes.Arms.coords,[min(min(d1.leftArmTotal),min(d1.rightArmTotal))-100 max(max(d1.leftArmTotal),max(d1.rightArmTotal))+ 100])
+        xlim(haxes.Arms.coords,[1, length(Vdata(pertNumber).bamper)])
+        
+        %legend('slider', 'left', 'right')
+        legend([plotHandles.LeftArm(pertNumber), plotHandles.RightArm(pertNumber)], 'left', 'right')
+        if d1.RightarmsTime(1)< 0
+            set(checkBoxRightArms, 'value', 1);
+        else
+            set(checkBoxRightArms, 'value', 0);
+        end
+         if d1.LeftarmsTime(1)< 0
+            set(checkBoxLeftArms, 'value', 1);
+        else
+            set(checkBoxLeftArms, 'value', 0);
+        end
+
+        set(slider,'min',1);
+        set(slider,'max', length(d1.bamper));
+        set(slider,'value',1);
+        if israw == 2
+            plotHandles.isplotted.mutables(pertNumber) = 1; 
         end
     end
-    
-    axes(haxesArms);
-    hold on
-    set(haxesSFLine4, 'YData', ylim)
-    set(haxesSFLine4, 'XData', [1 1])
-    plotHandleLeftArm( pertNumber) = plot(haxesArms, Vdata( pertNumber).leftArmTotal,'color', 'g' ,'LineWidth',1.5); hold on
-    plotHandleRightArm(pertNumber) = plot(haxesArms, Vdata( pertNumber).rightArmTotal,'color', 'r' ,'LineWidth',1.5); hold on
-    xlabel(haxesArms,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    ylabel(haxesArms,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-    title(haxesArms, 'Change in arms distance from CG');
-  haxesBamperLine1.setPosition([Vdata2(pertNumber).pertubationsTime(1) Vdata2(pertNumber).pertubationsTime(1)], [-50000 50000]);
-    haxesBamperLine2.setPosition([Vdata2(pertNumber).pertubationsTime(2) Vdata2(pertNumber).pertubationsTime(2)], [-50000 50000]);
-     haxesArmsLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-50000 50000]);
-    haxesArmsLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-50000 50000]);     
-    haxesStepLine5.setPosition([Vdata2(pertNumber).RightarmsTime(1) Vdata2(pertNumber).RightarmsTime(1)], [-50000 50000]);
-    haxesStepLine6.setPosition([Vdata2(pertNumber).RightarmsTime(2) Vdata2(pertNumber).RightarmsTime(2)], [-50000 50000]);
-    haxesStepLine7.setPosition([Vdata2(pertNumber).cgOut(1) Vdata2(pertNumber).cgOut(1)], [-50000 50000]);
-    haxesStepLine8.setPosition([Vdata2(pertNumber).cgOut(2) Vdata2(pertNumber).cgOut(2)], [-50000 50000]);
-    haxesStepLine9.setPosition([Vdata2(pertNumber).LeftarmsTime(1) Vdata2(pertNumber).LeftarmsTime(1)], [-50000 50000]);
-    haxesStepLine10.setPosition([Vdata2(pertNumber).LeftarmsTime(2) Vdata2(pertNumber).LeftarmsTime(2)], [-50000 50000]);
-    haxesStepLine11.setPosition([Vdata2(pertNumber).EndFirstStep Vdata2(pertNumber).EndFirstStep], [-50000 50000]);
-    ylim(haxesArms,[min(min(Vdata( pertNumber).leftArmTotal),min(Vdata( pertNumber).rightArmTotal))-100 max(max(Vdata( pertNumber).leftArmTotal),max(Vdata( pertNumber).rightArmTotal))+ 100])
-    xlim(haxesArms,[1, length(Vdata(pertNumber).bamper)])
-    %legend('slider','left', 'right')
-    legend([plotHandleLeftArm(pertNumber), plotHandleRightArm(pertNumber)...
-       ], 'left', 'right')
-    if Vdata2(pertNumber).RightarmsTime(1)< 0
-        set(checkBoxRightArms, 'value', 1);
-    else
-        set(checkBoxRightArms, 'value', 0);
-    end
-     if Vdata2(pertNumber).LeftarmsTime(1)< 0
-        set(checkBoxLeftArms, 'value', 1);
-    else
-        set(checkBoxLeftArms, 'value', 0);
-    end
-    %ColorLines();  
-    isPlotted2(pertNumber) = 1;    
-    end
-%     axes(haxesSF);
-%     for ind = 1:3:length(Vdata(indexOfPatient, indexOfStep).SFdATA(1,:))
-%         hold on
-%         scatter3(haxesSF,Vdata(indexOfPatient, indexOfStep).SFdATA(1,ind),Vdata(indexOfPatient, indexOfStep).SFdATA(1,ind +1),Vdata(indexOfPatient, indexOfStep).SFdATA(1,ind +2), 'o')
-%         hold on
-%     end
-axes(haxesSF);
-     set(gca,'ydir','reverse')
-     view(-11,-20)
-    xlim([min(Vdata(pertNumber).SFdATA(1,1:3:end))-1, max(Vdata(pertNumber).SFdATA(1,1:3:end))+ 1])
-    ylim([min(Vdata(pertNumber).SFdATA(1,2:3:end))-1, max(Vdata(pertNumber).SFdATA(1,2:3:end))+ 1])
-    zlim([min(Vdata(pertNumber).SFdATA(1,3:3:end))-1, max(Vdata(pertNumber).SFdATA(1,3:3:end))+ 1])
-    catch me
-        h = errordlg(me.getReport)
-    end
+    plot_source(israw);
+    axes(haxes.SF);
+    set(gca,'ydir','reverse');
+    view(-11,-20)
+    xlim([min(d1.SFdATA(1,1:3:end))-1, max(d1.SFdATA(1,1:3:end))+ 1]);
+    ylim([min(d1.SFdATA(1,2:3:end))-1, max(d1.SFdATA(1,2:3:end))+ 1]);
+    zlim([min(d1.SFdATA(1,3:3:end))-1, max(d1.SFdATA(1,3:3:end))+ 1]);
 end
-function saveButtonselected_cb(h,ev)
-    try
-       pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-     listbox=get(ListBoxPertubation, 'String');
-     currentbox=listbox{get(ListBoxPertubation,'value'),1};
-     if get(checkBoxHideBamper,'value')==1
-         set(checkBoxHideBamper,'value',0)
-         checkBoxHideBamper_call
-     end
-     if get(checkBoxHideCG,'value')==1
-         set(checkBoxHideCG,'value',0)
-         checkBoxHideCG_call
-     end
-     if get(checkBoxRightArms,'value')==0 && get(checkBoxHideRightArms,'value')==1
-         set(checkBoxHideRightArms,'value',0)
-         checkBoxHideRightArms_call
-     end
-     if get(checkBoxLeftArms,'value')==0 && get(checkBoxHideLeftArms,'value')==1
-         set(checkBoxHideLeftArms,'value',0)
-         checkBoxHideLeftArms_call
-     end
-     if get(checkBoxStep,'value')==0 && get(checkBoxHideSteps,'value')==1
-         set(checkBoxHideSteps,'value',0)
-         checkBoxHideSteps_call
-     end
-  %if isempty(findstr(currentbox,'green')) % if 1 - not analyzed , 0- analyzed
+
+
+function saveButtonselected_cb(~,~)
+    pertNumber = ListBoxPertubation.Value;
+    % reset buttons
+    for chk = {checkBoxHideBamper,checkBoxHideCG}
+        if chk{:}.Value == 1
+            chk{:}.Value = 0; %#ok<FXSET>
+            checkBoxHide(chk{:});
+        end
+    end
+    for chk = {'RightArms','LeftArms','Steps'}
+        if eval(['checkBox' chk{:} '.Value == 0']) && eval(['checkBoxHide' chk{:} '.Value == 1'])
+             eval(['checkBoxHide' chk{:} ' = 0']);
+            checkBoxHide(eval(['checkBoxHide' chk{:}]));
+        end
+    end 
     
-    %get positions of all lines
-    haxesCGLine1Pos = round(haxesCGLine1.getPosition()); %bamper start
-    haxesCGLine2Pos = round(haxesCGLine2.getPosition()); %bamper end
-    haxesCGLine3Pos = round(haxesCGLine3.getPosition()); %step start
-    haxesCGLine4Pos = round(haxesCGLine4.getPosition()); %step end
-    haxesCGLine5Pos = round(haxesCGLine5.getPosition()); %armright start
-    haxesCGLine6Pos = round(haxesCGLine6.getPosition()); %armright end
-    haxesCGLine7Pos = round(haxesCGLine7.getPosition()); %cg start
-    haxesCGLine8Pos = round(haxesCGLine8.getPosition()); %cg end
-    haxesCGLine9Pos = round(haxesCGLine9.getPosition()); %armleft start
-    haxesCGLine10Pos = round(haxesCGLine10.getPosition()); %armleft end
-    haxesCGLine11Pos = round(haxesCGLine11.getPosition()); %end first step
-    %update first and last fot
-    if haxesCGLine3Pos(1,1)<0 
+    function pos = linepos(n)
+        pos = round(haxes.CG.lines{n}.getPosition());
+        pos = pos(1,1);
+    end
+    
+    % update first and last fot
+    if linepos(3) < 0 
         %%%%%%%%%%%%%%%%%
         %%% add if to check if the step is hidden, if so then still do
         %%% updatestepping function
         firstStep = 0; %no steps
         lastStep = 0; %no steps
-        
         set(listBoxStep,'value',3);
     else
-        
-    %update Vdata2: if the data is hidden then it is taken from vdata3    
-    [firstStep, lastStep] = updateStepping(Vdata(pertNumber).leftStepping, Vdata(pertNumber).rightStepping, floor(haxesCGLine3Pos(1,1)), round(haxesCGLine4Pos(1,1)));
+        %update Vdata2: if the data is hidden then it is taken from Vdata3    
+        [firstStep, lastStep] = updateStepping(Vdata(pertNumber).leftStepping, Vdata(pertNumber).rightStepping, floor(linepos(3)), linepos(4));
     end
-    if get(listBoxStep,'value')~=firstStep
-        listBoxStepvalue=get(listBoxStep,'value');
-         Vdata2(pertNumber).firstStep=listBoxStepvalue;
-    end
-    if get(checkBoxHideRightArms,'value') == 0
-        Vdata2(pertNumber).RightarmsTime = [haxesCGLine5Pos(1,1) haxesCGLine6Pos(1,1)];
-    else
-        Vdata2(pertNumber).RightarmsTime = Vdata3(pertNumber).RightarmsTime;
-    end
-    if get(checkBoxHideLeftArms,'value') == 0
-        Vdata2(pertNumber).LeftarmsTime = [haxesCGLine9Pos(1,1) haxesCGLine10Pos(1,1)];
-    else
-        Vdata2(pertNumber).LeftarmsTime = Vdata3(pertNumber).LeftarmsTime;
+    if listBoxStep.Value ~= firstStep
+         Vdata2(pertNumber).firstStep = listBoxStep.Value;
     end
     
-    if get(checkBoxHideSteps,'value') == 0
-        Vdata2(pertNumber).steppingTime = [haxesCGLine3Pos(1,1) haxesCGLine4Pos(1,1)];
-        Vdata2(pertNumber).EndFirstStep=haxesCGLine11Pos(1,1);
-    else
-        Vdata2(pertNumber).steppingTime = Vdata3(pertNumber).steppingTime;
-        Vdata2(pertNumber).EndFirstStep = Vdata3(pertNumber).EndFirstStep;
-        
+    for specs = {{checkBoxHideRightArms,{'RightarmsTime'},[5,6]},...
+        {checkBoxHideLeftArms,{'LeftarmsTime'},[9,10]},...
+        {checkBoxHideSteps,{'steppingTime'},[3,4,11]},...
+        {checkBoxHideCG,{'cgOut','pertubationsTime'},[7,8,1,2]}}
+        hider = specs{1,1}{1};
+        datcols = specs{1,1}{2};
+        linenumber = specs{1,1}{3};
+        if hider.Value == 0
+            Vdata2(pertNumber).(datcols{1}) = [linepos(linenumber(1)) linepos(linenumber(2))];
+            if length(datcols) == 2
+                Vdata2(pertNumber).(datcols{2}) = [linepos(linenumber(3)) linepos(linenumber(4))];
+            end
+        else
+            for dc = datcols
+                Vdata2(pertNumber).(dc{:}) = Vdata3(pertNumber).(dc{:});
+            end
+        end
     end
-    
-    if get(checkBoxHideCG,'value') == 0
-        Vdata2(pertNumber).cgOut = [haxesCGLine7Pos(1,1) haxesCGLine8Pos(1,1)];
-    else
-        Vdata2(pertNumber).cgOut = Vdata3(pertNumber).cgOut;
-    end
-    
-    if get(checkBoxHideCG,'value') == 0
-        Vdata2(pertNumber).pertubationsTime = [haxesCGLine1Pos(1,1) haxesCGLine2Pos(1,1)];
-    else
-        Vdata2(pertNumber).pertubationsTime = Vdata3(pertNumber).pertubationsTime;
-    end
-    
+
     Vdata2(pertNumber).lastStep = lastStep;
     
     %update Vdata eddited
-
     Vdata(pertNumber).edited = true;
     listBoxPertu_call
-    namestr = cellstr(get(ListBoxPertubation, 'String')); 
+    namestr = cellstr(ListBoxPertubation.String); 
     Vdata(pertNumber).StringPer=namestr{pertNumber};
     %save data
-    a=get(pathFolder,'string')
-    save([a{2,1} '\Vdata_' patientName], 'Vdata');
-    save([a{2,1} '\Vdata2_' patientName], 'Vdata2');
-%     save(get(pathFolder,'string'), ['Vdata' get(currentFile,'string')]);
-%     save(get(pathFolder,'string'), ['Vdata2' get(currentFile,'string')]); 
-    set(typeOfLegMove,'string','');
-    set(typeOfArmMove,'string','');
+    vcd.fixed = Vdata;
+    vcd.mutables = Vdata2;
+    vcd.savedata();
+    set(typeOfLegMove,'String','');
+    set(typeOfArmMove,'String','');
     set(checkBoxFall,'Value',0);
     set(checkBoxMS,'Value',0);
-   % clearButtonselected_cb([],[]);
-    if get(currentFile,'value')==24 && get(ListBoxPertubation,'value')<24
-        set(ListBoxPertubation,'value',get(ListBoxPertubation,'value')+1)
+    if pertNumber < vcd.numperts
+        ListBoxPertubation.Value = pertNumber+1;
     end
-    if get(currentFile,'value')==12 && get(ListBoxPertubation,'value')<12
-        set(ListBoxPertubation,'value',get(ListBoxPertubation,'value')+1)
-    end  
-    pause(0.1)
-    drawButtonselected_cb([],[])
-    catch me
-        h = errordlg(me.getReport)
-    end
-
+    pause(0.1);
+    drawButtonselected_cb
 end
-function [stepping, firstStep,EndFirstStep, lastStep] = findStepping(left, right,condition)
-    try
-    firstStep = 0;
-    lastStep = 0;
-    if strcmp(condition,'Walking')
-    
-    
-     VelocityL=(left(2:end)-left(1:end-1))*120; % the time is 1/120[sec]
-       VelocityR=(right(2:end)-right(1:end-1))*120;
-        AccL=(VelocityL(2:end)-VelocityL(1:end-1))*120;
-       AccR=(VelocityR(2:end)-VelocityR(1:end-1))*120;
-        leftStart = find(abs(AccL( 11:end) - AccL( 1:end -10))>0.9*120*120, 1, 'first');    
-        rightStart = find(abs(AccR( 11:end) - AccR( 1:end -10))>0.9*120*120, 1, 'first');
-        if isempty(leftStart) && isempty(rightStart)
-            stepping(1:2) =-5000;
-            EndFirstStep=-5000;
-        elseif isempty(leftStart) && ~isempty(rightStart)
-            stepping(1) = rightStart;
-            %leftEnd = find(abs(left(stepping(1) +  31:end) - left(stepping(1)+ 1:end -30))<0.5, 1, 'last');
-            rightEnd = find(abs(AccR(stepping(1) +  11:end) - AccR(stepping(1) + 1:end -10))<0.01*120*120, 1, 'first');
-            EndFirstStep = stepping(1) + rightEnd;
-            firstStep =1;
-            lastStep = 1;
-            %[pks,locs] = findpeaks(AccR(stepping(1):stepping(2)));
-            [pks,locs] = findpeaks(AccR(EndFirstStep:end));
-                 index=find(pks>0.4*120*120,1,'last')
-                if isempty(locs) ||isempty(index )
-                    stepping(2)=EndFirstStep;
-                    %[pks,locs] = max(AccR(stepping(1):stepping(2)))
-                else
-                     %EndFirstStep=locs(1)+stepping(1);
-                     index=find(pks>0.4*120*120,1,'last')
-                     stepping(2)=locs(index)+EndFirstStep;
-                 end
 
-        elseif ~isempty(leftStart) && isempty(rightStart)
-            stepping(1) = leftStart;
-            leftEnd = find(abs(AccL(stepping(1) +  11:end) - AccL(stepping(1)+ 1:end -10))<0.01*120*120, 1, 'first');
-            EndFirstStep = stepping(1) + leftEnd;
-            firstStep =2;
-            lastStep = 2;
-             %[pks,locs] = findpeaks(AccL(stepping(1):stepping(2)));
-             [pks,locs] = findpeaks(AccL(EndFirstStep:end));
-             index=find(pks>0.4*120*120,1,'last')
-            if isempty(locs) ||isempty(index )
-                stepping(2)=EndFirstStep;
-                %[pks,locs] = max(AccL(stepping(1):stepping(2)))
-            else
-                index=find(pks>0.4*120*120,1,'last')
-                 stepping(2)=locs(index)+EndFirstStep;
-
-            end
-
-        else
-            stepping(1) = min(leftStart, rightStart);
-            leftEnd = find(abs(AccL(stepping(1) +  11:end) - AccL(stepping(1)+ 1:end -10))<0.01*120*120, 1, 'first');
-            rightEnd = find(abs(AccR(stepping(1) +  11:end) - AccR(stepping(1) + 1:end-10 ))<0.01*120*120, 1, 'first');
-            EndFirstStep =stepping(1) + max(leftEnd, rightEnd);
-            if(leftStart >rightStart)
-                firstStep =1;%right first
-                 [pks,locs] = findpeaks(AccR(EndFirstStep:end));
-                index=find(pks>0.4*120*120,1,'last')
-                if isempty(locs) ||isempty(index )
-                     stepping(2)=EndFirstStep;
-                    %[pks,locs] = max(AccR(EndFirstStep:end))
-                else
-                    index=find(pks>0.4*120*120,1,'last')
-                     stepping(2)=locs(index)+EndFirstStep;
-                end
-            else
-                firstStep =2;%left first
-                 [pks,locs] = findpeaks(AccL(EndFirstStep:end));
-                 index=find(pks>0.4*120*120,1,'last')
-                if isempty(locs) ||isempty(index )
-                     stepping(2)=EndFirstStep;
-                   % [pks,locs] = max(AccL(stepping(1):stepping(2)))
-                else
-                    index=find(pks>0.4*120*120,1,'last')
-                     stepping(2)=locs(index)+EndFirstStep;
-                end
-            end
-            
-            if leftEnd >= rightEnd
-                lastStep = 2;% left last
-            else
-                lastStep = 1;%right last
-            end
-            
-        end
-    end
-    
-%     if strcmp(condition,'Walking')
-%         leftStart = find(abs(left( 31:end) - left( 1:end -30))>40, 1, 'first');    
-%         rightStart = find(abs(right( 31:end) - right( 1:end -30))>40, 1, 'first');
-%         if isempty(leftStart) && isempty(rightStart)
-%             stepping(1:2) =-5000;
-%             EndFirstStep=-5000;
-%         elseif isempty(leftStart) && ~isempty(rightStart)
-%             stepping(1) = rightStart;
-%             %leftEnd = find(abs(left(stepping(1) +  31:end) - left(stepping(1)+ 1:end -30))<0.5, 1, 'last');
-%             rightEnd = find(abs(right(stepping(1) +  31:end) - right(stepping(1) + 1:end -30))>40, 1, 'last');
-%             stepping(2) = stepping(1) + rightEnd;
-%             firstStep =1;
-%             lastStep = 1;
-%             [pks,locs] = findpeaks(right(stepping(1):stepping(2)));
-%                 if isempty(locs)
-%                     [pks,locs] = max(right(stepping(1):stepping(2)))
-%                 end
-%              EndFirstStep=locs(1)+stepping(1);
-% 
-%         elseif ~isempty(leftStart) && isempty(rightStart)
-%             stepping(1) = leftStart;
-%             leftEnd = find(abs(left(stepping(1) +  31:end) - left(stepping(1)+ 1:end -30))>40, 1, 'last');
-%             stepping(2) = stepping(1) + leftEnd;
-%             firstStep =2;
-%             lastStep = 2;
-%              [pks,locs] = findpeaks(left(stepping(1):stepping(2)));
-%             if isempty(locs)
-%                 [pks,locs] = max(left(stepping(1):stepping(2)))
-%             end
-%             EndFirstStep=locs(1)+stepping(1);
-% 
-%         else
-%             stepping(1) = min(leftStart, rightStart);
-%             leftEnd = find(abs(left(stepping(1) +  31:end) - left(stepping(1)+ 1:end -30))>40, 1, 'last');
-%             rightEnd = find(abs(right(stepping(1) +  31:end) - right(stepping(1) + 1:end -30))>40, 1, 'last');
-%             stepping(2) =stepping(1) + max(leftEnd, rightEnd);
-%             if(leftStart >rightStart)
-%                 firstStep =1;%right first
-%                  [pks,locs] = findpeaks(right(stepping(1):stepping(2)));
-%                 if isempty(locs)
-%                     [pks,locs] = max(right(stepping(1):stepping(2)))
-%                 end
-%                 EndFirstStep=locs(1)+stepping(1);
-%             else
-%                 firstStep =2;%left first
-%                  [pks,locs] = findpeaks(left(stepping(1):stepping(2)));
-%                 if isempty(locs)
-%                     [pks,locs] = max(left(stepping(1):stepping(2)))
-%                 end
-%                 EndFirstStep=locs(1)+stepping(1);
-%             end
-%             
-%             if leftEnd >= rightEnd
-%                 lastStep = 2;% left last
-%             else
-%                 lastStep = 1;%right last
-%             end
-%             
-%         end
-%     end
-    if strcmp(condition,'Standing')
-        x = find(abs(left-right)>7, 1, 'first');  
-        y = find(abs(left-right)>7, 1, 'last');
-        if isempty(x) 
-            stepping(1:2) =-5000;
-            EndFirstStep=-5000;
-        else
-            stepping(1)=x;
-            stepping(2)=find(abs(left-right)>7, 1, 'last'); 
-            if(left(x) > right(x))
-                firstStep =2; % left first
-                [pks,locs] = findpeaks(left(stepping(1):stepping(2)));
-                if isempty(locs)
-                    [pks,locs] = max(left(stepping(1):stepping(2)))
-                end
-                EndFirstStep=locs(1)+stepping(1);
-            else
-                firstStep =1; % right first
-                [pks,locs] = findpeaks(right(stepping(1):stepping(2)));
-                if isempty(locs)
-                    [pks,locs] = max(right(stepping(1):stepping(2)))
-                end
-                EndFirstStep=locs(1)+stepping(1);
-
-            end
-                
-            if(left(y) > right(y))
-                lastStep =2; % left last
-            else
-                lastStep =1; % right last
-            end
-            
-        end
-        
-    end
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
 function [firstStep, lastStep] = updateStepping(left, right, startindex, endindex)
-    try
-    if(left(startindex) >right(startindex))
+    if(left(startindex) > right(startindex))
         firstStep =2;
     else
         firstStep =1;
     end
-
     if(left(endindex) >right(endindex))
         lastStep =2;
     else
         lastStep =1;
     end
-    catch me
-        h = errordlg(me.getReport)
-    end
+end
+
+
+function exportButtonselected_cb(~,~)
+    % initialize the export variables in an ordered struct
+    tomillis = 1000/vcd.datarate;
+    export = struct('data',struct);
+    export.header = {'Step','Pertubation side: [1]Right/[2]Left/[3]Forward/[4]Backward',...
+        'Response time [msec])','Time from bamper movement until end of 1st step [msec]',...
+        'First step duration [msec]','first step length [mm]',...
+        'Time from bamper movement until end of all steps [msec]',...
+        'maximal distance of ending-movement foot from its` start point [mm]',...
+        'is CG out of base support before movement 0-in base,1-not in base',...
+        'time between lose of balance and beginning of step [msec]',...
+        'minimal distance of CG from legs before movement [mm]',...
+        'distance of CG from leg at the step-beginning point [mm]',...
+        'maximal distance of CG from balance point [mm]',...
+        'total distance CG made [mm]', 'Right arm distance [mm]','Left arm distnace [mm]',...
+        'time from bamper movement until right arm lift [msec]','Right arm swing time [msec]',...
+        'time from bamper movement until left arm lift [msec]','Left arm swing time [msec]',...
+        'Fall','MultiSteps','TypeArmMove','TypeLegMove','LElbowAngX[deg]','LShoulderAngX[deg]',...
+        'LShoulderAngY[deg]','LShoulderAngZ[deg]','RElbowAngX[deg]','RShoulderAngX[deg]',...
+        'RShoulderAngY[deg]','RShoulderAngZ[deg]','First Step Length[mm] - Bamper FB'};
     
-    
-end
-function [Rightarms,Leftarms] = findArms(left, right)
-    try
-    leftStart = find(abs(left( 31:end) - left( 1:end -30))>50, 1, 'first');    
-    rightStart = find(abs(right( 31:end) - right( 1:end -30))>50, 1, 'first');
-    if isempty(leftStart) && isempty(rightStart)
-        Rightarms(1:2) =-5000;
-        Leftarms(1:2) =-5000;
-    elseif isempty(leftStart) && ~isempty(rightStart)
-        Rightarms(1) = rightStart;
-        Leftarms(1:2) =-5000;
-      %  leftEnd = find(abs(left(arms(1) +  31:end) - left(arms(1)+ 1:end -30))<5, 1, 'last');
-    rightEnd = find(abs(right(Rightarms(1) +  31:end) - right(Rightarms(1) + 1:end -30))>50, 1, 'last');
-    Rightarms(2) = Rightarms(1) + rightEnd;
-    elseif ~isempty(leftStart) && isempty(rightStart)
-        Leftarms(1) = leftStart;
-        Rightarms(1:2)=-5000;
-        leftEnd = find(abs(left(Leftarms(1) +  31:end) - left(Leftarms(1)+ 1:end -30))>50, 1, 'last');
-  %  rightEnd = find(abs(right(arms(1) +  31:end) - right(arms(1) + 1:end -30))<5, 1, 'last');
-    Leftarms(2) = Leftarms(1) + leftEnd;
-    else
-        Rightarms(1) = rightStart;
-        Leftarms(1) = leftStart;
-    leftEnd = find(abs(left(Leftarms(1) +  31:end) - left(Leftarms(1)+ 1:end -30))>40, 1, 'last');
-    rightEnd = find(abs(right(Rightarms(1) +  31:end) - right(Rightarms(1) + 1:end -30))>40, 1, 'last');
-    Rightarms(2) =Rightarms(1) + rightEnd;
-    Leftarms(2) =Leftarms(1) + leftEnd;
-    end
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function cgOut = findCG(left, right,HeelR,ToeR, CG,pertubation_type)
-    if pertubation_type==1 % left rigth pertubation
-        try
-        leftout = find(CG> left,1,'first');
-        rightout = find(CG< right,1,'first');
-
-       if isempty(leftout) && isempty(rightout)
-            cgOut(1:2) =-5000;
-        elseif isempty(leftout) && ~isempty(rightout)
-            cgOut(1) = rightout;
-            %cgOut(2) = find(abs(CG)> abs(right),1,'last');
-            cgOut(2) = find(abs(CG(cgOut(1):end))< abs(right(cgOut(1):end)),1,'first')+cgOut(1);
-        elseif ~isempty(leftout) && isempty(rightout)
-            cgOut(1) = leftout;
-            %cgOut(2) = find(abs(CG)> abs(left),1,'last');
-            cgOut(2) = find(abs(CG(cgOut(1):end))< abs(left(cgOut(1):end)),1,'first')+cgOut(1);
-        else
-        cgOut(1) = min(leftout, rightout);
-        %leftEnd = find(abs(CG)> abs(left),1,'last');
-        %rightEnd = find(abs(CG)> abs(right),1,'last');
-        leftEnd = find(abs(CG(cgOut(1):end))< abs(left(cgOut(1):end)),1,'first');
-        rightEnd = find(abs(CG(cgOut(1):end))< abs(right(cgOut(1):end)),1,'first');
-        cgOut(2) = min(leftEnd, rightEnd)+cgOut(1);
-       end
-       catch me
-            h = errordlg(me.getReport)
-        end
-    elseif pertubation_type==2 % front back pertubation
-        HeelL=left;
-        ToeL=right;
-        try
-        HeelL_out = find((CG> HeelL)&(CG>HeelR),1,'first');
-        ToeL_out = find((CG< ToeL)&(CG<ToeR),1,'first');
-
-       if isempty(HeelL_out) && isempty(ToeL_out)
-            cgOut(1:2) =-5000;
-        elseif isempty(HeelL_out) && ~isempty(ToeL_out)
-            cgOut(1) = ToeL_out;
-            cgOut(2) = find((CG(cgOut(1):end)>ToeR(cgOut(1):end))|(CG(cgOut(1):end)>ToeL(cgOut(1):end)),1,'first')+cgOut(1);
-        elseif ~isempty(HeelL_out) && isempty(ToeL_out)
-            cgOut(1) = HeelL_out;
-            cgOut(2) = find((CG(cgOut(1):end)<HeelR(cgOut(1):end))|(CG(cgOut(1):end)<HeelL(cgOut(1):end)),1,'first')+cgOut(1);
-        else
-        cgOut(1) = min(HeelL_out, ToeL_out);
-        HeelLEnd = find((CG(cgOut(1):end)<HeelR(cgOut(1):end))|(CG(cgOut(1):end)<HeelL(cgOut(1):end)),1,'first');
-        ToeLEnd = find((CG(cgOut(1):end)>ToeR(cgOut(1):end))|(CG(cgOut(1):end)>ToeL(cgOut(1):end)),1,'first');
-        cgOut(2) = min(HeelLEnd, ToeLEnd)+cgOut(1);
-       end
-       catch me
-            h = errordlg(me.getReport)
-        end
-    end
-end
-function pertubationsTime = findPertubations(bamperX, searchIndex,pervurationType)
-    try
-    % pervurationType - 1: backward forward; 
-    % pervurationType - 2:  right left;
-   if pervurationType==2
-       % the lines in the % refers only to the file of NOY COHEN DT
-       % STANDING!
-           %firstSidePertubation = find(abs(bamperX(searchIndex + 31:end -1) - bamperX(searchIndex + 1:end -31))>8, 1, 'first');
-    firstSidePertubation = find(abs(bamperX(searchIndex + 31:end -1) - bamperX(searchIndex + 1:end -31))>10, 1, 'first');
-   % firstSidePertubation = find(abs(bamperX(searchIndex + 31:end -1) - bamperX(searchIndex + 1:end -31))>12, 1, 'first');
-
-    secondSidePertubation = find(abs(bamperX(searchIndex+firstSidePertubation + 70:end) - bamperX(searchIndex + firstSidePertubation:end -70))<0.1, 1, 'first');
-   else % standing
-       % the lines in the % refers only to the file of NOY COHEN DT
-       % STANDING!
-%        if searchIndex>=4000 && searchIndex<=5000
-%           firstSidePertubation = find(abs(bamperX(searchIndex + 91:end -1) - bamperX(searchIndex + 1:end -91))>15, 1, 'first');
-%        else
-          firstSidePertubation = find(abs(bamperX(searchIndex + 61:end -1) - bamperX(searchIndex + 1:end -61))>20, 1, 'first');
-%        end
-      
-       %firstSidePertubation = find(abs(bamperX(searchIndex + 91:end -1) - bamperX(searchIndex + 1:end -91))>15, 1, 'first');
-        secondSidePertubation = find(abs(bamperX(searchIndex+firstSidePertubation + 70:end) - bamperX(searchIndex + firstSidePertubation:end -70))<0.1, 1, 'first');
-   end
-    pertubationstime = [searchIndex + firstSidePertubation, searchIndex + firstSidePertubation + secondSidePertubation];
-    % to check again!!
-    if pervurationType == 2;
-        bampernew=bamperX(pertubationstime(1) :pertubationstime(2));
-        [~,maxInd]=max(bampernew);
-        [~,minInd]=min(bampernew);
-        if minInd<maxInd
-            pertubationsTimenew(1)=minInd;
-            pertubationsTimenew(2)=maxInd;
-        else
-            pertubationsTimenew(1)=maxInd;
-            pertubationsTimenew(2)=minInd;
-        end
-        pertubationsTime(1)=pertubationsTimenew(1)+pertubationstime(1) -1;
-        pertubationsTime(2)=pertubationstime(1) + pertubationsTimenew(2) -1 ;
-    else
-        pertubationsTime=pertubationstime;
-    end
-
-%     if pervurationType == 2;
-%         bampernew=bamperX(pertubationstime(1) -240 :pertubationstime(2)+240);
-%         [~,maxInd]=max(bampernew);
-%         [~,minInd]=min(bampernew);
-%         if minInd<maxInd
-%             pertubationsTimenew(1)=find(bampernew(1:maxInd)<=bamperX(pertubationstime(1)),1,'last');
-%             pertubationsTimenew(2)=find(bampernew(minInd:end)>=bamperX(pertubationstime(2)),1,'first');
-%         else
-%             pertubationsTimenew(1)=find(bampernew(1:minInd)>=bamperX(pertubationstime(1)),1,'first');
-%             pertubationsTimenew(2)=find(bampernew(maxInd:end)<=bamperX(pertubationstime(2)),1,'last');
-%         end
-%         pertubationsTime(1)=pertubationsTimenew(1)+pertubationstime(1)-240;
-%         pertubationsTime(2)=pertubationsTime(1) + pertubationsTimenew(2) ;
-%     else
-%         pertubationsTime=pertubationstime;
-%     end
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function exportButtonselected_cb(h,ev)
-    try
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-    headlineS = {'Step',	'Pertubation side: [1]Right/[2]Left/[3]Forward/[4]Backward',	'Response time [msec])', 'Time from bamper movement until end of 1st step [msec]',	'First step duration [msec]',...
-        'First step length [mm]',	'Time from bamper movement until end of all steps [msec]',...
-        'Maximal distance of ending-movement foot from its` start point [mm]',...
-        'Is CG out of base support before movement 0-in base,1-not in base',...
-        'Time between lose of balance and beginning of step [msec]',...
-        'Minimal distance of CG from legs before movement [mm]',...
-        'Distance of CG from leg at the step-beginning point [mm]',...
-        'Maximal distance of CG from balance point [mm]',...
-        'Total distance CG made [mm]', 'Right arm distance [mm]', 'Left arm distnace [mm]',...
-        'Time from bamper movement until right arm lift [msec]', 'Right arm swing time [msec]',...
-        'Time from bamper movement until left arm lift [msec]', 'Left arm swing time [msec]','Fall','MultiSteps','TypeArmMove','TypeLegMove','LElbowAngX[deg]','LShoulderAngX[deg]','LShoulderAngY[deg]','LShoulderAngZ[deg]','RElbowAngX[deg]','RShoulderAngX[deg]','RShoulderAngY[deg]','RShoulderAngZ[deg]','First Step Length[mm] - Bamper FB'};
-    if isempty(strfind(patientName, 'Walk')) && isempty(strfind(patientName, 'walk'))%standing protocol
+    if strcmp(vcd.condition,'stand')
         protocol = repmat([4,2,3,1],1,6)';
-        index = (1:24)';
-    else %walking protocol
+    else
         protocol = repmat([1, 2],1,6)';
-        index = (1:12)';
     end
-    %set all output arrays nan 
-    BamperToEndOfSteps = ones(length(index),1); BamperToEndOfSteps = BamperToEndOfSteps*99999;
-    firstStepLengh = ones(length(index),1); firstStepLengh = firstStepLengh*99999;
-    firstStepLengh2 = ones(length(index),1); firstStepLengh2 = firstStepLengh2*99999;
-    firstStepDuration = ones(length(index),1); firstStepDuration = firstStepDuration*99999;
-    responseTime = ones(length(index),1); responseTime = responseTime*99999;
-    BamperToEndFirstStep = ones(length(index),1); BamperToEndFirstStep = BamperToEndFirstStep*99999;
-    lastStepMax = ones(length(index),1); lastStepMax = lastStepMax*99999;
-    cgOutBeforeMovemnent = ones(length(index),1); cgOutBeforeMovemnent = cgOutBeforeMovemnent*99999;
-    loseOfBalanceToFirstStep = ones(length(index),1); loseOfBalanceToFirstStep = loseOfBalanceToFirstStep*99999;
-    minCGDistFromLeg = ones(length(index),1); minCGDistFromLeg = minCGDistFromLeg*99999;
-    CGToNearestAtFirstStep = ones(length(index),1); CGToNearestAtFirstStep = CGToNearestAtFirstStep*99999;
-    MaxCGOutFromLeg = ones(length(index),1); MaxCGOutFromLeg = MaxCGOutFromLeg*99999;
-    totalDistCGMade = ones(length(index),1); totalDistCGMade = totalDistCGMade*99999;
-    rightArmDistance = ones(length(index),1); rightArmDistance = rightArmDistance*99999;
-    leftArmDistance = ones(length(index),1); leftArmDistance = leftArmDistance*99999;
-    BamperToRightArmTime = ones(length(index),1); BamperToRightArmTime = BamperToRightArmTime*99999;
-    rightArmSwingTime = ones(length(index),1); rightArmSwingTime = rightArmSwingTime*99999;
-    BamperToLeftArmTime = ones(length(index),1); BamperToLeftArmTime = BamperToLeftArmTime*99999;
-    leftArmSwingTime = ones(length(index),1); leftArmSwingTime = leftArmSwingTime*99999;
-    Fall=zeros(length(index),1);
-    MS=zeros(length(index),1);
-    TypeArmMove=cell(length(index),1);
-    TypeLegMove=cell(length(index),1);
-    Perturbation_dist=[30 30 30 30 60 60 60 60 90 90 90 90 120 120 120 120 150 150 150 150 180 180 180 180];
-    % 1-right, 2-left, 3-forward, 4-backward
-    direction=[4 2 3 1 4 2 3 1 4 2 3 1 4 2 3 1 4 2 3 1 4 2 3 1] 
-    %run over all perturbations
     
-        for i =1:length(index)  
-            if length(index)==12 || mod(i,2)==0 % walking protocol or standing protocol in pertubations left right
-                %get all perturbations with right arm reactions
-                Fall(i)= Vdata2( i).Fall;
-                MS(i)= Vdata2( i).MS;
-                TypeArmMove{i}=Vdata2( i).TypeArmMove;
-                TypeLegMove{i}=Vdata2( i).TypeLegMove;
-                responseTimeIndexes = Vdata2( i).RightarmsTime(1) >=0;
-                if(responseTimeIndexes) %
-                    %[rightArmDistance(i), rightMaxInd] = max(abs(Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1):end) - Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1))));            
-                   [rightArmDistance(i), rightMaxInd] = max(abs(sqrt(((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),67)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),121))-(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),67)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),121))).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),68)).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),69)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),69)).^2)));
-                    BamperToRightArmTime(i) =(Vdata2(i).RightarmsTime(1)-Vdata2(i).pertubationsTime(1))/0.12;
-                    rightArmSwingTime(i) = rightMaxInd/0.12;
-                    RElbowAng(i)=Vdata(i).RElbowAng(Vdata2(i).RightarmsTime(2))-Vdata(i).RElbowAng(Vdata2(i).RightarmsTime(1));
-                    RShoulderAng(i,:)=Vdata(i).RShoulderAng(Vdata2(i).RightarmsTime(2),:)-Vdata(i).RShoulderAng(Vdata2(i).RightarmsTime(1),:);
-                end
-
-                responseTimeIndexes = Vdata2( i).LeftarmsTime(1) >=0;
-                if(responseTimeIndexes) %
-                   % [leftArmDistance(i), leftMaxInd] = max(abs(Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1):end) - Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1))));                  
-                   [leftArmDistance(i), leftMaxInd] = max(abs(sqrt(((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),46)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),121))-(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),46)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),121))).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),47)).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),48)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),48)).^2)));
-                   BamperToLeftArmTime(i) =(Vdata2(i).LeftarmsTime(1)-Vdata2(i).pertubationsTime(1)) /0.12;
-                    leftArmSwingTime(i) = leftMaxInd/0.12;
-                    LElbowAng(i)=Vdata(i).LElbowAng(Vdata2(i).LeftarmsTime(2))-Vdata(i).LElbowAng(Vdata2(i).LeftarmsTime(1));
-                    LShoulderAng(i,:)=Vdata(i).LShoulderAng(Vdata2(i).LeftarmsTime(2),:)-Vdata(i).LShoulderAng(Vdata2(i).LeftarmsTime(1),:);
-                end
-
-                %get all perturbations with stepping reactions
-                responseTimeIndexes = Vdata2(i).steppingTime(1) >=0;
-                if(responseTimeIndexes)
-
-                    totalDistCGMade(i) = sum(abs(diff(Vdata(i).CGX(241:end))));
-                    CGToNearestAtFirstStep(i) = min([abs(Vdata(i).CGX(Vdata2( i).steppingTime(1))...
-                        - Vdata(i).leftAnkleX(Vdata2( i).steppingTime(1))),...
-                        abs(Vdata(i).CGX(Vdata2( i).steppingTime(1))...
-                        - Vdata(i).rightAnkleX(Vdata2(i).steppingTime(1)))])
-
-                    if abs(Vdata(i).CGX(end) - Vdata(i).leftAnkleX(end)) > abs(Vdata(i).CGX(end) - Vdata(i).rightAnkleX(end))
-                        cgtoleg = 1; %cg moves towards right foot
-                    else
-                        cgtoleg = 2; %cg moves towards left foot
-                    end
-                    if Vdata2(i).cgOut(1) < 0
-                        cgOutBeforeMovemnent(i) = 0;
-                        if(cgtoleg == 1)
-                            minCGDistFromLeg(i) = min(abs(Vdata(i).CGX(1:Vdata2(i).steppingTime(1)) - Vdata(i).rightAnkleX(1:Vdata2(i).steppingTime(1))))
-                        else
-                            minCGDistFromLeg(i) = min(abs(Vdata(i).CGX(1:Vdata2(i).steppingTime(1)) - Vdata(i).leftAnkleX(1:Vdata2(i).steppingTime(1))))
-                        end
-                    else
-
-                       % [~, indmax] = max(abs(Vdata(i).CGX(Vdata(i).cgOut(1):Vdata(i).cgOut(2)))-);
-                       %indmax=indmax+Vdata(i).cgOut(1);
-                        MaxCGOutFromLeg(i) = min([max(abs(Vdata(i).CGX(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)) - Vdata(i).leftAnkleX(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)))),max(abs(Vdata(i).CGX(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)) - Vdata(i).rightAnkleX(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2))))])
-                        if Vdata2(i).cgOut(1) < Vdata2(i).steppingTime(1)
-                            cgOutBeforeMovemnent(i) = 1;
-                            loseOfBalanceToFirstStep(i) = (Vdata2(i).steppingTime(1) - Vdata2(i).cgOut(1))/0.12;
-                        else
-                            cgOutBeforeMovemnent(i) = 0;
-                        if(cgtoleg == 1)
-                            minCGDistFromLeg(i) = min(abs(Vdata(i).CGX(1:Vdata2(i).steppingTime(1)) - Vdata(i).rightAnkleX(1:Vdata2( i).steppingTime(1))))
-                        else
-                            minCGDistFromLeg(i) = min(abs(Vdata(i).CGX(1:Vdata2(i).steppingTime(1)) - Vdata(i).leftAnkleX(1:Vdata2(i).steppingTime(1))))
-                        end                    
-                        end
-                    end
-
-                    responseTime(i) = (Vdata2(i).steppingTime(1) - Vdata2(i).pertubationsTime(1))/0.12;%turn to miliseconds
-                    BamperToEndOfSteps(i) = (Vdata2(i).steppingTime(2) -  Vdata2(i).pertubationsTime(1))/0.12;
-                    if Vdata2(i).firstStep == 1 %right leg first
-                        BamperToEndFirstStep(i) = (Vdata2 (i).EndFirstStep-Vdata2(i).pertubationsTime(1))/0.12;
-%                         firstStepLengh(i) = abs(Vdata(i).rightStepping(Vdata2( i).EndFirstStep)...
-%                              -  Vdata(i).rightStepping(Vdata2(i).steppingTime(1)));    
-                         firstStepLengh(i) = abs(sqrt(((Vdata(i).SFdATA(Vdata2(i).EndFirstStep,109)-Vdata(i).SFdATA(Vdata2(i).EndFirstStep,121))-(Vdata(i).SFdATA(Vdata2(i).steppingTime(1),109)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),121)))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,110)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),110))^2));
-
-                    else
-                        BamperToEndFirstStep(i) = (Vdata2 (i).EndFirstStep- Vdata2(i).pertubationsTime(1))/0.12;     
-%                         firstStepLengh(i) = abs(Vdata(i).leftStepping(Vdata2(i).EndFirstStep)...
-%                              -  Vdata(i).leftStepping(Vdata2(i).steppingTime(1)));
-                        firstStepLengh(i) = abs(sqrt(((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,91)-Vdata(i).SFdATA(Vdata2( i).EndFirstStep,121))-(Vdata(i).SFdATA(Vdata2(i).steppingTime(1),91)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),121)))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,92)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),92))^2));    
-
-                    end
-                    if Vdata2(i).lastStep == 1 %right leg end 
-                        %lastStepMax(i) = abs(max(Vdata(i).rightStepping) - Vdata(i).rightStepping(Vdata2(i).steppingTime(1)));
-                        
-                        lastStepMax(i) = max(abs(sqrt(((Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),109)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),121))-(Vdata(i).SFdATA(Vdata2(i).steppingTime(1),109)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),121))).^2+(Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),110)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),110)).^2)));  
-                    else
-                        %lastStepMax(i) = abs(max(Vdata(i).leftStepping) - Vdata(i).leftStepping(Vdata2(i).steppingTime(1)));
-                        lastStepMax(i) = max(abs(sqrt(((Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),91)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),121))-(Vdata(i).SFdATA(Vdata2(i).steppingTime(1),91)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),121))).^2+(Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),92)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),92)).^2)));  
-
-                    end           
-                    firstStepDuration(i) = BamperToEndFirstStep(i) - responseTime(i);          
-                end
-                
-            else % standing protocol in forward backward pertubation
-                
-                %get all perturbations with right arm reactions
-                Fall(i)= Vdata2( i).Fall;
-                MS(i)= Vdata2( i).MS;
-                TypeArmMove{i}=Vdata2( i).TypeArmMove;
-                TypeLegMove{i}=Vdata2( i).TypeLegMove;
-                responseTimeIndexes = Vdata2( i).RightarmsTime(1) >=0;
-                if(responseTimeIndexes) %
-                    %[rightArmDistance(i), rightMaxInd] = max(abs(Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1):end) - Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1))));            
-                    [rightArmDistance(i), rightMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),67)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),67)).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),69)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),69)).^2+((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2),92))-(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),92))).^2)));
-
-                    %[rightArmDistance(i), rightMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,67)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),67)).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),68)).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,69)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),69)).^2)));
-                    BamperToRightArmTime(i) =(Vdata2(i).RightarmsTime(1) -Vdata2(1).pertubationsTime(1))/0.12;
-                    rightArmSwingTime(i) = rightMaxInd /0.12;
-                    RElbowAng(i)=Vdata(i).RElbowAng(Vdata2(i).RightarmsTime(2))-Vdata(i).RElbowAng(Vdata2(i).RightarmsTime(1));
-                    RShoulderAng(i,:)=Vdata(i).RShoulderAng(Vdata2(i).RightarmsTime(2),:)-Vdata(i).RShoulderAng(Vdata2(i).RightarmsTime(1),:);
-
-                end
-
-                responseTimeIndexes = Vdata2( i).LeftarmsTime(1) >=0;
-                if(responseTimeIndexes) %
-                    %[leftArmDistance(i), leftMaxInd] = max(abs(Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1):end) - Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1))));                  
-                    [leftArmDistance(i), leftMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),46)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),46)).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),48)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),48)).^2+((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2),92))-(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),92))).^2)));
-
-                    %[leftArmDistance(i), leftMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,46)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),46)).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),47)).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,48)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),48)).^2)));
-                    BamperToLeftArmTime(i) =(Vdata2(i).LeftarmsTime(1) -Vdata2(1).pertubationsTime(1))/0.12;
-                    leftArmSwingTime(i) = leftMaxInd /0.12;
-                    LElbowAng(i)=Vdata(i).LElbowAng(Vdata2(i).LeftarmsTime(2))-Vdata(i).LElbowAng(Vdata2(i).LeftarmsTime(1));
-                    LShoulderAng(i,:)=Vdata(i).LShoulderAng(Vdata2(i).LeftarmsTime(2),:)-Vdata(i).LShoulderAng(Vdata2(i).LeftarmsTime(1),:);
-                end
-
-                %get all perturbations with stepping reactions
-                responseTimeIndexes = Vdata2(i).steppingTime(1) >=0;
-                if(responseTimeIndexes)
-
-                    totalDistCGMade(i) = sum(abs(diff(Vdata(i).CGY(241:end))));
-                    CGToNearestAtFirstStep(i) = min((min([abs(Vdata(i).CGY(Vdata2( i).steppingTime(1))...
-                        - Vdata(i).leftHeelY(Vdata2( i).steppingTime(1))),...
-                        abs(Vdata(i).CGY(Vdata2( i).steppingTime(1))...
-                        - Vdata(i).leftToeY(Vdata2(i).steppingTime(1)))])),...
-                        (min([abs(Vdata(i).CGY(Vdata2( i).steppingTime(1))...
-                        - Vdata(i).rightHeelY(Vdata2( i).steppingTime(1))),...
-                        abs(Vdata(i).CGY(Vdata2( i).steppingTime(1))...
-                        - Vdata(i).rightToeY(Vdata2(i).steppingTime(1)))])))
-
-                    if abs(Vdata(i).CGY(end) - Vdata(i).leftHeelY(end)) > abs(Vdata(i).CGY(end) - Vdata(i).leftToeY(end))
-                        cgtoleg = 3; %cg moves towards Toes
-                    else
-                        cgtoleg = 4; %cg moves towards Ankles
-                    end
-                    if Vdata2(i).cgOut(1) < 0
-                        cgOutBeforeMovemnent(i) = 0;
-                        if(cgtoleg == 3) % toes
-                            minCGDistFromLeg(i) = min((abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).leftToeY(1:Vdata2(i).steppingTime(1))))),(abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).rightToeY(1:Vdata2(i).steppingTime(1))))))
-                        else % heels
-                            minCGDistFromLeg(i) = min((abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).leftHeelY(1:Vdata2(i).steppingTime(1))))),(abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).rightHeelY(1:Vdata2(i).steppingTime(1))))))
-                        end
-                    else % cg out 
-
-                       % [~, indmax] = max(abs(Vdata(i).CGY(Vdata(i).cgOut(1):Vdata(i).cgOut(2))));
-                       % indmax=indmax+Vdata(i).cgOut(1);
-                        MaxCGOutFromLeg(i) = min([max(abs(Vdata(i).CGY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)) - Vdata(i).leftHeelY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)))),max(abs(Vdata(i).CGY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)) - Vdata(i).leftToeY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)))),max(abs(Vdata(i).CGY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)) - Vdata(i).rightHeelY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)))),max(abs(Vdata(i).CGY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2)) - Vdata(i).rightToeY(Vdata2(i).cgOut(1):Vdata2(i).cgOut(2))))])
-                       % MaxCGOutFromLeg(i) = min([max(abs(Vdata(i).CGX(Vdata(i).cgOut(1):Vdata(i).cgOut(2)) - Vdata(i).leftAnkleX(Vdata(i).cgOut(1):Vdata(i).cgOut(2)))),max(abs(Vdata(i).CGX(Vdata(i).cgOut(1):Vdata(i).cgOut(2)) - Vdata(i).rightAnkleX(Vdata(i).cgOut(1):Vdata(i).cgOut(2))))])
-
-                        if Vdata2(i).cgOut(1) < Vdata2(i).steppingTime(1)
-                            cgOutBeforeMovemnent(i) = 1;
-                            loseOfBalanceToFirstStep(i) = (Vdata2(i).steppingTime(1) - Vdata2(i).cgOut(1))/0.12;
-                        else
-                            cgOutBeforeMovemnent(i) = 0;
-                            if(cgtoleg == 3) % toes
-                                minCGDistFromLeg(i) = min((abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).leftToeY(1:Vdata2(i).steppingTime(1))))),(abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).rightToeY(1:Vdata2(i).steppingTime(1))))))
-                            else % heels
-                                minCGDistFromLeg(i) = min((abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).leftHeelY(1:Vdata2(i).steppingTime(1))))),(abs(min(Vdata(i).CGY(1:Vdata2(i).steppingTime(1)) - Vdata(i).rightHeelY(1:Vdata2(i).steppingTime(1))))))
-                            end                  
-                        end
-                    end
-
-                    responseTime(i) = (Vdata2(i).steppingTime(1) -Vdata2(1).pertubationsTime(1))/0.12;%turn to miliseconds
-                    BamperToEndOfSteps(i) = (Vdata2(i).steppingTime(2) - Vdata2(1).pertubationsTime(1))/0.12;
-                    if Vdata2(i).firstStep == 1 %right leg first
-                        responseTimeIndexes = Vdata2( i).RightarmsTime(1) >=0;
-                        if(responseTimeIndexes) %
-                            %[rightArmDistance(i), rightMaxInd] = max(abs(Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1):end) - Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1))));            
-                            [rightArmDistance(i), rightMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,67)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),67)).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,69)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),69)).^2+((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,92))-(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),92))).^2)));
-                            BamperToRightArmTime(i) =(Vdata2(i).RightarmsTime(1) -Vdata2(1).pertubationsTime(1))/0.12;
-                            rightArmSwingTime(i) = rightMaxInd /0.12;
-                        end
-                        responseTimeIndexes = Vdata2( i).LeftarmsTime(1) >=0;
-                        if(responseTimeIndexes) %
-                            %[leftArmDistance(i), leftMaxInd] = max(abs(Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1):end) - Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1))));                  
-                            [leftArmDistance(i), leftMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,46)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),46)).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,48)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),48)).^2+((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,92))-(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),92))).^2)));
-                            BamperToLeftArmTime(i) =(Vdata2(i).LeftarmsTime(1) -Vdata2(1).pertubationsTime(1))/0.12;
-                            leftArmSwingTime(i) = leftMaxInd /0.12;
-                        end
-                        BamperToEndFirstStep(i) = (Vdata2 (i).EndFirstStep-Vdata2(1).pertubationsTime(1))/0.12;
-%                         firstStepLengh(i) = abs(Vdata(i).rightStepping(Vdata2( i).EndFirstStep)...
-%                              -  Vdata(i).leftStepping(Vdata2 (i).EndFirstStep)); 
-                        firstStepLengh(i) = abs(sqrt((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,91)-Vdata(i).SFdATA(Vdata2( i).EndFirstStep ,109))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,92)-Vdata(i).SFdATA(Vdata2( i).EndFirstStep ,110))^2));    
-                        if direction(i)==4
-                            firstStepLengh2(i) = abs(sqrt((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,109)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,109))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,110)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,110)-Perturbation_dist(i))^2)); 
-                        elseif  direction(i)==3
-                            firstStepLengh2(i) = abs(sqrt((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,109)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,109))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,110)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,110)+Perturbation_dist(i))^2)); 
-                        end
-                            
-                    else % left leg first
-                        responseTimeIndexes = Vdata2( i).RightarmsTime(1) >=0;
-                        if(responseTimeIndexes) %
-                            %[rightArmDistance(i), rightMaxInd] = max(abs(Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1):end) - Vdata(i).rightArmTotal(Vdata2(i).RightarmsTime(1))));            
-                            [rightArmDistance(i), rightMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,67)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),67)).^2+(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,69)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),69)).^2+((Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1):Vdata2(i).RightarmsTime(2)+10,110))-(Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),68)-Vdata(i).SFdATA(Vdata2(i).RightarmsTime(1),110))).^2)));
-                            BamperToRightArmTime(i) =(Vdata2(i).RightarmsTime(1) -Vdata2(1).pertubationsTime(1))/0.12;
-                            rightArmSwingTime(i) = rightMaxInd /0.12;
-                        end
-                        responseTimeIndexes = Vdata2( i).LeftarmsTime(1) >=0;
-                        if(responseTimeIndexes) %
-                            %[leftArmDistance(i), leftMaxInd] = max(abs(Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1):end) - Vdata(i).leftArmTotal(Vdata2(i).LeftarmsTime(1))));                  
-                            [leftArmDistance(i), leftMaxInd] = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,46)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),46)).^2+(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,48)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),48)).^2+((Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1):Vdata2(i).LeftarmsTime(2)+10,110))-(Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),47)-Vdata(i).SFdATA(Vdata2(i).LeftarmsTime(1),110))).^2)));
-                            BamperToLeftArmTime(i) =(Vdata2(i).LeftarmsTime(1) -Vdata2(1).pertubationsTime(1))/0.12;
-                            leftArmSwingTime(i) = leftMaxInd /0.12;
-                        end
-                        BamperToEndFirstStep(i) = (Vdata2 (i).EndFirstStep-Vdata2(1).pertubationsTime(1))/0.12;     
-%                         firstStepLengh(i) = abs(Vdata(i).leftStepping(Vdata2(i).EndFirstStep)...
-%                              -  Vdata(i).rightStepping(Vdata2 (i).EndFirstStep));
-                        firstStepLengh(i) = abs(sqrt((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,91)-Vdata(i).SFdATA(Vdata2( i).EndFirstStep ,109))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,92)-Vdata(i).SFdATA(Vdata2( i).EndFirstStep ,110))^2));
-                        if direction(i)==4
-                            firstStepLengh2(i) = abs(sqrt((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,91)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,91))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,92)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,92)-Perturbation_dist(i))^2)); 
-                        elseif  direction(i)==3
-                            firstStepLengh2(i) = abs(sqrt((Vdata(i).SFdATA(Vdata2( i).EndFirstStep,91)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,91))^2+(Vdata(i).SFdATA(Vdata2( i).EndFirstStep,92)-Vdata(i).SFdATA(Vdata2( i).steppingTime(1) ,92)+Perturbation_dist(i))^2)); 
-                        end
-
-                    end
-                    if Vdata2(i).lastStep == 1 %right leg end 
-                        %lastStepMax(i) = abs(max(Vdata(i).rightStepping) - Vdata(i).rightStepping(Vdata2(i).steppingTime(1)));  
-                        lastStepMax(i) = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),109)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),109)).^2+(Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),110)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),110)).^2)));  
-                   
-                    else
-                        %lastStepMax(i) = abs(max(Vdata(i).leftStepping) - Vdata(i).leftStepping(Vdata2(i).steppingTime(1)));
-                        lastStepMax(i) = max(abs(sqrt((Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),91)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),91)).^2+(Vdata(i).SFdATA(Vdata2(i).steppingTime(1):Vdata2(i).steppingTime(2),92)-Vdata(i).SFdATA(Vdata2(i).steppingTime(1),92)).^2)));  
-                    end           
-                    firstStepDuration(i) = BamperToEndFirstStep(i) - responseTime(i);          
-            end
-
+    export.specs ={{'BamperToEndOfSteps','G2',1},... % object name, excell location, type of data 1 - 9999*ones, 2 - zeros, 3 - cell...
+            {'firstStepLength','F2',1},...
+            {'firstStepLength2','AG2',1},...
+            {'firstStepDuration','E2',1},...
+            {'responseTime','C2',1},...
+            {'BamperToEndFirstStep','D2',1},...
+            {'lastStepMax','H2',1},...
+            {'cgOutBeforeMovement','I2',1},...
+            {'loseOfBalanceToFirstStep','J2',1},...
+            {'minCGDistFromLeg','K2',1},...
+            {'CGToNearestAtFirstStep','L2',1},...
+            {'MaxCGOutFromLeg','M2',1},...  
+            {'totalDistCGMade','N2',1},...
+            {'rightArmDistance','O2',1},...
+            {'leftArmDistance','P2',1},...
+            {'BamperToRightArmTime','Q2',1},...
+            {'rightArmSwingTime','R2',1},...
+            {'BamperToLeftArmTime','S2',1},...
+            {'leftArmSwingTime','T2',1},...
+            {'LElbowAng','Y2',1},...
+            {'RElbowAng','AC2',1},...
+            {'Fall','U2',2},...
+            {'MS','V2',2},...
+            {'TypeArmMove','W2',3},...
+            {'TypeLegMove','X2',3},...
+            {'LShoulderAng','Z2:AB2',4},...
+            {'RShoulderAng','AD2:AF2',4}...
+        };
+    for spec=export.specs
+        switch spec{:}{3}
+            case 1
+                initializer = ones(vcd.numperts,1)*9999;
+            case 2
+                initializer = zeros(vcd.numperts,1);
+            case 3
+                initializer = cell(vcd.numperts,1);
+            case 4
+                initializer = ones(vcd.numperts,3)*9999;
         end
-
-    end   
-    %print to excel
-    path=get(pathFolder,'string');
-    path=path{2,1};
-    xlswrite([path '\' patientName 'Analyzed.xlsx'],headlineS,'Sheet1','A1');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],index,'Sheet1','A2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],protocol,'Sheet1','B2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],responseTime,'Sheet1','C2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],BamperToEndFirstStep,'Sheet1','D2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],firstStepDuration,'Sheet1','E2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],firstStepLengh,'Sheet1','F2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],BamperToEndOfSteps,'Sheet1','G2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],lastStepMax,'Sheet1','H2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],cgOutBeforeMovemnent,'Sheet1','I2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],loseOfBalanceToFirstStep,'Sheet1','J2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],minCGDistFromLeg,'Sheet1','K2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],CGToNearestAtFirstStep,'Sheet1','L2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],MaxCGOutFromLeg,'Sheet1','M2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],totalDistCGMade,'Sheet1','N2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],rightArmDistance,'Sheet1','O2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],leftArmDistance,'Sheet1','P2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],BamperToRightArmTime,'Sheet1','Q2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],rightArmSwingTime,'Sheet1','R2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],BamperToLeftArmTime,'Sheet1','S2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],leftArmSwingTime,'Sheet1','T2'); 
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],Fall,'Sheet1','U2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],MS,'Sheet1','V2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],TypeArmMove,'Sheet1','W2');
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],TypeLegMove,'Sheet1','X2'); 
+        export.data.(spec{:}{1}) = initializer;
+    end      
     
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],LElbowAng','Sheet1','Y2'); % elbow L
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],LShoulderAng(:,1),'Sheet1','Z2');% shoulder x L 
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],LShoulderAng(:,2),'Sheet1','AA2');% shoulder y L 
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],LShoulderAng(:,3),'Sheet1','AB2'); % shoulder z L
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],RElbowAng','Sheet1','AC2');% elbow R 
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],RShoulderAng(:,1),'Sheet1','AD2'); % shoulder x R
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],RShoulderAng(:,2),'Sheet1','AE2'); % shoulder y R
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],RShoulderAng(:,3),'Sheet1','AF2'); % shoulder z R
-    xlswrite([path '\'  patientName 'Analyzed.xlsx'],firstStepLengh2,'Sheet1','AG2'); % step length - another calculation
-
-    msgbox('export finished'); %finish notification
-    catch me
-        h = errordlg(me.getReport)
-     end
-end
-function checkBoxSteps_call(hObject, eventdata, handles)
-    try
-    checkBoxStepValue = get(checkBoxStep,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
+    Perturbation_dist= [];
+    for i = 1:6
+        Perturbation_dist = [Perturbation_dist repmat(30,1,4)*i];
+    end
+    % 1-right, 2-left, 3-forward, 4-backward
+    direction= repmat([4,3,2,1],1,6); 
     
-    if(checkBoxStepValue == 0)
-        if Vdata(pertNumber).steppingTime <0        
-                haxesStepLine3.setPosition([30 30], [-5000 5000]);
-                haxesStepLine4.setPosition([70 70], [-5000 5000]); 
-                haxesStepLine11.setPosition([50 50], [-5000 5000]); 
-                set(listBoxStep,'value', 1);
+    function [dist,ind] = maxdist(row,column,marker,offset_anchor,spare)
+        targetx = vcd.cellindex(vcd.trajcolumns,marker);
+        anchor = vcd.cellindex(vcd.trajcolumns,offset_anchor);
+        source = Vdata(row).SFdATA;
+        range = Vdata2(row).(column)(1):Vdata2(row).(column)(2)+spare;
+        % x,y,z - bamper now (separately because of the offsets).
+        dx = source(range,targetx) - source(range(1),targetx);
+        dy = source(range,targetx+1) - source(range(1),targetx+1);
+        dz = source(range,targetx+2) - source(range(1),targetx+2);
+        % ML perturbation -- offset the x component from bamper
+        if strcmp(offset_anchor,'bamperL')
+            dx = dx - source(range,anchor) - source(range(1),anchor);
         else
-                haxesArmsLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-5000 5000]);
-                haxesArmsLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-5000 5000]);     
-                haxesArmsLine11.setPosition([Vdata2(pertNumber).EndFirstStep,Vdata2(pertNumber).EndFirstStep], [-5000 5000]);     
-                if Vdata(pertNumber).firstStep==1
-                    set(listBoxStep,'value', 1);
+        % AP perturbation -- offset the y component from bamper
+            dy = dy - source(range,anchor) - source(range(1),anchor);
+        end
+        [dist,ind] = max(vecnorm([dx,dy,dz]));
+    end
+    function estl = edge_step_length(row,leftorright,firstorlast)
+        if leftorright == 1
+            ank = 'RANK';
+        else
+            ank = 'LANK';
+        end
+        ankx = vcd.cellindex(vcd.trajcolumns,ank);
+        ankle_range = Vdata2(row).EndFirstStep;
+        if firstorlast == 1 % get max last
+            ankle_range = t:Vdata2(row).steppingTime(2);
+        end
+        bamp = vcd.cellindex(vcd.trajcolumns,'bamperL');
+        source = Vdata(row).SFdATA;
+        dxs = source(ankle_range,[ankx,bamp]) - source(t,[ankx,bamp]); % diff between ankle and bamper at end of stepping minus their diff at stepping start 
+        dys = source(ankle_range,ankx+1) - source(t,ankx+1); % same but without the bamper offset
+        estl = max(vecnorm([dxs,dys])); % check if should be transpose
+    end
+    %run over all perturbations
+    for i =1:vcd.numperts
+        d = Vdata(i);
+        d2 = Vdata2(i);
+        
+        export.data.Fall(i)= d2.Fall;
+        export.data.MS(i)= d2.MS;
+        export.data.TypeArmMove{i}=d2.TypeArmMove;
+        export.data.TypeLegMove{i}=d2.TypeLegMove;
+        
+        % detect step and arm reactions
+        rightArmTimes = d2.RightarmsTime(1) >=0;
+        leftArmTimes = d2.LeftarmsTime(1) >= 0;
+        reactionStepTimes = d2.steppingTime(1) >=0;
+        if strcmp(vcd.condition,'walk') || mod(i,2)==0 % walking protocol or standing protocol in pertubations left right
+            offstanchor = 'bamperL';
+            spare = 0;
+        else
+            % to check with Inbal
+            if d2.firstStep == 1
+                offstanchor = 'LANK';
+            else
+                offstanchor = 'RANK';
+            end
+            spare = 10;
+        end
+        
+        if(rightArmTimes)
+            [rightArmDistance, rightMaxInd] = maxdist(i,'RightarmsTime','RFIN',offstanchor,spare);
+            export.data.BamperToRightArmTime(i) =(d2.RightarmsTime(1) - d2.pertubationsTime(1))*tomillis; %% check with Inbal originally written as Vdata2(1).pertubationsTime(1) everywhere
+            export.data.rightArmSwingTime(i) = rightMaxInd*tomillis;
+            export.data.RElbowAng(i)=d.RElbowAng(d2.RightarmsTime(2))-d.RElbowAng(d2.RightarmsTime(1));
+            export.data.RShoulderAng(i,:)=d.RShoulderAng(d2.RightarmsTime(2),:)-d.RShoulderAng(d2.RightarmsTime(1),:);
+            export.data.rightArmDistance(i) = rightArmDistance;
+        end
+        if(leftArmTimes)
+            [leftArmDistance, leftMaxInd] = maxdist(i,'LeftarmsTime','LFIN',offstanchor,spare);
+            export.data.BamperToLeftArmTime(i) =(d2.LeftarmsTime(1)-d2.pertubationsTime(1))*tomillis;
+            export.data.leftArmSwingTime(i) = leftMaxInd*tomillis;
+            export.data.LElbowAng(i)=d.LElbowAng(d2.LeftarmsTime(2))-d.LElbowAng(d2.LeftarmsTime(1));
+            export.LShoulderAng(i,:)=d.LShoulderAng(d2.LeftarmsTime(2),:)-d.LShoulderAng(d2.LeftarmsTime(1),:);
+            export.data.leftArmDistance(i) = leftArmDistance;
+        end
+        if(reactionStepTimes)
+            t = d2.steppingTime(1);
+            cgr = d2.cgOut(1):d2.cgOut(2);
+            responseTime(i) = (t - d2.pertubationsTime(1))*tomillis;
+            export.data.BamperToEndOfSteps(i) = (d2.steppingTime(2) -  d2.pertubationsTime(1))*tomillis;
+            export.data.BamperToEndFirstStep(i) = (d2.EndFirstStep - d2.pertubationsTime(1))*tomillis;
+
+
+            if strcmp(vcd.condition,'walk') || mod(i,2)==0 % ML perturbation
+                totalDistCGMade(i) = sum(abs(diff(d.CGX(241:end)))); %% 241??
+                CGToNearestAtFirstStep(i) = min([...
+                    abs(d.CGX(t) - d.leftAnkleX(t)),...
+                    abs(d.CGX(t)- d.rightAnkleX(t))...
+                ]);
+                if abs(d.CGX(end) - d.leftAnkleX(end)) > abs(d.CGX(end) - d.rightAnkleX(end))
+                    cgtoleg = 1; %cg moves towards right foot
+                    ref = 'rightAnkleX';
                 else
-                    set(listBoxStep,'value', 2);
+                    cgtoleg = 2; %cg moves towards left foot
+                    ref = 'leftAnkleX';
                 end
+                if d2.cgOut(1) < 0
+                    cgOutBeforeMovement(i) = 0;
+                    minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.(ref)(1:t)));
+                else
+                    MaxCGOutFromLeg(i) = min([...
+                        max(abs(d.CGX(cgr) - d.leftAnkleX(cgr))),...
+                        max(abs(d.CGX(cgr) - d.rightAnkleX(cgr)))...
+                    ]);
+                    if cgr(1) < t
+                        cgOutBeforeMovement(i) = 1;
+                        loseOfBalanceToFirstStep(i) = (t - cgr(1))*tomillis;
+                    else
+                        cgOutBeforeMovement(i) = 0;
+                        if(cgtoleg == 1)
+                            minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.rightAnkleX(1:t)));
+                        else
+                            minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.leftAnkleX(1:t)));
+                        end                    
+                    end
+                end
+                
+                export.data.firstStepLength(i) = edge_step_length(i,d2.firstStep,0);
+                export.data.lastStepMax(i)  = edge_step_length(i,d2.firstStep,1);
+            
+            else % AP perturbation
+                totalDistCGMade(i) = sum(abs(diff(d.CGY(241:end))));
+                CGToNearestAtFirstStep(i) = min(abs([d.leftHeelY(t),d.leftToeY(t),d.rightHeelY(t),d.rightToeY(t)] - d.CGY(t)));
+                if abs(d.CGY(end) - d.leftHeelY(end)) > abs(d.CGY(end) - d.leftToeY(end))
+                    cgtoleg = 3; % cg moves towards Toes
+                    ref = 'Toe';
+                else
+                    cgtoleg = 4; % cg moves towards Ankles
+                    ref = 'Heel';
+                end
+                if d2.cgOut(1) < 0
+                    cgOutBeforeMovement(i) = 0;
+                    minCGDistFromLeg(i) = min(abs([min(d.CGY(1:t) - d.(['left' ref 'Y'])(1:t)),min(d.CGY(1:t) - d.(['right' ref 'Y'])(1:t))]));
+                else % cg out is >= 0 whatever that means
+                    MaxCGOutFromLeg(i) = min([...
+                        max(abs(d.CGY(cgr) - d.leftHeelY(cgr))),...
+                        max(abs(d.CGY(cgr) - d.leftToeY(cgr))),...
+                        max(abs(d.CGY(cgr) - d.rightHeelY(cgr))),...
+                        max(abs(d.CGY(cgr) - d.rightToeY(cgr)))...
+                    ]);
+                    if cgr(1) < t
+                        cgOutBeforeMovement(i) = 1;
+                        loseOfBalanceToFirstStep(i) = (t - cgr(1))*tomillis;
+                    else
+                        cgOutBeforeMovement(i) = 0;
+                        if(cgtoleg == 3) % toes
+                            minCGDistFromLeg(i) = min(...
+                                (abs(min(d.CGY(1:t) - d.leftToeY(1:t)))),...
+                                (abs(min(d.CGY(1:t) - d.rightToeY(1:t))))...
+                            );
+                        else % heels
+                            minCGDistFromLeg(i) = min(...
+                                (abs(min(d.CGY(1:t) - d.leftHeelY(1:t)))),...
+                                (abs(min(d.CGY(1:t) - d.rightHeelY(1:t))))...
+                            );
+                        end                  
+                    end
+                end
+
+                prdist = Perturbation_dist(i)^2;
+                do2 = false;
+                rankx = vcd.cellindex(vcd.trajcolumns,'RANK');
+                lankx = vcd.cellindex(vcd.trajcolumns,'LANK');
+                % sort out the various conditions
+                if d2.firstStep == 1 %right leg first: refer to right ankle
+                    ref2 = rankx;
+                else
+                    ref2 = lankx; % left first to left
+                end
+
+                if direction(i) > 2
+                    do2 = true;
+                    if direction(i) == 4 % subtract if 4 add if 3, do nothing if 1 or 2
+                        prdist = -1 * prdist;
+                    end
+                end
+                if d2.lastStep == 1
+                    lastref = rankx;
+                else
+                    lastref = lankx;
+                end
+                % compute once!! accordingly 
+                export.data.firstStepLength(i) = vecnorm(diff(d.SFdATA(d2.EndFirstStep,[lankx:lankx+1,rankx:rankx+1])));
+                if do2
+                    dx2 = diff(d.SFdATA([d2.EndFirstStep,t],ref2));
+                    dy2 = diff(d.SFdATA([d2.EndFirstStep,t],ref2)) + prdist;
+                    export.data.firstStepLength2(i) = vecnorm([dx2,dy2]);                
+                end
+                export.data.lastStepMax(i) = max(vecnorm(d.SFdATA(t:d2.steppingTime(2),lastref:lastref+1) - d.SFdATA(t,lastref:lastref+1))); 
+            end
+            export.data.firstStepDuration(i) = BamperToEndFirstStep(i) - responseTime(i);          
+        end
+    end   
     
+    %print to excel
+    saveto = fullfile(vcd.savefolder,'Analyzed',[vcd.subjname '-' vcd.condition '-' vcd.distract '.xlsx']);
+    xlswrite(saveto,export.header,'Sheet1','A1');
+    xlswrite(saveto,index,'Sheet1','A2');
+    xlswrite(saveto,protocol,'Sheet1','B2');
+    for spec=export.specs
+        xlswrite(saveto,export.data.(spec{:}{1}),'Sheet1',spec{:}{2});
+    end
+    msgbox('export finished');
+end
+
+function checkBoxSteps_call(~,~,~)
+    pertNumber =get(ListBoxPertubation,'value');
+    lines = [3,4,11];
+    posxs = [30,70,50];
+    stptime = Vdata2(pertNumber).steppingTime;
+    invtip = [1,-1] .* tip; 
+    for line = 1:3 %#ok<FXUP>
+        lineid = lines(line);
+        posx = posxs(line);
+        if(checkBoxSteps.Value == 0)
+            if Vdata(pertNumber).steppingTime < 0 
+                haxes.Step.lines{lineid}.setPosition([posx,posx],tip);
+            else 
+                if lineid == 3
+                    xs = stptime(1);
+                elseif lineid == 4
+                    xs = stptime(2);
+                else
+                    xs = Vdata2(pertNumber).EndFirstStep;
+                end
+                haxes.Arms.lines{lineid}.setPosition([xs,xs],tip);
+            end
+        else
+            haxes.Step.lines{lineid}.setPosition(invtip,tip);
+        end
+    end
+    if checkBoxSteps.Value == 0
+        lbp = Vdata(pertNumber).firstStep; 
+    else
+        lbp = 3;
+    end
+    listBoxStep.Value = lbp; 
+end
+
+function listBoxSteps_call(~, ~, ~)
+    % define relevant vars
+    pertNumber =get(ListBoxPertubation,'value');
+    leftright = listBoxStep.Value;
+    d = Vdata2(pertNumber);
+    stpt = d.steppingTime;
+    something = Vdata(pertNumber).firstStep==0 || stpt(1)<0;
+    frstval = 0;
+    chkbxval = 1;
+    lineids = [2,4,11];
+    linesin = 'Arms';
+    
+    % figure out the firstStep and checkBoxStep values
+    % and where to plot the lines
+    if leftright < 3
+        frstval = leftright;
+        chkbxval = 0;
+    else
+        linesin = 'Step';
+    end
+
+    % update the data objects and the check box accordingly
+    for obj = {Vdata,Vdata2,Vdata3}
+        obj{:}(pertNumber).firstStep = frstval; %#ok<FXSET>
+    end
+    set(checkBoxStep,'value',chkbxval);
+
+    % figure out the line xs
+    if leftright < 3
+        if something
+            xs = [100,300,200];
+        else
+            xs = [stpt,d.EndFirstStep];
         end
     else
-            haxesStepLine3.setPosition([-5000 -5000], [-5000 -5000]);
-            haxesStepLine4.setPosition([-5000 -5000], [-5000 -5000]); 
-            haxesStepLine11.setPosition([-5000 -5000], [-5000 -5000]); 
-            set(listBoxStep,'value', 3);
+        xs = repmat(tip(1),1,2);
     end
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function listBoxSteps_call(hObject, eventdata, handles)
-    try
-    listBoxStepValue = get(listBoxStep,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    
-    if(listBoxStepValue == 1) % right
-        if Vdata(pertNumber).firstStep==0 || Vdata2(pertNumber).steppingTime(1)<0
-            Vdata(pertNumber).firstStep=1;
-            Vdata2(pertNumber).firstStep=1;
-            Vdata3(pertNumber).firstStep=1;
-            set(checkBoxStep, 'value', 0);
-            haxesArmsLine3.setPosition([100 100], [-5000 5000]);
-            haxesArmsLine4.setPosition([300 300], [-5000 5000]);     
-            haxesArmsLine11.setPosition([200 200], [-5000 5000]); 
-        else
-            Vdata(pertNumber).firstStep=1;
-            Vdata2(pertNumber).firstStep=1;
-            Vdata3(pertNumber).firstStep=1;
-            set(checkBoxStep, 'value', 0);
-            haxesArmsLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-5000 5000]);
-            haxesArmsLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-5000 5000]);     
-            haxesArmsLine11.setPosition([Vdata2(pertNumber).EndFirstStep,Vdata2(pertNumber).EndFirstStep], [-5000 5000]);     
-        end  
-    end
-    if(listBoxStepValue == 2)  % left
-        if Vdata(pertNumber).firstStep==0 || Vdata2(pertNumber).steppingTime(1)<0
-            Vdata(pertNumber).firstStep=2;
-            Vdata2(pertNumber).firstStep=2;
-            Vdata3(pertNumber).firstStep=2;
-            set(checkBoxStep, 'value', 0);
-            haxesArmsLine3.setPosition([100 100], [-5000 5000]);
-            haxesArmsLine4.setPosition([300 300], [-5000 5000]);     
-            haxesArmsLine11.setPosition([200 200], [-5000 5000]); 
-        else
-            Vdata(pertNumber).firstStep=2;
-            Vdata2(pertNumber).firstStep=2;
-            Vdata3(pertNumber).firstStep=2;
-            set(checkBoxStep, 'value', 0);
-            haxesArmsLine3.setPosition([Vdata2(pertNumber).steppingTime(1) Vdata2(pertNumber).steppingTime(1)], [-5000 5000]);
-            haxesArmsLine4.setPosition([Vdata2(pertNumber).steppingTime(2) Vdata2(pertNumber).steppingTime(2)], [-5000 5000]);     
-            haxesArmsLine11.setPosition([Vdata2(pertNumber).EndFirstStep,Vdata2(pertNumber).EndFirstStep], [-5000 5000]);     
-        end
-    end
-     if(listBoxStepValue == 3) % no step
-        Vdata(pertNumber).firstStep=0;
-        Vdata2(pertNumber).firstStep=0;
-        Vdata3(pertNumber).firstStep=0;
-        set(checkBoxStep, 'value', 1);
-        haxesStepLine3.setPosition([-5000 -5000], [-5000 -5000]);
-        haxesStepLine4.setPosition([-5000 -5000], [-5000 -5000]); 
-        haxesStepLine11.setPosition([-5000 -5000], [-5000 -5000]); 
-     end
-    
-    catch me
-        h = errordlg(me.getReport)
+
+    % loop the lines to set the values
+    for i = 1:3
+        lineid = lineids(i);
+        x = xs(i);
+        haxes.(linesin).lines{lineid}.setPosition([x,x],tip);
     end
 end 
-function checkBoxRightArms_call(hObject, eventdata, handles)
-    try
-    checkBoxArmsValue = get(checkBoxRightArms,'value')
-   pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    
+
+function checkBoxArms_call(hObj,~,~)
+    side = 1; % right
+    if ~empty(regexpi('left',hObj.String))
+        side = 2;
+    end
+    %checkboxArmsValue = get(hObj,'value');
+    pertNumber = get(ListBoxPertubation,'value');
+    ys = tip;
+    if side == 1
+        lines = [5,6];
+    else
+        lines = [9,10];
+    end
+    d = Vdata(pertNumber);
+    linesin = 'Arms';
     if(checkBoxArmsValue == 0)
-        if Vdata(pertNumber).RightarmsTime <0        
-                haxesStepLine5.setPosition([50 50], [-5000 5000]);
-                haxesStepLine6.setPosition([100 100], [-5000 5000]); 
+        if d.RightarmsTime <0        
+            xs = [50,100];
         else
-                haxesArmsLine5.setPosition([Vdata(pertNumber).RightarmsTime(1) Vdata(pertNumber).RightarmsTime(1)], [-5000 5000]);
-                haxesArmsLine6.setPosition([Vdata(pertNumber).RightarmsTime(2) Vdata(pertNumber).RightarmsTime(2)], [-5000 5000]);
-    
+            xs = d.RightarmsTime;
         end
     else
-            haxesStepLine5.setPosition([-30 -30], [-30 -30]);
-            haxesStepLine6.setPosition([-30 -30], [-30 -30]);  
+        xs = [-30,-30];
+        ys = xs;
+        linesin = 'Step';
     end
-    catch me
-        h = errordlg(me.getReport)
+    for i = 1:2
+        l = lines(i);
+        x = xs(i);
+        y = ys(i);
+        haxes.(linesin).lines{l}.setPosition([x,x],[y,y]);
     end
-    
 end
-function checkBoxLeftArms_call(hObject, eventdata, handles)
-    try
-    checkBoxArmsValue = get(checkBoxLeftArms,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
+
+function checkBoxHide(hObject,~,~)
+    do11 = false;
+    pert = get(ListBoxPertubation,'value');
+    src = Vdata3(pert);
+    switch hObject.String
+        case 'hide Right arm'
+            tline = 5; 
+            dat = src.RightarmsTime;
+        case 'hide CG'
+            tline = 7;
+            dat = src.cgOut;
+        case 'hide Bamper'
+            tline = 1;
+            dat = src.pertubationsTime;
+        case 'hide Left arm'
+            tline = 9;
+            dat = src.LeftarmsTime;
+        case 'hide first step'
+            tline = 3;
+            do11 = ~do11;
+            dat = src.steppingTime;
+        otherwise
+            disp(hObject.String);
+    end
+    invtip = [1,-1] .* tip;
+    line1 = haxes.Step.lines{tline};
+    line2 = haxes.Step.lines{tline+1};
     
-    if(checkBoxArmsValue == 0)
-        if Vdata(pertNumber).LeftarmsTime <0        
-                 haxesStepLine9.setPosition([50 50], [-5000 5000]);
-                haxesStepLine10.setPosition([100 100], [-5000 5000]);
-        else
-                haxesArmsLine9.setPosition([Vdata(pertNumber).LeftarmsTime(1) Vdata(pertNumber).LeftarmsTime(1)], [-5000 5000]);
-                haxesArmsLine10.setPosition([Vdata(pertNumber).LeftarmsTime(2) Vdata(pertNumber).LeftarmsTime(2)], [-5000 5000]);
-    
+    if hObject.Value == 1
+        x = line1.getPosition();
+        y = line2.getPosition();
+        if do11
+            line3 = haxes.Step.lines{11};
+            z = line3.getPosition();
+        end
+        %dat  = [x(1,1),y(1,1)];
+        line1.setPosition(invtip,tip);
+        line2.setPosition(invtip,tip);
+        if do11
+            src.EndFirstStep = z(1,1);
+            line3.setPosition(invtip,tip);
         end
     else
-            haxesStepLine9.setPosition([-30 -30], [-30 -30]);
-            haxesStepLine10.setPosition([-30 -30], [-30 -30]);  
-    end
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function typeArm_call(hObject, eventdata, handles)
-    try
-    TypeArm=get(typeOfArmMove,'string');
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    Vdata2(pertNumber).TypeArmMove=TypeArm;
-    Vdata(pertNumber).TypeArmMove=TypeArm;
-   catch me
-        h = errordlg(me.getReport)
+        p1 = dat(1);
+        p2 = dat(2);
+        haxes.Arms.lines{tline}.setPosition([p1 p1],tip);
+        haxes.Arms.lines{tline+1}.setPosition([p2 p2],tip);
+        if do11
+            e = src.EndFirstStep;
+            haxes.Arms.lines{11}.setPosition([e,e],tip);
+        end
     end
 end
-function typeLeg_call(hObject, eventdata, handles)
-    try
-    TypeLeg=get(typeOfLegMove,'string');
-   pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    Vdata2(pertNumber).TypeLegMove=TypeLeg;
-    Vdata(pertNumber).TypeLegMove=TypeLeg;
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function checkBoxFall_call(hObject, eventdata, handles)
-    try
-    Fall=get(checkBoxFall,'value');
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    Vdata2(pertNumber).Fall=Fall;
-    Vdata(pertNumber).Fall=Fall;
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function checkBoxMS_call(hObject, eventdata, handles)
-    try
-    MS=get(checkBoxMS,'value');
-   pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    Vdata2(pertNumber).MS=MS;
-    Vdata(pertNumber).MS=MS;
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function checkBoxHideRightArms_call(hObject, eventdata, handles)
-    try
-    checkBoxHideRightArmsValue = get(checkBoxHideRightArms,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    x = haxesStepLine5.getPosition()
-    y = haxesStepLine6.getPosition()
-    if(checkBoxHideRightArmsValue == 1)
-%         haxesStepLine5.Visible='off';
-%         haxesStepLine6.Visible='off';
-        Vdata3(pertNumber).RightarmsTime(1) = x(1,1);
-        Vdata3(pertNumber).RightarmsTime(2) = y(1,1);
-        haxesStepLine5.setPosition([-5000 -5000], [-5000 5000]);
-        haxesStepLine6.setPosition([-5000 -5000], [-5000 5000]);     
-    else
-        haxesArmsLine5.setPosition([Vdata3(pertNumber).RightarmsTime(1) Vdata3(pertNumber).RightarmsTime(1)], [-5000 5000]);
-        haxesArmsLine6.setPosition([Vdata3(pertNumber).RightarmsTime(2) Vdata3(pertNumber).RightarmsTime(2)], [-5000 5000]);         
-    end  
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function checkBoxHideLeftArms_call(hObject, eventdata, handles)
-    try
-    checkBoxHideLeftArmsValue = get(checkBoxHideLeftArms,'value')
-   pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    x = haxesStepLine9.getPosition()
-    y = haxesStepLine10.getPosition()
-    if(checkBoxHideLeftArmsValue == 1)
-        Vdata3(pertNumber).LeftarmsTime(1) = x(1,1);
-        Vdata3(pertNumber).LeftarmsTime(2) = y(1,1);
-        haxesStepLine9.setPosition([-5000 -5000], [-5000 5000]);
-        haxesStepLine10.setPosition([-5000 -5000], [-5000 5000]);     
-    else
-        haxesArmsLine9.setPosition([Vdata3(pertNumber).LeftarmsTime(1) Vdata3(pertNumber).LeftarmsTime(1)], [-5000 5000]);
-        haxesArmsLine10.setPosition([Vdata3(pertNumber).LeftarmsTime(2) Vdata3(pertNumber).LeftarmsTime(2)], [-5000 5000]);         
-    end 
-    catch me
-        h = errordlg(me.getReport)
-    end
-    
-end
-function checkBoxHideSteps_call(hObject, eventdata, handles)
-    try
-    checkBoxHideStepsValue = get(checkBoxHideSteps,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    x = haxesStepLine3.getPosition()
-    y = haxesStepLine4.getPosition()
-    z = haxesStepLine11.getPosition()
 
-    if(checkBoxHideStepsValue == 1)
-        Vdata3(pertNumber).steppingTime(1) = x(1,1);
-        Vdata3(pertNumber).steppingTime(2) = y(1,1);
-        Vdata3(pertNumber).EndFirstStep = z(1,1);
-        haxesStepLine3.setPosition([-5000 -5000], [-5000 5000]);
-        haxesStepLine4.setPosition([-5000 -5000], [-5000 5000]); 
-        haxesStepLine11.setPosition([-5000 -5000], [-5000 5000]); 
-    else
-        haxesArmsLine3.setPosition([Vdata3(pertNumber).steppingTime(1) Vdata3(pertNumber).steppingTime(1)], [-5000 5000]);
-        haxesArmsLine4.setPosition([Vdata3(pertNumber).steppingTime(2) Vdata3(pertNumber).steppingTime(2)], [-5000 5000]);         
-        haxesArmsLine11.setPosition([Vdata3(pertNumber).EndFirstStep Vdata3(pertNumber).EndFirstStep], [-5000 5000]);         
-
-    end 
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function checkBoxHideCG_call(hObject, eventdata, handles)
-    try
-    checkBoxHideCGValue = get(checkBoxHideCG,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    x = haxesStepLine7.getPosition()
-    y = haxesStepLine8.getPosition()
-    if(checkBoxHideCGValue == 1)
-        Vdata3(pertNumber).cgOut(1) = x(1,1);
-        Vdata3(pertNumber).cgOut(2) = y(1,1);
-        haxesStepLine7.setPosition([-5000 -5000], [-5000 5000]);
-        haxesStepLine8.setPosition([-5000 -5000], [-5000 5000]);     
-    else
-        haxesArmsLine7.setPosition([Vdata3(pertNumber).cgOut(1) Vdata3(pertNumber).cgOut(1)], [-5000 5000]);
-        haxesArmsLine8.setPosition([Vdata3(pertNumber).cgOut(2) Vdata3(pertNumber).cgOut(2)], [-5000 5000]);         
-    end 
-   catch me
-        h = errordlg(me.getReport)
-    end
-end
-function checkBoxHideBamper_call(hObject, eventdata, handles)
-    try
-    checkBoxHideBamperValue = get(checkBoxHideBamper,'value')
-    pertNumber =get(ListBoxPertubation,'value')
-     step = get(currentFile,'string') ;
-     patientName =step{2,1}(1:end-4);
-%     indexOfPatient = find(strcmp(extractfield(Vdata(:,1,1), 'name'), patientName)) ;
-%     indexOfStep = find(strcmp(extractfield(Vdata(indexOfPatient,:,pertNumber), 'step'), step));
-    x = haxesStepLine1.getPosition()
-    y = haxesStepLine2.getPosition()
-    if(checkBoxHideBamperValue == 1)
-        Vdata3(pertNumber).pertubationsTime(1) = x(1,1);
-        Vdata3(pertNumber).pertubationsTime(2) = y(1,1);
-        haxesStepLine1.setPosition([-5000 -5000], [-5000 5000]);
-        haxesStepLine2.setPosition([-5000 -5000], [-5000 5000]);     
-    else
-        haxesArmsLine1.setPosition([Vdata3(pertNumber).pertubationsTime(1) Vdata3(pertNumber).pertubationsTime(1)], [-5000 5000]);
-        haxesArmsLine2.setPosition([Vdata3(pertNumber).pertubationsTime(2) Vdata3(pertNumber).pertubationsTime(2)], [-5000 5000]);         
-    end  
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line1(pos)
-    try
-   haxesCGLine1.setPosition(pos);
-   haxesBamperLine1.setPosition(pos);
-   haxesStepLine1.setPosition(pos);
-   haxesArmsLine1.setPosition(pos);
-    catch me
-        h = errordlg(me.getReport)
-    end
-   
-end
-function callback_line2(pos)
-    try
-   haxesCGLine2.setPosition(pos);
-   haxesBamperLine2.setPosition(pos);
-   haxesStepLine2.setPosition(pos);
-   haxesArmsLine2.setPosition(pos);
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line3(pos)
-    try
-   haxesCGLine3.setPosition(pos);
-   haxesBamperLine3.setPosition(pos);
-   haxesStepLine3.setPosition(pos);
-   haxesArmsLine3.setPosition(pos);
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line4(pos)
-    try
-   haxesCGLine4.setPosition(pos);
-   haxesBamperLine4.setPosition(pos);
-   haxesStepLine4.setPosition(pos);
-   haxesArmsLine4.setPosition(pos);
-    catch me
-        h = errordlg(me.getReport)
-    end
-    
-end
-function callback_line5(pos)
-    try
-   haxesCGLine5.setPosition(pos);
-   haxesBamperLine5.setPosition(pos);
-   haxesStepLine5.setPosition(pos);
-   haxesArmsLine5.setPosition(pos);
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line6(pos)
-    try
-   haxesCGLine6.setPosition(pos);
-   haxesBamperLine6.setPosition(pos);
-   haxesStepLine6.setPosition(pos);
-   haxesArmsLine6.setPosition(pos);
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line7(pos)
-    try
-   haxesCGLine7.setPosition(pos);
-   haxesBamperLine7.setPosition(pos);
-   haxesStepLine7.setPosition(pos);
-   haxesArmsLine7.setPosition(pos);
-   catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line8(pos)
-    try
-   haxesCGLine8.setPosition(pos);
-   haxesBamperLine8.setPosition(pos);
-   haxesStepLine8.setPosition(pos);
-   haxesArmsLine8.setPosition(pos);
-   catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line9(pos)
-    try
-   haxesCGLine9.setPosition(pos);
-   haxesBamperLine9.setPosition(pos);
-   haxesStepLine9.setPosition(pos);
-   haxesArmsLine9.setPosition(pos);
-   catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line10(pos)
-    try
-   haxesCGLine10.setPosition(pos);
-   haxesBamperLine10.setPosition(pos);
-   haxesStepLine10.setPosition(pos);
-   haxesArmsLine10.setPosition(pos);
-   catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_line11(pos)
-    try
-   haxesCGLine11.setPosition(pos);
-   haxesBamperLine11.setPosition(pos);
-   haxesStepLine11.setPosition(pos);
-   haxesArmsLine11.setPosition(pos);
-   catch me
-        h = errordlg(me.getReport)
-    end
-end
-function callback_SFline(pos)
-    try
-        pertNumber =get(ListBoxPertubation,'value')
-    axes(haxesSF);
-    cla(haxesSF);
-    %[x, y] = find(isPlotted == 1);
-%     for ind = 1:3:length(Vdata(pertNumber).SFdATA(1,:))
-%         hold on
-%         scatter3(haxesSF,Vdata(pertNumber).SFdATA(floor(pos(1) +1) ,ind),Vdata(pertNumber).SFdATA(floor(pos(1) +1),ind +1),Vdata.SFdATA(floor(pos(1) +1),ind +2), 'o')
-%         hold on
+% function callback_SFline(pos)
+%     axes(haxes.SF.coords);
+%     cla(haxes.SF.coords);
+%     boundsrcs = {'Step','Bamper','Arms'};
+%     bamperbound = get(haxes.Bamper.coords,'ylim');
+%     for i=1:length(boundsrcs) 
+%         bound = haxes.(boundsrcs{i}).coords.ylim;
+%         SFLines{i+1}.setPosition([pos(1,1), bound(1); pos(1,1),bound(2)]);
 %     end
-   stepbound = get(haxesStep,'ylim');
-   armsbound = get(haxesArms,'ylim');
-   bamperbound = get(haxesBamper,'ylim');
-   %haxesSFLine1.setPosition(pos);
-   haxesSFLine2.setPosition([pos(1,1), stepbound(1); pos(1,1),stepbound(2)]);
-   haxesSFLine3.setPosition([pos(1,1), bamperbound(1); pos(1,1),bamperbound(2)]);
-   haxesSFLine4.setPosition([pos(1,1), armsbound(1); pos(1,1),armsbound(2)]);
-    catch me
-        h = errordlg(me.getReport)
+% end
+
+function releaseCallback(~,~)
+    if ispressed == 0
+        return;
     end
+    t =  get(gca,'CurrentPoint');
+    axes(haxes.SF);
+    cla(haxes.SF);
+    for line = SFLines   %#ok<FXUP>
+       set(line{:}, 'XData', t(:,1));
+    end
+    set(slider, 'value', t(1,1));
+    plotSF(ceil(t));
+    ispressed =0;
 end
-function releaseCallback(src,ev)
-    try
-        pertNumber =get(ListBoxPertubation,'value')
-  %  f =  get(b,'CurrentPoint');
-  % set(a, 'YData', f(:,2))
-   if ispressed == 1
-   
-    cord =  get(gca,'CurrentPoint');
-    %[x, y] = find(isPlotted == 1);
-     axes(haxesSF);
-    cla(haxesSF);
-%     for ind = 1:3:length(Vdata(x, y).SFdATA(1,:))
-%         hold on
-%         scatter3(haxesSF,Vdata(x, y).SFdATA(floor(cord(1,1) +1) ,ind),Vdata(x, y).SFdATA(floor(cord(1,1) +1),ind +1),Vdata(x, y).SFdATA(floor(cord(1,1) +1),ind +2), 'o')
-%         hold on
-%     end
- %  stepbound = get(haxesStep,'ylim');
- %  armsbound = get(haxesArms,'ylim');
- %  bamperbound = get(haxesBamper,'ylim');
- %  cgbound = get(haxesCG,'ylim');
-   
-   set(haxesSFLine1, 'XData', cord(:,1))
-   set(haxesSFLine2, 'XData', cord(:,1))
-   set(haxesSFLine3, 'XData', cord(:,1))
-   set(haxesSFLine4, 'XData', cord(:,1))
-   set(slider, 'value', cord(1,1))
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,1) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,4)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,2) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,5)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,3) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,6)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,1) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,7)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,2) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,8)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,3) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,9)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,10) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,4)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,11) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,5)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,12) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,6)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,10) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,7)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,11) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,8)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,12) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,9)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,19) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,28)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,20) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,29)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,21) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,30)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,19) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,49)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,20) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,50)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,21) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,51)]...
-        ,'Color', 'k','LineWidth',1.5);     
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,28) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,34)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,29) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,35)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,30) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,36)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,40) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,34)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,41) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,35)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,42) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,36)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,43) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,34)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,44) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,35)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,45) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,36)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,40) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,46)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,41) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,47)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,42) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,48)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,43) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,46)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,44) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,47)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,45) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,48)]...
-        ,'Color', 'k','LineWidth',1.5);
- 
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,49) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,55)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,50) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,56)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,51) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,57)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,61) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,55)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,62) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,56)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,63) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,57)]...
-        ,'Color', 'k','LineWidth',1.5); 
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,64) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,55)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,65) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,56)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,66) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,57)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,61) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,67)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,62) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,68)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,63) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,69)]...
-        ,'Color', 'k','LineWidth',1.5); 
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,64) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,67)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,65) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,68)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,66) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,69)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,70) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,73)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,71) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,74)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,72) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,75)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,70) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,76)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,71) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,77)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,72) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,78)]...
-        ,'Color', 'k','LineWidth',1.5); 
-  
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,79) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,73)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,80) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,74)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,81) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,75)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,79) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,76)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,80) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,77)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,81) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,78)]...
-        ,'Color', 'k','LineWidth',1.5);   
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,70) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,85)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,71) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,86)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,72) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,87)]...
-        ,'Color', 'k','LineWidth',1.5); 
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,91) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,85)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,92) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,86)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,93) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,87)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,91) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,94)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,92) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,95)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,93) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,96)]...
-        ,'Color', 'k','LineWidth',1.5);  
 
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,91) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,97)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,92) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,98)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,93) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,99)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,94) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,97)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,95) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,98)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,96) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,99)]...
-        ,'Color', 'k','LineWidth',1.5);   
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,73) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,103)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,74) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,104)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,75) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,105)]...
-        ,'Color', 'k','LineWidth',1.5);
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,109) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,103)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,110) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,104)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,111) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,105)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,109) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,112)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,110) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,113)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,111) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,114)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,109) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,115)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,110) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,116)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,111) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,117)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,112) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,115)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,113) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,116)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,114) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,117)]...
-        ,'Color', 'k','LineWidth',1.5);     
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,118) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,121)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,119) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,122)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,120) Vdata(pertNumber).SFdATA(floor(cord(1,1) +1) ,123)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    if length(Vdata)==12 % walking protocol
-        plot3(Vdata(pertNumber).CGX_plot(floor(cord +1)),Vdata(pertNumber).CGZ(floor(cord +1)),Vdata(pertNumber).CGY(floor(cord +1)),'o','MarkerSize',5,'MarkerFaceColor','r')
-    else % standing protocol
-        plot3(Vdata(pertNumber).CGX_plot(floor(cord +1)),Vdata(pertNumber).CGZ_plot(floor(cord +1)),Vdata(pertNumber).CGY_plot(floor(cord +1)),'o','MarkerSize',5,'MarkerFaceColor','r')
+function plotSF(time_point)
+    pertNumber = get(ListBoxPertubation,'value');
+    c = ceil(time_point);
+    axes(haxes.SF);
+    cla(haxes.SF);
+    xcols = [...
+        1,4;...     % left forhead - right forehead
+        1,7;...     % left forhead - left backhead
+        10,4;...     % right backhead - right forehead 
+        10,7;...     % right backhead - left backhead
+        
+        19,28;...    % clavicula - left shoulder  
+        19,49;...    % clavicula - right shoulder 
+
+        28,34;...    % left shoulder - left elbow 
+        40,34;...    % left wrist A - left elbow 
+        43,34;...    % left wrist B - left elbow 
+        40,46;...    % left wrist A - left FIN 
+        43,46;...    % left wrist B - left FIN 
+
+        49,55;...    % right shoulder - right elbow    
+        61,55;...    % right wrist A - right elbow 
+        64,55;...    % right wrist B - right elbow 
+        61,67;...    % right wrist A - right FIN 
+        64,67;...    % right wrist B - right FIN 
+        
+        70,73;...    % left asis - right asis
+        70,76;...    % left asis - left PSI
+        79,73;...    % right PSI - right asis   
+        79,76;...    % right PSI - left PSI 
+        
+        70,85;...    % left asis - left knee 
+        91,85;...    % left ankle - left knee  
+        91,97;...    % left ankle - left heel 
+        91,94;...    % left ankle - left toe    
+        94,97;...    % left heel - left toe 
+        
+        73,103;...   % right asis - right knee
+        109,103;...  % right ankle - right knee 
+        109,112;...  % right ankle - right heel 
+        109,115;...  % right ankle - right toe 
+        112,115;...  % right heel - right toe 
+        
+        118,121 ...  % bamper
+    ];
+    row = Vdata(pertNumber).SFdATA(c,:);
+    for i=1:length(xcols)
+        xcol1 = xcols(i,1);
+        xcol2 = xcols(i,2);
+        xyz = row([xcol1:1:xcol1+2;xcol2:1:xcol2+2]);
+        line(xyz(:,1)',xyz(:,2)',xyz(:,3)','Color','k','LineWidth',1.5);
     end
-
-
-     xlim([-700, 1500])
-     ylim([-200, 2000])
-     zlim([-200, 1800])
-   %haxesSFLine1.setPosition(pos);
-   %haxesSFLine2.setPosition([pos(1,1), stepbound(1); pos(1,1),stepbound(2)]);
-   %haxesSFLine3.setPosition([pos(1,1), bamperbound(1); pos(1,1),bamperbound(2)]);
-   %haxesSFLine4.setPosition([pos(1,1), armsbound(1); pos(1,1),armsbound(2)]);
-   end
-   ispressed =0;
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function SFLine1Callback(src,ev)
-    try
-  %  f =  get(b,'CurrentPoint');
-  % set(a, 'YData', f(:,2))
-   ispressed = 1;
-    catch me
-        h = errordlg(me.getReport)
-    end
-end
-function slider_call(h,event) 
-    try
-     pertNumber =get(ListBoxPertubation,'value')
-     cord =  get(slider, 'value')
-    %[x, y] = find(isPlotted == 1);
-     axes(haxesSF);
-     cla(haxesSF);
-%     for ind = 1:3:length(Vdata(pertNumber).SFdATA(1,:))
-%         hold on
-%         scatter3(haxesSF,Vdata(pertNumber).SFdATA(floor(cord +1) ,ind),Vdata(pertNumber).SFdATA(floor(cord +1),ind +1),Vdata(pertNumber).SFdATA(floor(cord +1),ind +2), 'o')
-%         hold on
-%     end
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,1) Vdata(pertNumber).SFdATA(floor(cord +1) ,4)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,2) Vdata(pertNumber).SFdATA(floor(cord +1) ,5)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,3) Vdata(pertNumber).SFdATA(floor(cord +1) ,6)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,1) Vdata(pertNumber).SFdATA(floor(cord +1) ,7)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,2) Vdata(pertNumber).SFdATA(floor(cord +1) ,8)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,3) Vdata(pertNumber).SFdATA(floor(cord +1) ,9)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,10) Vdata(pertNumber).SFdATA(floor(cord +1) ,4)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,11) Vdata(pertNumber).SFdATA(floor(cord +1) ,5)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,12) Vdata(pertNumber).SFdATA(floor(cord +1) ,6)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,10) Vdata(pertNumber).SFdATA(floor(cord +1) ,7)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,11) Vdata(pertNumber).SFdATA(floor(cord +1) ,8)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,12) Vdata(pertNumber).SFdATA(floor(cord +1) ,9)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,19) Vdata(pertNumber).SFdATA(floor(cord +1) ,28)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,20) Vdata(pertNumber).SFdATA(floor(cord +1) ,29)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,21) Vdata(pertNumber).SFdATA(floor(cord +1) ,30)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,19) Vdata(pertNumber).SFdATA(floor(cord +1) ,49)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,20) Vdata(pertNumber).SFdATA(floor(cord +1) ,50)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,21) Vdata(pertNumber).SFdATA(floor(cord +1) ,51)]...
-        ,'Color', 'k','LineWidth',1.5);     
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,28) Vdata(pertNumber).SFdATA(floor(cord +1) ,34)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,29) Vdata(pertNumber).SFdATA(floor(cord +1) ,35)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,30) Vdata(pertNumber).SFdATA(floor(cord +1) ,36)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,40) Vdata(pertNumber).SFdATA(floor(cord +1) ,34)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,41) Vdata(pertNumber).SFdATA(floor(cord +1) ,35)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,42) Vdata(pertNumber).SFdATA(floor(cord +1) ,36)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,43) Vdata(pertNumber).SFdATA(floor(cord +1) ,34)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,44) Vdata(pertNumber).SFdATA(floor(cord +1) ,35)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,45) Vdata(pertNumber).SFdATA(floor(cord +1) ,36)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,40) Vdata(pertNumber).SFdATA(floor(cord +1) ,46)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,41) Vdata(pertNumber).SFdATA(floor(cord +1) ,47)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,42) Vdata(pertNumber).SFdATA(floor(cord +1) ,48)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,43) Vdata(pertNumber).SFdATA(floor(cord +1) ,46)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,44) Vdata(pertNumber).SFdATA(floor(cord +1) ,47)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,45) Vdata(pertNumber).SFdATA(floor(cord +1) ,48)]...
-        ,'Color', 'k','LineWidth',1.5);
- 
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,49) Vdata(pertNumber).SFdATA(floor(cord +1) ,55)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,50) Vdata(pertNumber).SFdATA(floor(cord +1) ,56)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,51) Vdata(pertNumber).SFdATA(floor(cord +1) ,57)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,61) Vdata(pertNumber).SFdATA(floor(cord +1) ,55)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,62) Vdata(pertNumber).SFdATA(floor(cord +1) ,56)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,63) Vdata(pertNumber).SFdATA(floor(cord +1) ,57)]...
-        ,'Color', 'k','LineWidth',1.5); 
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,64) Vdata(pertNumber).SFdATA(floor(cord +1) ,55)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,65) Vdata(pertNumber).SFdATA(floor(cord +1) ,56)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,66) Vdata(pertNumber).SFdATA(floor(cord +1) ,57)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,61) Vdata(pertNumber).SFdATA(floor(cord +1) ,67)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,62) Vdata(pertNumber).SFdATA(floor(cord +1) ,68)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,63) Vdata(pertNumber).SFdATA(floor(cord +1) ,69)]...
-        ,'Color', 'k','LineWidth',1.5); 
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,64) Vdata(pertNumber).SFdATA(floor(cord +1) ,67)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,65) Vdata(pertNumber).SFdATA(floor(cord +1) ,68)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,66) Vdata(pertNumber).SFdATA(floor(cord +1) ,69)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,70) Vdata(pertNumber).SFdATA(floor(cord +1) ,73)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,71) Vdata(pertNumber).SFdATA(floor(cord +1) ,74)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,72) Vdata(pertNumber).SFdATA(floor(cord +1) ,75)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,70) Vdata(pertNumber).SFdATA(floor(cord +1) ,76)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,71) Vdata(pertNumber).SFdATA(floor(cord +1) ,77)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,72) Vdata(pertNumber).SFdATA(floor(cord +1) ,78)]...
-        ,'Color', 'k','LineWidth',1.5); 
-  
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,79) Vdata(pertNumber).SFdATA(floor(cord +1) ,73)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,80) Vdata(pertNumber).SFdATA(floor(cord +1) ,74)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,81) Vdata(pertNumber).SFdATA(floor(cord +1) ,75)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,79) Vdata(pertNumber).SFdATA(floor(cord +1) ,76)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,80) Vdata(pertNumber).SFdATA(floor(cord +1) ,77)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,81) Vdata(pertNumber).SFdATA(floor(cord +1) ,78)]...
-        ,'Color', 'k','LineWidth',1.5);   
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,70) Vdata(pertNumber).SFdATA(floor(cord +1) ,85)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,71) Vdata(pertNumber).SFdATA(floor(cord +1) ,86)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,72) Vdata(pertNumber).SFdATA(floor(cord +1) ,87)]...
-        ,'Color', 'k','LineWidth',1.5); 
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,91) Vdata(pertNumber).SFdATA(floor(cord +1) ,85)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,92) Vdata(pertNumber).SFdATA(floor(cord +1) ,86)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,93) Vdata(pertNumber).SFdATA(floor(cord +1) ,87)]...
-        ,'Color', 'k','LineWidth',1.5);
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,91) Vdata(pertNumber).SFdATA(floor(cord +1) ,94)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,92) Vdata(pertNumber).SFdATA(floor(cord +1) ,95)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,93) Vdata(pertNumber).SFdATA(floor(cord +1) ,96)]...
-        ,'Color', 'k','LineWidth',1.5);  
-
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,91) Vdata(pertNumber).SFdATA(floor(cord +1) ,97)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,92) Vdata(pertNumber).SFdATA(floor(cord +1) ,98)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,93) Vdata(pertNumber).SFdATA(floor(cord +1) ,99)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,94) Vdata(pertNumber).SFdATA(floor(cord +1) ,97)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,95) Vdata(pertNumber).SFdATA(floor(cord +1) ,98)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,96) Vdata(pertNumber).SFdATA(floor(cord +1) ,99)]...
-        ,'Color', 'k','LineWidth',1.5);   
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,73) Vdata(pertNumber).SFdATA(floor(cord +1) ,103)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,74) Vdata(pertNumber).SFdATA(floor(cord +1) ,104)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,75) Vdata(pertNumber).SFdATA(floor(cord +1) ,105)]...
-        ,'Color', 'k','LineWidth',1.5);
-   
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,109) Vdata(pertNumber).SFdATA(floor(cord +1) ,103)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,110) Vdata(pertNumber).SFdATA(floor(cord +1) ,104)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,111) Vdata(pertNumber).SFdATA(floor(cord +1) ,105)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,109) Vdata(pertNumber).SFdATA(floor(cord +1) ,112)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,110) Vdata(pertNumber).SFdATA(floor(cord +1) ,113)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,111) Vdata(pertNumber).SFdATA(floor(cord +1) ,114)]...
-        ,'Color', 'k','LineWidth',1.5);  
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,109) Vdata(pertNumber).SFdATA(floor(cord +1) ,115)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,110) Vdata(pertNumber).SFdATA(floor(cord +1) ,116)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,111) Vdata(pertNumber).SFdATA(floor(cord +1) ,117)]...
-        ,'Color', 'k','LineWidth',1.5); 
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,112) Vdata(pertNumber).SFdATA(floor(cord +1) ,115)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,113) Vdata(pertNumber).SFdATA(floor(cord +1) ,116)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,114) Vdata(pertNumber).SFdATA(floor(cord +1) ,117)]...
-        ,'Color', 'k','LineWidth',1.5);     
-    
-    line([Vdata(pertNumber).SFdATA(floor(cord +1) ,118) Vdata(pertNumber).SFdATA(floor(cord +1) ,121)]...
-        , [Vdata(pertNumber).SFdATA(floor(cord +1) ,119) Vdata(pertNumber).SFdATA(floor(cord +1) ,122)]...
-        ,[Vdata(pertNumber).SFdATA(floor(cord +1) ,120) Vdata(pertNumber).SFdATA(floor(cord +1) ,123)]...
-        ,'Color', 'k','LineWidth',1.5); 
     hold on
-    if length(Vdata)==12 % walking protocol
-        plot3(Vdata(pertNumber).CGX_plot(floor(cord +1)),Vdata(pertNumber).CGZ(floor(cord +1)),Vdata(pertNumber).CGY(floor(cord +1)),'o','MarkerSize',5,'MarkerFaceColor','r')
-    else % standing protocol
-        plot3(Vdata(pertNumber).CGX_plot(floor(cord +1)),Vdata(pertNumber).CGZ_plot(floor(cord +1)),Vdata(pertNumber).CGY_plot(floor(cord +1)),'o','MarkerSize',5,'MarkerFaceColor','r')
-    end    
-     xlim([-700, 1500])
-     ylim([-200, 2000])
-     zlim([-200, 1800])
- %  stepbound = get(haxesStep,'ylim');
- %  armsbound = get(haxesArms,'ylim');
- %  bamperbound = get(haxesBamper,'ylim');
- %  cgbound = get(haxesCG,'ylim');
-   
-   set(haxesSFLine1, 'XData', [cord cord],'YData',[-50000 50000])
-   set(haxesSFLine2, 'XData', [cord cord],'YData',[-50000 50000])
-   set(haxesSFLine3, 'XData', [cord cord],'YData',[-50000 50000])
-   set(haxesSFLine4, 'XData', [cord cord],'YData',[-50000 50000])
-    catch me
-        h = errordlg(me.getReport)
+    if strcmp(vcd.condition,'walk')
+        plot3(Vdata(pertNumber).CGX_plot(c),Vdata(pertNumber).CGZ(c),Vdata(pertNumber).CGY(c),'o','MarkerSize',5,'MarkerFaceColor','r')
+    else
+        plot3(Vdata(pertNumber).CGX_plot(c),Vdata(pertNumber).CGZ_plot(c),Vdata(pertNumber).CGY_plot(c),'o','MarkerSize',5,'MarkerFaceColor','r')
+    end
+    xlim([-700, 1500])
+    ylim([-200, 2000])
+    zlim([-200, 1800])
+end
+
+function slider_call(h,~)
+    t =  ceil(get(h, 'value'));
+    plotSF(t);
+    for l=SFLines %#ok<FXUP>
+        set(l{:}, 'XData', [t t],'YData',[-50000 50000])
     end
 end
 end
