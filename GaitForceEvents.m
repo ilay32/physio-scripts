@@ -26,7 +26,7 @@ classdef GaitForceEvents
             sc = GaitForceEvents.scanwindow;
             leftlim = 1;
             if curind > 1
-                leftlim = idxs(curind - 1) - 2*sc;
+                leftlim = idxs(curind - 1);
             end
             while cur > leftlim
                 avg = mean(dat(cur  - sc:cur));
@@ -37,7 +37,7 @@ classdef GaitForceEvents
                 cur = cur - sc;
             end
             % if not found, scan again with larger threshold
-            disp('not found');
+            % fprintf('not found between %d and %d\n',idxs(curind),leftlim);
             %ind = round((idxs(curind) - idxs(curind - 1))/2);
             ind = GaitForceEvents.scanbackward(dat,idxs,curind,thresh*1.5);
         end
@@ -66,8 +66,8 @@ classdef GaitForceEvents
             self.datarate = 1/(f.data(2,1) - f.data(1,1)); % Hz
             self.forces = f.data;
             c = importdata(fullfile(folder,GaitForceEvents.cycles_filename));
-            self.reversed = length(find(c.data(:,5) < 0)) > length(find(c.data(:,5)) > 0);
-            self.deriv_peak_dist = self.datarate / 1.5; % assuming lhs -> lhs frequency is not more than 1.5Hz
+            self.reversed = length(find(c.data(:,5) < 0)) > length(find(c.data(:,5) > 0));
+            self.deriv_peak_dist = self.datarate/1.5;  %assuming lhs -> lhs frequency is not more than 1Hz
         end
 
         function self = find_heel_strikes(self) 
@@ -89,10 +89,37 @@ classdef GaitForceEvents
             allhs = cell(1,2);
             for side = [-1,1] % left right 
                 [~,idx] = findpeaks(smoothed_deriv*side,'MinPeakDistance',...
-                    self.deriv_peak_dist,'MinPeakHeight',3*GaitForceEvents.slope_thresh);
+                    self.deriv_peak_dist,'MinPeakHeight',2*GaitForceEvents.slope_thresh);
                 heel_strikes = nan*ones(length(idx),1);
                 for i = 2:length(idx)
-                    heel_strikes(i) = GaitForceEvents.scanbackward(smoothed_deriv*side,idx,i);
+                    bycopx = GaitForceEvents.scanbackward(smoothed_deriv*side,idx,i);
+                    heel_strikes(i) = bycopx;
+                    % now try to correct it with fz data:
+                    % within the ith stretch, find steepest fz, then scan
+                    % back until a a point where fz decresses
+                    start = bycopx - GaitForceEvents.scanwindow;
+                    fz = self.forces(start:idx(i),2);
+                    dfz = diff(fz);
+                    [~,mi] = max(dfz);
+                    if mi > 1
+                        disp('trying to use fz');
+                        better = find(dfz(1:mi) < 0,1,'last');
+                        if better
+                            if start + better > bycopx
+                                disp('prefer fz');
+                                heel_strikes(i) = start + better;
+%                                 if better > length(fz)/2
+%                                     disp('but moderating')
+%                                     heel_strikes(i) = start + floor(better/2);
+%                                 end
+                            else
+                                disp('was of no use');
+                            end
+                            
+                        end
+                    else
+                        disp('max fz slope is not between...')
+                    end
                 end
                 % unite really close points that can arise due to the
                 % scanbackward recursion
@@ -177,10 +204,13 @@ classdef GaitForceEvents
             % read left heel strikes times from "List of COP points.txt"
             pointsfile = dir([self.datafolder '/*COP*.txt']);
             if isempty(pointsfile)
-                disp('Sorry, couldnt find ForceGaits listo COP points');
+                disp('Sorry, couldn''t find ForceGaits list of COP points');
                 return
-            end
+             end
             fgpoints = importdata(fullfile(pointsfile.folder,pointsfile.name));
+            if all(strcmp(fgpoints.textdata(:,1),''))
+                fgpoints.textdata = fgpoints.textdata(:,2:end);
+            end
             fglhs = fgpoints.data(strcmp(fgpoints.textdata(:,2),'HSL'),3);
             
             % read the same from "GaitCycleParameters"
@@ -190,6 +220,7 @@ classdef GaitForceEvents
             % compare between forcegait and itself
             if length(fglhs2) ~= length(fglhs)
                 disp('Force Gait left heel strikes are not the same number');
+                fprintf('cycles file: %d, list of cop points: %d\n',length(fglhs2),length(fglhs));
                 l = min(length(fglhs),length(fglhs2));
                 fglhs = fglhs(1:l);
                 fglhs2 = fglhs2(1:l);
@@ -212,7 +243,7 @@ classdef GaitForceEvents
                     ourd{i} = plot(ours(i,1),ours(i,2),'r*');
                 end
                 % assuming the cycles data might be wrong
-                fglhs = round((fglhs - self.forces(1,1))*self.datarate); % from seconds to readings
+                fglhs = round((fglhs2 - self.forces(1,1))*self.datarate); % from seconds to readings
                 theird = {};
                 for i = 1:length(fglhs)
                     theird{i} = plot(fglhs(i),self.forces(fglhs(i),3),'g*');
