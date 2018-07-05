@@ -28,12 +28,13 @@ for f = exports
     [cop,~,sample_rate] = parsetsv(f{:});
     cop = cop(chopstart*sample_rate:end - chopend*sample_rate,:);
     params = cparams(cop,sample_rate,15,7.5); % based on Itzik's scripts
+    params = [params sdfjist(cop,sample_rate)];
     lines{registered} = findline(f{:},params);
     registered = registered + 1;
 end
 
 % write computed params
-datheader = 'mean copx,mean copy,cop range x,cop range y,sway area/s,isway,mean velocity';
+datheader = 'cop range x,cop range y,sway area/s,isway,mean velocity,myctr,ictr';
 header = 'condition,taken from';
 savefile = fopen(fullfile(folder,'conditions-and-params.csv'),'wt');
 fprintf(savefile,'initial chop:%0.1f sec,final chop: %0.1f sec\n%s,%s\n',chopstart,chopend,header,datheader);
@@ -103,7 +104,7 @@ function [output]= cparams(cop,sampling_rate,filt1,filt2)
         tst = cop(1:10,:);
         cutbase = floor(200/filt1); % to check
         lpfilt(filt1,cutbase + 1,length(cop) - cutbase);
-        assert(~any(all(cop(1:10,:) == tst)),'filter has no side effects');
+        assert(~any(all(cop(1:10,:) == tst)),'filter has no effect');
         clear tst;
     end
 
@@ -129,10 +130,53 @@ function [output]= cparams(cop,sampling_rate,filt1,filt2)
     if filt2 ~= 0
         tst = cop(1:100,:);
         lpfilt(filt2,101,length(cop)-100);
-        assert(~any(all(cop(1:100,:) == tst)),'filter has no side effects');
+        assert(~any(all(cop(1:100,:) == tst)),'filter has no effect');
         clear tst;
     end
     copvel = sum(sqrt(sum(diff(cop) .^ 2,2)));
-    output = [m,r,area_ps,isway,mean(copvel)/seconds];
+    output = [r,area_ps,isway,mean(copvel)/seconds];
 end
 
+function ctr = sdfjist(cop,sample_rate)
+    SEC  = size(cop,1)/sample_rate;
+    
+    %Calculate ensemble SD function
+    % Yaron 17/7 added 'length' (now 'SEC') as parameter for stabilogram_diffusion...
+    [sdfx]=stabilogram_diffusion(cop(:,1),sample_rate,SEC,2,0); 
+    [sdfy]=stabilogram_diffusion(cop(:,1),sample_rate,SEC,2,0);
+    sdf(:,1) = (1/sample_rate:1/sample_rate:SEC -(1/sample_rate))';
+    sdf(:,2) = sdfx(:,2);
+    sdf(:,3) = sdfy(:,2);
+    sdf(:,4) = sdf(:,2) + sdf(:,3);
+      
+    % Calculate SDF Parameters
+    % Coeffs format
+    %			   1        2       3        4   5      6
+    %        95%Conf   Param   95%Conf   R^2  p  Intercept
+    %  1 Dxs
+    %  2 Dys
+    %  3 Drs
+    %  4 Dxl
+    %  5 Dyl
+    %  6 Drl
+    %  7 Hxs
+    %  8 Hys
+    %  9 Hrs
+    % 10 Hxl
+    % 11 Hyl
+    % 12 Hrl
+
+    % CP Format
+    %   CP by loglog slope  CP by intersection
+    % 1 Ctx
+    % 2 Cty
+    % 3 Ctr
+    % 4 Cdx
+    % 5 Cdy
+    % 6 Cdr
+
+    %No checking of r^2, 200ms transition region. Long_term_end is a 1x3 vector
+    % transition 0 long term 10secs
+    [~,cp,~] = sdf_parameters(sdfx(:,1),sdf(:,2:3),0,0,10*sample_rate);
+    ctr = cp(3,:);
+end
