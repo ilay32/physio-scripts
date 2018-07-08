@@ -154,7 +154,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         # params
         datsheet.append([""])
         datsheet.append(["researcher",g['walks']['researcher']])
-        datsheet.append(["pausetime",float(g['single']['pausetime'])/100])
+        datsheet.append(["pausetime",float(g['single']['pausetime'])/1000])
         self.comment_and_start(g,datsheet)
         wb.save(filename = dest)
 
@@ -247,7 +247,8 @@ def killserver():
 
 if __name__ == '__main__':
     # on android this has to be manually uncommented
-    #os.chdir(os.path.dirname(__file__))
+    if platform.system() == "Windows":
+        os.chdir(os.path.dirname(__file__))
     server_go = threading.Thread(None,runserver)
     server_stop = threading.Thread(None,killserver)
     server_stop.setDaemon(True)
