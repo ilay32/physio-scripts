@@ -7,7 +7,8 @@ PORT_NUMBER = 8000
 
 class ExpRunner(hs.SimpleHTTPRequestHandler):
     #savedir = os.path.join(os.path.abspath(os.pardir),"corridor-walks")
-    savedir = "corridor-walks"
+    #savedir = "corridor-walks"
+    savedir = os.path.join(os.path.expanduser("~") ,"Desktop",GUI.parentdir,self.id)
     datacols = [
         "walk no.", 
         "absolute start", 
