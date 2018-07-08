@@ -11,7 +11,7 @@ function [timings] = StepTimes(start,finish,COPY,Fz)
     cur = start - lookbehind;
     steps = 0;
     proportion = 0.3;
-    weight = mean(findpeaks(Fz,'MinPeakDistance',100))/2; %very simplistically
+    weight = mean(findpeaks(Fz,'MinPeakDistance',100))*0.9; %very simplistically
     assert(weight > 300, 'subject is too light ~ 30kg');
     assert(weight < 2000, 'subject is too heavy ~ 200kg');
     halfweight = proportion * weight;

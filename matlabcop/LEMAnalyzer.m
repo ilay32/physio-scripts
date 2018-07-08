@@ -11,9 +11,9 @@ classdef LEMAnalyzer
         epsi = eps;
         touchspan = 50; % also arbitrary, the number of readings to take from both sides of an identified touch index
         datarate = 300 % Hz, since the csv exports contain only the raw readings, this rate is assumed and not computed
-        weakmy = 0.2; % again by trial and error, even a really weak press generates a Y moment of -0.5
         accuracy = 0.04; % radius of accuracy for the valid touch decision -- 4 cm
         first_touch_scan_window=100;
+        lemduration = 20; % 20 seconds of test.
     end
     properties
         data
@@ -24,6 +24,9 @@ classdef LEMAnalyzer
         centers
         zeronoise
         lemstart
+        weakmy
+        subjid
+        part
     end
     methods (Static)
         function noisedat =  findnoise(sample)
@@ -40,6 +43,7 @@ classdef LEMAnalyzer
             [~,mfind] = max(n);
             pv = mean(sample(x == x(mfind))); % most frequent value in given sample mean for safety
             % register the other values
+            frequents = frequents(frequents ~= mfind);
             for i=1:length(frequents)
                 subj = sample(x==frequents(i));
                 m = mean(subj);
@@ -47,7 +51,14 @@ classdef LEMAnalyzer
                 noise.vals(i) = m;
                 noise.epsilons(i) = e;
             end
-            noise.level = abs(max(abs(noise.vals))-pv); % how far is the farthest value from the principal one
+            anoises = abs(noise.vals - pv);
+            [~,amaxind] = max(anoises);
+            noise.maximal.val = noise.vals(amaxind); % how far is the farthest value from the principal one
+            noise.maximal.eps = noise.epsilons(amaxind);
+            
+            [~,aminind] = min(anoises);
+            noise.minimal.val = noise.vals(aminind); % smallest noise
+            noise.minimal.eps = noise.epsilons(aminind);
             noise.princval = pv;
             noisedat = noise;
         end
@@ -96,6 +107,16 @@ classdef LEMAnalyzer
             cx = LEMAnalyzer.centerx;
             self.centers.near = [-1*cx,0];
             self.centers.far = [cx,0];
+            [~,b,~] = fileparts(lemfile);
+            [~,t] = regexp(b,'(\w+)LEM(\d).*','match','tokens');
+            tok = t{1,1};
+            if all(size(tok) == [1,2])
+                self.subjid = tok{1,1};
+                self.part = tok{1,2};
+            else
+                self.subjid = 'unknown';
+                self.part = '0';
+            end
         end
         function showtouches(self,points)
             radius = LEMAnalyzer.accuracy;
@@ -104,7 +125,7 @@ classdef LEMAnalyzer
             grid on;
             ylim([-0.15,0.15]);
             xlim([-0.25,0.25]);
-
+            title([self.subjid ' LEMOCOT No. ' self.part]);
             % plot the centers and the required accuracy circle
             for c={'near','far'}
                 center = self.centers.(c{:});
@@ -114,16 +135,23 @@ classdef LEMAnalyzer
                 ys = radius * sin(th) + center(2);
                 plot(xs,ys,'color','black');
             end
-            for pspecs = {
-                    {'near','b*'},...
-                    {'far','g*'},...
-                    {'out','rx'}...
-                }
-                copxy = points.(pspecs{:}{1});
+          
+            pspecs = {
+                {'near','b*'},...
+                {'far','g*'},...
+                {'out','rx'}...
+            };
+            for spec=1:3
+                pspec = pspecs{spec};
+                copxy = points.(pspec{1});
+                plts = cell(1,size(copxy,1));
                 for i = 1:size(copxy,1)
-                    plot(copxy(i,1),copxy(i,2),pspecs{:}{2});
+                    plts{i} = plot(copxy(i,1),copxy(i,2),pspec{2});
                 end
+                lh(spec) = plts{:};
             end
+            
+            legend(lh,{'near','far','out'});
             hold off;
         end
         function [cop,rcop] = copontouch(self,touchindices)
@@ -174,6 +202,15 @@ classdef LEMAnalyzer
                 close;
             
             n = LEMAnalyzer.findnoise(fz(min(xs):max(xs)));
+            weakindex = find((fz >= n.minimal.val - n.minimal.eps) & (fz <= n.minimal.val + n.minimal.eps));
+            if ~isempty(weakindex)
+                weak_mys = abs(self.data(weakindex,5));
+                weak_mys = weak_mys(weak_mys > 0);
+                self.weakmy = min(weak_mys);
+            else
+                self.weakmy = 0.1;
+            end
+            
             assert(n.princval == 0,'this stretch is not mostly 0. aborting.');
             fz = LEMAnalyzer.eliminate_noises(fz,n,0);
             self.data(fz == 0,:) = 0;
@@ -192,19 +229,27 @@ classdef LEMAnalyzer
             % 20 seconds.
             w = LEMAnalyzer.first_touch_scan_window;
             for i=1:w:20*self.datarate
-                if (mean(my(i:i+w)) < 0) && (min(my(i:i+w)) < LEMAnalyzer.weakmy*-1)
+                if (mean(my(i:i+w)) < 0) && (min(my(i:i+w)) < self.weakmy*-1)
                     break;
                 end
             end
-            lstart = i - 2*w;
+            lstart = i - w;
             clear i;
             % for better peak identification we can assuming 
             % that a sixth of a second between touches **on the same side**
             % is faster than anyone, and take only the identified start +
-            % 25 secs
-            lemrange = lstart:lstart + 25*self.datarate;
+            % 25 secs. take as maximal index 20 seconds from first near
+            % touch + window.
+            lemrange = lstart:lstart + LEMAnalyzer.lemduration*self.datarate + 2*w;
             my = my(lemrange);
-            pdist = self.datarate/6;
+            
+            % try to get a general estimate of the touch frequency, and use
+            % it as minimal peak distance
+            [pxx,f] = pwelch(my,[],[],[],self.datarate);
+            [~,di] = max(pxx);
+            pdist = self.datarate/f(di+2);
+            
+       
             
             % plot the my
             figure;
@@ -212,9 +257,10 @@ classdef LEMAnalyzer
             hold on
             
             for side = [-1,1] % mins maxs i.e far and near side of the subject respectively
-                [pks,idx] = findpeaks(my*side,'MinPeakHeight',0, 'MinPeakHeight',LEMAnalyzer.weakmy,...
-                    'MinPeakDistance',pdist ...
+                [pks,idx] = findpeaks(my*side,'MinPeakHeight',self.weakmy,...
+                    'MinPeakDistance',pdist...
                 );
+                
                 % first touch is the first negative peak
                 if side == -1
                     shape = 'r*';
@@ -290,9 +336,12 @@ classdef LEMAnalyzer
                     end
                 end
             end
+            % clear zero
             for c = {'near','far','out'}
                 ps = points.(c{:});
-                points.(c{:}) = ps(sum(ps == [0,0],2) < 2,:);
+                if ~isempty(ps)
+                    points.(c{:}) = ps(sum(ps == [0,0],2) < 2,:);
+                end
             end
         end
     end
