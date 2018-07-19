@@ -14,6 +14,7 @@ classdef ViconData
         subjname
         distract
         numperts
+        protocol
         resource_base
         trajcolumns
     end
@@ -47,7 +48,7 @@ classdef ViconData
             end
         end
     
-        function cgOut = isOutOf(upperbound,lowerbound,target)
+        function outtime = isOutOf(upperbound,lowerbound,target)
             % Retrieve the range of read points in which target is outside the
             % bounds. For ML perturbations, the bounds are left and right ankles,
             % **right is the lower one**. on the X dimension of  course.
@@ -62,19 +63,19 @@ classdef ViconData
 
             % no divergence found
             if isempty(ustart) && isempty(lstart)
-                cgOut = [-5000,-5000];
+                outtime = [-5000,-5000];
                 return;
             end
 
             % if there was an upperbound breach, it ends where 
             % the oposite condition holds
             if ~isempty(ustart)
-                uend = find(target(ustart:end) <= upperbound(ustart:end),1);
+                uend = min(find(target(ustart:end) <= upperbound(ustart:end),1),length(target));
             end
             
             % same for lower bound
             if ~isempty(lstart)
-                lend = find(target(lstart:end) >= lowerbound(lstart:end),1);
+                lend = min(find(target(lstart:end) >= lowerbound(lstart:end),1),length(target));
             end
 
             % return the start and finish indices of the earliest breach
@@ -85,7 +86,7 @@ classdef ViconData
                 outStart = ustart;
                 outEnd = uend;
             end
-            cgOut = [outStart,outStart + outEnd];
+            outtime = [outStart,outStart + outEnd];
         end
         
         function perts = findMLpert(bmprx)
@@ -108,7 +109,7 @@ classdef ViconData
                 start = cur - step/2;
                 % scan forward to find the end
                 cur = inds(i);
-                while mean(bmprx(cur:cur + step)) > thresh
+                while mean(bmprx(cur:min(cur + step,length(bmprx)))) > thresh
                     cur = cur + step;
                 end
                 finish = cur + step/2;
@@ -116,48 +117,7 @@ classdef ViconData
             end
         end
 
-        function perts = findAPpert(ankley,mlperts)
-            % given the ankle position and the set of
-            % ML perturbations, finds the AP pertrubations
-            % in bwetween
-            thresh = 0.2;
-            step = 50; 
-            trim = 500;
-            % it's clearer to look at the absolute value of
-            % the diff vector
-            subj = abs(diff(ankley));
-            for i = 0:size(mlperts,1) - 1
-                % set the range
-                if i == 0
-                    segstart = 1;
-                else
-                    % end point of ML perturbation
-                    segstart = mlperts(i,2);
-                end
-                % we can safely reduce the search span
-                % by 500 reads
-                segstart = segstart + trim; 
-                % start point of next ML perturbation
-                segfinish = mlperts(i+1,1) - trim;
-                % find first high enough peak indices are relative to this
-                % part of the subj vector!
-                [~,inds] = findpeaks(subj(segstart:segfinish),'MinPeakHeight',thresh,'MinPeakDistance',step);
-                % scan back to find the perturbation start
-                cur = inds(1);
-                while mean(subj(segstart + cur - step:segstart + cur)) > thresh
-                    cur = cur - step;
-                end
-                start = cur - step/2;
-                % scan forward
-                cur = inds(1);
-                while mean(subj(segstart + cur:segstart + cur+step)) > thresh
-                    cur = cur + step;
-                end
-                finish = cur + step/2;
-                perts(i+1,:) = [segstart + start,segstart + finish];
             end
-        end
-    end
     methods
         function self = ViconData(targetfile)
             %VICONDATA construct an instance from file
@@ -176,6 +136,172 @@ classdef ViconData
             self.resource_base = b;
             self.distract = distract;
             self.extras = {'datarate','numperts','trajcolumns'};
+            self = self.read_protocol();
+        end
+        function perts = findAPpert(self,ank,mlperts,useprot)
+            % given the ankle position and the set of
+            % ML perturbations, finds the AP pertrubations
+            % in bwetween. if the protocol is usable, take the protocol points and verify 
+            % with ank, otherwise, just use the ank peaks.
+            % ank: sum of absolute y location of left and right ankle
+            % mlperts: perturbations identified by bamper movement. row : [start
+            % finish]
+            % in any event, the joined list of perturbation times is returned.
+            perts = [];
+            protml = self.protocol(2:2:end)*self.datarate;
+            protap = self.protocol(1:2:end)*self.datarate;
+            protlag = mean(protml(1:length(mlperts)) - mlperts(:,1));
+
+            % it's clearer to look at the absolute value of
+            % the diff vector of ank
+            dank = abs(diff(ank));
+            ank_low = nanmean(dank);
+            ank_min_peak = nanmean(dank)+nanstd(dank);
+            maxpertduration = self.datarate/2; % half a second limit on duration of perturbation
+            space = round(mean(diff(mlperts(:,1))/3)); % third of the difference between ML perturbations
+            bankwindow = 6; % since these are diffs, we can scan tightly backwards 
+            fankwindow = round(self.datarate/5); % ask Inbal, what is the significance of this.
+            % for now, try to find the point where the ank graph flattens
+            % back
+            for i = 0:size(mlperts,1)
+                % set the range in which to search
+                if useprot
+                    % if the protocol is good, set the start to  some lags
+                    % before the current AP point stated in the protocol
+                    segstart = protap(i+1) - bankwindow*abs(protlag); 
+                else
+                    % no protocol to work with, use found ML perturbation
+                    % times.
+                    % if it's the first
+                    if i == 0
+                        segstart = 1;
+                    else
+                        % end point of ML perturbation + minimal safe space
+                        segstart = mlperts(i,2) + space;
+                    end                    
+                end
+                % it might be finished already
+                if segstart > length(dank)
+                    break;
+                end
+                
+                % set the segment end
+                if useprot
+                    % if we're in the last ML and the data ends before the
+                    % next AP, the segment will end with the data
+                    segfinish = min(protml(i+1) - space,length(dank));
+                else
+                    if i < size(mlperts,1)
+                        % not last ML, no problem
+                        segfinish = min(mlperts(i+1,1) - space,length(dank));
+                    else
+                        % last ML, protocol unusable -- take end of last ML
+                        % + space or the end of the data as end
+                        segfinish = min(segstart + space,length(dank));
+                    end
+                end
+                segstart = round(segstart);
+                segfinish = round(segfinish);
+                
+                % if there's too many NaNs or the segment is too short, skip it. hopefully this will happen
+                % only in the last ML to end case, where this last stretch
+                % is no good for analysis.
+                if (sum(isnan(dank(segstart:segfinish))) > (segfinish-segstart)/2) || (segfinish - segstart < 3)
+                    continue;
+                end
+                % find first high enough peak indices in the current segment
+                [~,inds] = findpeaks(dank(segstart:segfinish),'MinPeakHeight',ank_min_peak);
+                
+                % scan back to find the perturbation start
+                cur = inds(1);
+                while mean(dank(segstart + cur - bankwindow:segstart + cur)) > ank_low
+                    cur = cur - bankwindow;
+                end
+                start = round(cur - bankwindow/2);
+                if useprot
+                    start = start + round((protap(i+1) - protlag - start - segstart)/2);
+                end
+                % scan forward
+                cur = inds(1);
+                while mean(dank(segstart + cur:segstart + cur + fankwindow)) > ank_low
+                    cur = cur + fankwindow;
+                    if cur - inds(1) > maxpertduration
+                        break;
+                    end
+                end
+                % inds is relative to segstart so:
+                finish = cur + round(fankwindow/2);
+                perts(end+1,:) = [segstart + start,segstart + finish];
+                if i+1 <= size(mlperts,1)
+                    perts(end+1,:) = mlperts(i+1,:);
+                end
+            end
+        end
+        
+        function usable = protocol_usable(self,mlperts)
+            % we know the perturbation times from the protocol
+            % but this is relative to the lag between the 'start' click on
+            % the treadmill interface and on the vicon program. this functions checks if 
+            % this lag is small and uniform, in which case it returns true -- the protocol is usable,
+            % otherwise, it returns false.
+            usable = false;
+            unusenote = 'using only bamper and markers data for perturbation identification.';
+            prot = self.protocol(1:length(mlperts)*2)*self.datarate; % (sometimes the recording is incomplete...)
+            protml = prot(2:2:end);
+            delays = protml - mlperts(:,1);
+            if max(delays) >= self.datarate*3 % more than 3 seconds of delay indicates that something is wrong
+                warning('inconsistency between protocol and identified bamper movements\n%s',unusenote);
+                return;
+            end
+            if ~all(sign(delays) == sign(delays(1))) % also the det
+                warning('inconsistent protocol/bamper lag.\n%s',unusenote);
+                return;
+            end
+            % all the lags are smaller than 3 seconds and have the same sign.
+            % negative: bamper was activated first, positive: vicon capture was activated first.
+            % now check the likelihood for one matching the other + the average lag up to some normally distributed noise
+            delay = mean(delays);
+            [h,p] = ttest(delays - delay);
+            if (h == 1) || (p <= 0.75) % see matlab's ttest documentation
+                warning('the protocol points are too loosely aligned with the identified points.\n%s',unusenote);
+                return;
+            end
+            usable = true;
+        end
+
+        function perttimes = adjustMLperts(self,perts)
+            % move perturbation start times to half way between identified times and protocol times
+            if strcmp(self.condition,'stand')
+                protml = self.protocol(2:2:end);
+            else
+                protml = self.protocol;
+            end
+            protml = protml(1:length(perts))*self.datarate;
+            perttimes(:,1) = perts(:,1) + round((protml - perts(:,1))/2);
+            perttimes(:,2) = perts(:,2);
+        end
+
+        function self = read_protocol(self)
+            self.protocol = [];
+            [p,~,~] = fileparts(self.tarfile);
+            protfiles = dir(fullfile(p,'*protocol*txt'));
+            if ~isempty(protfiles)
+                for i=1:length(protfiles)
+                    f = protfiles(i).name;
+                    if ~protfiles(i).isdir && ~isempty(regexpi(f,['.* ' self.condition '.*']))
+                        pid = fopen(fullfile(p,f));
+                        if ~regexp(fgetl(pid),'0[\d,]{6}$')
+                            warning('protocol file seems to be not in format: %s',f);
+                            return;
+                        end
+                        fclose(pid);
+                        d = importdata(fullfile(p,f),',',1);
+                        prot = sort(d.data(:,1));
+                        self.protocol = prot(prot > 0);
+                        break;
+                    end
+                end
+            end
         end
         
         function file_location = dataparts(self,part)
@@ -209,6 +335,14 @@ classdef ViconData
                     atts = load(loc3);
                 end
             end
+            % for now, we'll assume all saved data is by the new version
+            %if isempty(fieldnames(atts)) && ~isempty(fieldnames(d1)
+            %    [r,cols,~] = self.dBlock('trajectories');
+            %    atts.datarate = r;
+            %    atts.trajcolumns = cols;
+            %    atts.numperts = length(d1);
+            %end
+
             if ~(isempty(fieldnames(d1)) || isempty(fieldnames(d2)))
                 self.fixed = d1.f;
                 self.mutables = d2.m;
@@ -218,7 +352,7 @@ classdef ViconData
                 end
                 return;
             end
-            
+                        
             
             % data rate,column names, and data of first block -- the model outputs
             [r,acolumns,model] = self.dBlock('model');
@@ -235,7 +369,7 @@ classdef ViconData
             [drate,bcolumns,traj] = self.dBlock('trajectories');
 
             assert(r{:} == drate{:}, 'data rate missmatch');
-            self.datarate = drate{:};
+            self.datarate = double(drate{:});
             self.trajcolumns = bcolumns;
 
             function [lcols,rcols] = left_and_right(colbase)
@@ -264,22 +398,36 @@ classdef ViconData
             [leftArm,rightArm] = left_and_right('FIN');
             
             % Center of Mass
-            model(:,3)  = model(:,3) - bamperDisplacement(:,1); %cgx
             
-            perTimesML = ViconData.findMLpert(bamperDisplacement(:,1));   %lateral
-            self.numperts = size(perTimesML,1);
+            %% discuss with Inbal, if model and traj lengths are different...
+            % cut to shorter ?? god knows what errors will be thrown later
+            % if the difference is not eliminated now
+            lmodel = size(model,1);
+            ltraj = size(traj,1);
+            if lmodel ~= ltraj
+                warning('model and markers tables are not the same length: %d vs. %d respectively.\n this about %.1f seconds. eliminating the excess in the longer one',lmodel,ltraj,abs(lmodel-ltraj)/self.datarate);
+                r = 1:min(lmodel,ltraj);
+                model = model(r,:);
+                traj = traj(r,:);
+                bamperDisplacement = bamperDisplacement(r,:);
+            end
+            model(:,3)  = model(:,3) - bamperDisplacement(:,1);
             
+            perTimes = ViconData.findMLpert(bamperDisplacement(:,1));   %lateral
+            
+            useprot = self.protocol_usable(perTimes);
+            if useprot
+                perTimes = self.adjustMLperts(perTimes);
+            end
+
             if strcmp(self.condition,'stand')
-                perTimesAP = ViconData.findAPpert(leftAnkle(:,2),perTimesML); % anterior-posterior
-                self.numperts = self.numperts + size(perTimesAP,1);
+                ank = abs(leftAnkle(:,2)) + abs(rightAnkle(:,2));
+                perTimes = self.findAPpert(ank,perTimes,useprot); % anterior-posterior
             end
             
-            %%%%%%%%%%%%%%%%%%%
-            for pind=1:length(perTimesML)+length(perTimesAP)
-                if exist('perTimesAP','var')
-                    register_pert(pind,1);
-                end
-                register_pert(p,2);
+            self.numperts = length(perTimes);
+            for pind=1:length(perTimes)
+                register_pert(pind);
             end
             
             self.fixed = d1;
@@ -291,17 +439,11 @@ classdef ViconData
             
             self.savedata();
 
-            function register_pert(perturbation_index,perturbation_type)
-                % perturbation_type, 1: AP, 2: ML
+            function register_pert(perturbation_index)
                 p = perturbation_index;
-                if perturbation_type == 1
-                    times = perTimesAP;
-                else
-                    times = perTimesML; 
-                end
                 twosec = double(2*self.datarate);
-                segment_start =  times(p,1) - twosec;
-                segment_end = times(p,2) + 3*self.datarate; 
+                segment_start =  perTimes(p,1) - twosec;
+                segment_end = perTimes(p,2) + 3*self.datarate; 
                 trange = segment_start:segment_end;
                 lAnkleX = leftAnkle(trange,1);
                 rAnkleX = rightAnkle(trange,1);
@@ -356,6 +498,8 @@ classdef ViconData
                 end
                 RightarmsTime=RightarmsTime+twosec; 
                 LeftarmsTime=LeftarmsTime+twosec;
+                
+                % ?? offset the first CG ??
                 lAnkleX = lAnkleX - CG(1,1);
                 rAnkleX = rAnkleX - CG(1,1);
                 lHeelY = lHeelY - CG(1,2);
@@ -365,11 +509,13 @@ classdef ViconData
                 CG = CG - CG(1,:);
                
                 
-                %find when CG is out of legs
-                if perturbation_type == 2
+                % find when CG is out of legs
+                % the directions are reversed, so the upperbound is left for ML
+                % and heels for AP
+                if strcmp(self.perturbation_type(p),'ML')
                     cgOut = ViconData.isOutOf(lAnkleX,rAnkleX,CG(:,1));
-                else % front or back pertubation
-                    cgOut = ViconData.isOutOf(max(lToeY,rToeY),min(lHeelY,rHeelY),CG(:,2));
+                else % AP
+                    cgOut = ViconData.isOutOf(max(lHeelY,rHeelY),min(lToeY,rToeY),CG(:,2));
                 end
                 % finally, update the two structs
                 d1(p).bamper = bamperDisplacement(trange);
@@ -391,7 +537,7 @@ classdef ViconData
                 d1(p).rightArmTotal = rightArmTotal;
                 d1(p).name = self.subjname;
                 d1(p).step = self.resource_base;
-                d1(p).pertubationsTime = times(p);
+                d1(p).pertubationsTime = perTimes(p);
                 d1(p).steppingTime = steppingTime;
                 d1(p).firstStep = firstStep;
                 d1(p).EndFirstStep = EndFirstStep+twosec;         
@@ -444,15 +590,15 @@ classdef ViconData
             if ~exist(tar,'file')
                 try
                     disp('calling the split');
-                    [p,~,~] = fileparts(self.tarfile);
-                    splitter = fullfile(p,'pws.ps1');
-                    system(['powershell -inputformat none -file ' splitter]);
-                catch e
-                    disp(e);
+                    [p,f,e] = fileparts(self.tarfile);
+                    system(['powershell -file pws.ps1 -directory ' p ' -targetfile ' f e]);
+                catch err
+                    disp(err);
                     return;
                 end
             end
-           
+
+            assert(exist(tar,'file') > 0,'could not find source for %s\nplease check: %s',part,self.tarfile);
             % reads the subsequent column names, datarate and
             % numeric matrix from the instance file.
             f = fopen(tar);
@@ -478,6 +624,11 @@ classdef ViconData
             % data is two below that line, and to the end            
             d =  importdata(tar, ',',linecount + 1);
             dat = d.data;
+            
+            % temp solution for true holes in the data discuss with Inbal
+            if any(isnan(dat))
+                dat = fillmissing(dat,'spline');
+            end
             %dat = dlmread(tar,',',linecount+1,0);
         end
         
@@ -485,12 +636,12 @@ classdef ViconData
             firstStep = 0;
             lastStep = 0;
             if strcmp(self.condition,'walk')
-                VelocityL=(left(2:end)-left(1:end-1))*self.datarate;
-                VelocityR=(right(2:end)-right(1:end-1))*self.datarate;
-                AccL=(VelocityL(2:end)-VelocityL(1:end-1))*self.datarate;
-                AccR=(VelocityR(2:end)-VelocityR(1:end-1))*120;
-                leftStart = find(abs(AccL( 11:end) - AccL( 1:end -10))>0.9*120*120, 1, 'first');    
-                rightStart = find(abs(AccR( 11:end) - AccR( 1:end -10))>0.9*120*120, 1, 'first');
+                VelocityL=diff(left)*self.datarate;
+                VelocityR=diff(right)*self.datarate;
+                AccL=diff(VelocityL)*self.datarate;
+                AccR=diff(VelocityR)*120;
+                leftStart = find(abs(AccL(11:end) - AccL( 1:end -10))>0.9*120*120, 1, 'first');    
+                rightStart = find(abs(AccR(11:end) - AccR( 1:end -10))>0.9*120*120, 1, 'first');
     
                 if isempty(leftStart) && isempty(rightStart)
                     stepping(1:2) =-5000;
@@ -597,5 +748,11 @@ classdef ViconData
                 end
             end
         end
+        function t = perturbation_type(self,ind)
+            t = 'ML';
+            if strcmp(self.condition,'stand') && mod(ind,2) == 1
+                t = 'AP';
+            end
+        end          
     end
 end

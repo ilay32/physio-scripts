@@ -119,10 +119,10 @@ checkBoxHideLeftArms = uicontrol('style','checkbox','units','normalized','FontSi
     'callback', @checkBoxHide);
 
 checkBoxFall = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-    'position',[.56 .06 .05 .03],'string','Fall','callback', @checkBoxFall_call);
+    'position',[.56 .06 .05 .03],'string','Fall','callback', @simplecb);
 
 checkBoxMS = uicontrol('style','checkbox','units','normalized','FontSize',11,...
-    'position',[.56 .1 .05 .03],'string','MS','callback', @checkBoxMS_call);
+    'position',[.56 .1 .05 .03],'string','MS','callback', @simplecb);
 
 %slider
 slider = uicontrol('Style','slider','units','normalized','Position',[.82 .1 .14 .03],'Callback',@slider_call);
@@ -132,7 +132,7 @@ typeOfArmMove=uicontrol('Style','edit','units','normalized','FontSize',11,...
 
 
 typeOfLegMove=uicontrol('Style','edit','units','normalized','FontSize',11,...
-    'Position',[0.70 0.10 0.10 0.03],'string','','Callback',@typeLeg_call);
+    'Position',[0.70 0.10 0.10 0.03],'string','','Callback',@simplecb);
 
 typeLegs_Move = uicontrol('String', 'Type Of Legs Move:', 'Units', 'normalized','FontSize',11, 'Style', 'Text',...
     'fontweight', 'bold','Position', [0.60 0.10 0.10 0.03], 'BackgroundColor',  [.925 .914 .847]);%#ok<NASGU>
@@ -196,7 +196,6 @@ function simplecb(hObject,~,~)
     else
         error('simplecb registered as callback for inappropriate element');
     end
-    disp(val);
     pertNumber = ListBoxPertubation.Value;
     Vdata2(pertNumber).(datName) = val;
     Vdata(pertNumber).(datName) = val;
@@ -295,9 +294,9 @@ function DrawCOP(pertNumber, israw)
 
         datas = {'','','steppingTime','','RightarmsTime','','cgOut','','LeftarmsTime'};
         for i=3:2:9
-            info = source.(datas{i});
-            obj.lines{i}.setPosition([info(1) info(1)],tip);
-            obj.lines{i+1}.setPosition([info(2) info(2)],tip);
+            position = source.(datas{i});
+            obj.lines{i}.setPosition([position(1),position(1)],tip);
+            obj.lines{i+1}.setPosition([position(2) position(2)],tip);
         end
         obj.lines{11}.setPosition([source.EndFirstStep source.EndFirstStep],tip);
         xlabel(obj.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
@@ -311,11 +310,11 @@ function DrawCOP(pertNumber, israw)
             source = d2;
         end
         plotHandles.isplotted.fixed(pertNumber) = 1;
-        set(checkBoxHideRightArms,'value', 0);
-        set(checkBoxHideLeftArms,'value', 0);
-        set(checkBoxHideSteps,'value', 0);
-        set(checkBoxHideCG,'value', 0);
-        set(checkBoxHideBamper,'value', 0);
+        set(checkBoxHideRightArms,'Value', 0);
+        set(checkBoxHideLeftArms,'Value', 0);
+        set(checkBoxHideSteps,'Value', 0);
+        set(checkBoxHideCG,'Value', 0);
+        set(checkBoxHideBamper,'Value', 0);
 
         axes(haxes.Bamper.coords); 
         set(SFLines{3}, 'YData',tip,'XData',[1,1])
@@ -425,7 +424,7 @@ function DrawCOP(pertNumber, israw)
             hold on
             ylabel(haxes.Step.coords,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
             title(haxes.Step.coords, 'Step Acceleration');
-            legend([plotHandles.LeftStepA(pertNumber), plotHandles.Right,StepA(pertNumber)], 'left', 'right');
+            legend([plotHandles.LeftStepA(pertNumber), plotHandles.RightStepA(pertNumber)], 'left', 'right');
         end
         xlabel(haxes.Step.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
         set_line_positions(haxes.Step,source);
@@ -508,7 +507,7 @@ function saveButtonselected_cb(~,~)
     for chk = {'RightArms','LeftArms','Steps'}
         if eval(['checkBox' chk{:} '.Value == 0']) && eval(['checkBoxHide' chk{:} '.Value == 1'])
              eval(['checkBoxHide' chk{:} ' = 0']);
-            checkBoxHide(eval(['checkBoxHide' chk{:}]));
+             checkBoxHide(eval(['checkBoxHide' chk{:}]));
         end
     end 
     
@@ -713,7 +712,7 @@ function exportButtonselected_cb(~,~)
         rightArmTimes = d2.RightarmsTime(1) >=0;
         leftArmTimes = d2.LeftarmsTime(1) >= 0;
         reactionStepTimes = d2.steppingTime(1) >=0;
-        if strcmp(vcd.condition,'walk') || mod(i,2)==0 % walking protocol or standing protocol in pertubations left right
+        if strcmp(vcd.perturbation_type(i),'ML')
             offstanchor = 'bamperL';
             spare = 0;
         else
@@ -862,9 +861,11 @@ function exportButtonselected_cb(~,~)
     end   
     
     %print to excel
-    saveto = fullfile(vcd.savefolder,'Analyzed',[vcd.subjname '-' vcd.condition '-' vcd.distract '.xlsx']);
+    savefile = strcat('Analyzed-',vcd.subjname,'-',vcd.condition,'-',vcd.distract,'.xlsx');
+    saveto = fullfile(vcd.savefolder,savefile);
+    saveto = saveto{:}; % stupid matlab
     xlswrite(saveto,export.header,'Sheet1','A1');
-    xlswrite(saveto,index,'Sheet1','A2');
+    xlswrite(saveto,(1:vcd.numperts)','Sheet1','A2');
     xlswrite(saveto,protocol,'Sheet1','B2');
     for spec=export.specs
         xlswrite(saveto,export.data.(spec{:}{1}),'Sheet1',spec{:}{2});
@@ -908,7 +909,7 @@ end
 
 function listBoxSteps_call(~, ~, ~)
     % define relevant vars
-    pertNumber =get(ListBoxPertubation,'value');
+    pertNumber = get(ListBoxPertubation,'Value');
     leftright = listBoxStep.Value;
     d = Vdata2(pertNumber);
     stpt = d.steppingTime;
@@ -931,7 +932,7 @@ function listBoxSteps_call(~, ~, ~)
     for obj = {Vdata,Vdata2,Vdata3}
         obj{:}(pertNumber).firstStep = frstval; %#ok<FXSET>
     end
-    set(checkBoxStep,'value',chkbxval);
+    set(checkBoxSteps,'value',chkbxval);
 
     % figure out the line xs
     if leftright < 3
@@ -953,21 +954,18 @@ function listBoxSteps_call(~, ~, ~)
 end 
 
 function checkBoxArms_call(hObj,~,~)
-    side = 1; % right
-    if ~empty(regexpi('left',hObj.String))
-        side = 2;
-    end
-    %checkboxArmsValue = get(hObj,'value');
-    pertNumber = get(ListBoxPertubation,'value');
-    ys = tip;
-    if side == 1
+    if hObj == checkBoxLeftArms
+        lines = [9,10];
+    elseif hObj == checkBoxRightArms
         lines = [5,6];
     else
-        lines = [9,10];
+        disp('??');
     end
+    pertNumber = get(ListBoxPertubation,'value');
+    ys = tip;
     d = Vdata(pertNumber);
     linesin = 'Arms';
-    if(checkBoxArmsValue == 0)
+    if(hObj.Value == 0)
         if d.RightarmsTime <0        
             xs = [50,100];
         else
@@ -1015,8 +1013,10 @@ function checkBoxHide(hObject,~,~)
     line2 = haxes.Step.lines{tline+1};
     
     if hObject.Value == 1
-        x = line1.getPosition();
-        y = line2.getPosition();
+        %%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%
+        %x = line1.getPosition();
+        %y = line2.getPosition();
         if do11
             line3 = haxes.Step.lines{11};
             z = line3.getPosition();
@@ -1040,6 +1040,10 @@ function checkBoxHide(hObject,~,~)
     end
 end
 
+function SFLine1Callback(~,~)
+    ispressed = 1;
+end
+
 % function callback_SFline(pos)
 %     axes(haxes.SF.coords);
 %     cla(haxes.SF.coords);
@@ -1058,11 +1062,11 @@ function releaseCallback(~,~)
     t =  get(gca,'CurrentPoint');
     axes(haxes.SF);
     cla(haxes.SF);
-    for line = SFLines   %#ok<FXUP>
-       set(line{:}, 'XData', t(:,1));
+    for sfl = SFLines
+       set(sfl{:}, 'XData', t(:,1));
     end
-    set(slider, 'value', t(1,1));
-    plotSF(ceil(t));
+    set(slider, 'Value', t(1,1));
+    plotSF(ceil(t(1,1)));
     ispressed =0;
 end
 
@@ -1072,8 +1076,8 @@ function plotSF(time_point)
     axes(haxes.SF);
     cla(haxes.SF);
     xcols = [...
-        1,4;...     % left forhead - right forehead
-        1,7;...     % left forhead - left backhead
+        1,4;...      % left forhead - right forehead
+        1,7;...      % left forhead - left backhead
         10,4;...     % right backhead - right forehead 
         10,7;...     % right backhead - left backhead
         
