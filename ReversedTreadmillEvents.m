@@ -1,5 +1,5 @@
 folder = uigetdir();
-ge = GaitForceEvents(folder);
+ge = GaitEvents(folder);
 ge = ge.find_heel_strikes();
 ge.quick_export();
 comp = input('compare with GaitForce? [y/n] ','s');
