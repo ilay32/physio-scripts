@@ -4,7 +4,9 @@
 !*.js
 !.gitignore
 !wcapp
-!matlabcop
+!adimaster
+!matfunctions
+!matclasses
 !*.m
 !*.css
 
