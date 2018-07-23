@@ -45,7 +45,7 @@ classdef GaitForceEvents
             end
             numstages = length(stagenames);
             for i = 1:numstages
-                stages(i) = struct('name',stagenames{i},'limits',[]);
+                stages(i) = struct('name',stagenames{i},'limits',[]); %#ok<AGROW>
             end
             self.stages = stages;
             self.numstages = numstages;
@@ -66,7 +66,7 @@ classdef GaitForceEvents
         end
         function self = load_stages(self)
             %LOADSTAGES read stage times from protocol file
-            protfiles = syshelpers.subdirs(self.datafolder,'.*salute?.*(pre|post).*(left|right)?.*txt$',true);
+            protfiles = syshelpers.subdirs(self.datafolder,'.*(salute)?.*(pre|post).*(left|right)?.*txt$',true);
             assert(~isempty(protfiles),'could not find the protocol file');
             pid = fopen(fullfile(self.datafolder,protfiles{1,1}{:}));
             c = textscan(pid,'%f;%f;%f');

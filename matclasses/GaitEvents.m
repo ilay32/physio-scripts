@@ -19,7 +19,15 @@ classdef GaitEvents
     end
     methods (Static)
         function [rate,dat] = load_forces(folder)
-            f = importdata(fullfile(folder,GaitEvents.forces_filename));
+            forcesfile = fullfile(folder,GaitEvents.forces_filename);
+            if ~exist(forcesfile,'file')
+                zips = dir([folder '\*.zip']);
+                if size(zips,1) == 1
+                    disp('unzipping the data...');
+                    unzip(fullfile(folder,zips(1).name),folder);
+                end
+            end
+            f = importdata(forcesfile);
             rate = 1/(f.data(2,1) - f.data(1,1)); % Hz
             dat = array2table(f.data,'VariableNames',{'time','fz','copx','copy'});
         end

@@ -14,9 +14,10 @@ basicnames = {...
 	'ds_duration'...
 };
 subjectpattern = '\d{3}_[A-Za-z]{2}';
-folder = uigetdir();
+folder = uigetdir(syshelpers.driveroot());
 gf = GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
 gf = gf.load_stages();
+gf.confirm_stages();
 gf = gf.compute_basics();
 
 for b=basicnames    
@@ -34,7 +35,7 @@ for b=basicnames
         specs.baselines = 1:3;
         specs.fitmodel = 4:5;
     else
-        specs.baselines = [1];
+        specs.baselines = 1;
         specs.fitmodel = 2:3;
     end
     specs.model = 'exp2';
