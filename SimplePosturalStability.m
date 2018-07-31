@@ -1,10 +1,13 @@
-% SIMPLECOP.M  Calculates traditional COP parameters
-% produces one row per data file
-% row format: mean x   mean y   range x     range y     sway area/s 
+% SIMPLEPOSTURALSTABILITY.M  Calculates Stability Parameters
+% takes a directory and produces a table with one row per Bioware data file found there.
+% the search for Bioware files (TSV exports) is recursive.
+% row format: see the dataheader variable below 
 
 % figure out which folders to work on
 clear; clc;
 folder = uigetdir('C:\Users\Public\Yogev\','Data Directory -- Where the conditions CSV is');
+addpath 'matfunctions';
+addpath 'matclasses';
 
 % ask for the the "long term" and "transition" parameters
 chopstart = input('seconds to chop from start of trial: ');
@@ -34,7 +37,7 @@ for f = exports
 end
 
 % write computed params
-datheader = 'cop range x,cop range y,sway area/s,isway,mean velocity,crtx,crtxinter,crty,crtyinter,crtr,crtinter,dxs,dys,drs';
+datheader = 'cop range x,cop range y,sway area/s,itziks_sway,mean velocity,crtx,crtxinter,crty,crtyinter,crtr,crtinter,dxs,dys,drs';
 header = 'condition,taken from';
 savefile = fopen(fullfile(folder,'conditions-and-params.csv'),'wt');
 fprintf(savefile,'initial chop:%0.1f sec,final chop: %0.1f sec\n%s,%s\n',chopstart,chopend,header,datheader);
@@ -46,7 +49,7 @@ disp('all params written');
 
 function [newline] = findline(f,datrow)
     % looks for the right line in 'conditons.csv' if exists,
-    % and returns it along with the data
+    % and returns it along with the stringified data
     datstring = sprintf(repmat(',%f',1,length(datrow)),datrow);
     [~,basename,ext] = fileparts(f);
     [~,t] = regexp(basename,'([^\-]+)\-(\d+)$','match','tokens');
@@ -138,12 +141,14 @@ function [output]= cparams(cop,sampling_rate,filt1,filt2)
 end
 
 function sdparams = sdfjist(cop,sample_rate)
+    % returns this row:
+    % Ctx,CtxIntersect,Cty,CtyIntersect,Ctr,CtrIntersect,Dxs,Dys,Drs
     SEC  = size(cop,1)/sample_rate;
     
     %Calculate ensemble SD function
     % Yaron 17/7 added 'length' (now 'SEC') as parameter for stabilogram_diffusion...
     [sdfx]=stabilogram_diffusion(cop(:,1),sample_rate,SEC,2,0); 
-    [sdfy]=stabilogram_diffusion(cop(:,1),sample_rate,SEC,2,0);
+    [sdfy]=stabilogram_diffusion(cop(:,2),sample_rate,SEC,2,0);
     sdf(:,1) = (1/sample_rate:1/sample_rate:SEC -(1/sample_rate))';
     sdf(:,2) = sdfx(:,2);
     sdf(:,3) = sdfy(:,2);
@@ -178,6 +183,6 @@ function sdparams = sdfjist(cop,sample_rate)
     %No checking of r^2, 200ms transition region. Long_term_end is a 1x3 vector
     % transition 0 long term 10secs
     [coeffs,cp,~] = sdf_parameters(sdfx(:,1),sdf(:,2:3),0,0,10*sample_rate);
-    ctr = cp(1:3,:);
-    sdparams = [ctr,coeffs(1:3,2)];
+    ctr = reshape(cp(1:3,:)',[1,numel(cp(1:3,:))]);
+    sdparams = [ctr,coeffs(1:3,2)'];
 end

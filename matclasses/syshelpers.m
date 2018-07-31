@@ -6,6 +6,8 @@ classdef syshelpers
     
     methods(Static)
         function remove_default_sheets(absfileloc)
+            % deletes the default Sheet1,Sheet2,Sheet3
+            % that MATLAB creates when writing a table to Excel 
             if ~exist(absfileloc,'file')
                 fprintf('not a file:\n%s\n',absfileloc);
                 return;

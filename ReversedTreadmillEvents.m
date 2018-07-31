@@ -1,3 +1,4 @@
+addpath 'matclasses';
 folder = uigetdir();
 ge = GaitEvents(folder);
 ge = ge.find_heel_strikes();

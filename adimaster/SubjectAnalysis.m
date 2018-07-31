@@ -3,7 +3,7 @@
 %   With the stages, it finds step lengths and computes step symmetry
 %   accordingly
 clear; clc; close all;
-    
+addpath '..\matclasses';
 % choose *.mat file - experiment results and load it
 % !! the .mat file must be the output of a Visual3D pipeline created by Anat Shkedy that
 % runs on the Qualisys .c3d export of the data !!
@@ -121,7 +121,7 @@ end
 
 % I put this here to make sure that the user looks at the plotted
 % boundaries even in the load from file case
-proceed = input('close and proceed [y/n]? ','s');
+proceed = input('close boundaries graphs and proceed [y/n]? ','s');
 if ~strcmp('y',proceed)
     error('operation aborted');
 else
@@ -177,7 +177,7 @@ if strcmp(plotseparate,'y')
         visu.plot_symmetries(s);
     end
 end
-visu.plot_global();
+visu.plot_global(true);
 
 sfilename = [subject_id '_part' num2str(part) '_stepsdata.mat'];
 [sfile,spath] = uiputfile(sfilename,'Save the Step Length Data');

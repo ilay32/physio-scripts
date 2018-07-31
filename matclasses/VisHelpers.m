@@ -109,10 +109,10 @@ classdef VisHelpers
             lh(3) = pbase;
             legend(lh,{'symmetry','model fit','baseline mean'});
             if block
-                uicontrol('String','Continue',...
-                  'Callback','uiresume(gcbf)');
+                uicontrol('String','Continue','Callback','uiresume(gcbf)');
                 uiwait(gcf);
             end
+            hold off
         end
     end
     
@@ -125,6 +125,9 @@ classdef VisHelpers
             subplot(2,1,1);
             x = (1:length(pairs));
             y = self.symmetries(pairs);
+            if size(y,1) > size(y,2)
+                y = y';
+            end
             symsd = std(y);
 
             fill([x,fliplr(x)],[y + symsd,fliplr(y - symsd)],[0.75,0.75,0.75],'LineStyle','none');

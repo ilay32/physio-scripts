@@ -3,7 +3,7 @@
 
 
 clear; clc;
-
+addpath '../matclasses'
 % repeat some globals from the subject analysis script
 partnames = {'before excercise','after exercise','after 1 week'};
 stagenames = {'first 0.5 m/s','1.0 m/s', 'second 0.5 m/s', 'adaptation','post adaptation'};
@@ -60,7 +60,7 @@ specs.model = 'exp2';
 specs.fitmodel = 4:5;
 
 visu = VisHelpers(specs);
-visu.plot_global();
+visu.plot_global(false);
         
         
         
