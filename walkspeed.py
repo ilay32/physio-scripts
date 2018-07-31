@@ -23,6 +23,7 @@ class ArduinoSonarRecorder(object):
         self.cond = cond
     
     def connect(self):
+        port = ""
         for p in list(list_ports.comports()):
             if "Arduino" in  str(p):
                 port = re.sub(r'\s.*$','',str(p))
@@ -31,10 +32,12 @@ class ArduinoSonarRecorder(object):
             ardi = serial.Serial(port,115200,timeout=0.05)
             while not ardi.writable():
                 continue;
+
+            self.ardi = ardi
             logger.info("connected")
         else:
-            raise(Exception,"couldn't find port")
-        self.ardi = ardi
+            #raise(Exception,"couldn't find port")
+            showerror("device not connected","Please connect the computer to the sonars and restart the program")
     
     def disconnect(self):
         self.ardi.close()
@@ -91,17 +94,20 @@ class GUI(FileActionGUI):
 
         a = Label(row1,text="as")
         a.pack(side=tk.LEFT,padx=20,expand=True)
-        
-        filename = Entry(row1)
-        filename.insert(0,"test")
-        filename.pack(side=tk.LEFT)
+        self.saveto = "" 
+        filename = StringVar();
+        filename.set('test');
+        filename.trace("w", self.update_target_display)
+        file_entry = Entry(row1,textvariable=filename)
+        #filename.insert(0,"test")
+        file_entry.pack(side=tk.LEFT)
         self.filename = filename
         
         d = Label(row1,text="walking distance:")
         d.pack(side=tk.LEFT,padx=20)
 
-        distance = Scale(row1,from_=2, to=15,orient=tk.HORIZONTAL)
-        distance.set(10)
+        distance = Scale(row1,from_=2, to=20,orient=tk.HORIZONTAL)
+        distance.set(15)
         distance.pack(side=tk.LEFT)
         self.distance = distance
         
@@ -115,7 +121,8 @@ class GUI(FileActionGUI):
         
         
         
-        self.show_chosen = Label(row2,textvariable=self.chosen,background='white')
+        self.show_chosen = Label(row2,textvariable=self.chosen, \
+        background="white",fg="red")
         self.show_chosen.pack(fill=tk.X,side=tk.LEFT,pady=10,ipady=5,ipadx=5,expand=True)
 
         row3.pack(fill=tk.NONE)
@@ -125,8 +132,8 @@ class GUI(FileActionGUI):
         self.stop_button = Button(row3,text="STOP",command=self.stop_record)
         self.stop_button.pack(side=tk.LEFT,padx=10)
         
-        self.save_button = Button(row3,text="SAVE",command=self.save)
-        self.save_button.pack(side=tk.LEFT,padx=10)
+        #self.save_button = Button(row3,text="SAVE",command=self.save)
+        #self.save_button.pack(side=tk.LEFT,padx=10)
 
         self.close_button = Button(row3,text="CLOSE",command=self.terminate)
         self.close_button.pack(side=tk.LEFT,padx=10)
@@ -134,6 +141,23 @@ class GUI(FileActionGUI):
         
         self.recorder = ArduinoSonarRecorder()
     
+    def update_target_display(self,x,y,z):
+        if self.target is None:
+            showerror("missing folder","please select a folder")
+            return
+        f =  self.filename.get()
+        f= re.sub(r'\.[a-z]{1,4}$','',f)
+        f = re.sub(r'[^\w\-\.\_]','',f)
+        if f == "": 
+            showerror("Invalid File Name","incorrect file name: {:s}".format(self.filename.get()))
+            return
+        target = os.path.join(self.target,f+'.csv')
+        if os.path.isfile(target):
+            target = target.replace(f,f+str(time.time()));
+        self.chosen.set("saving data to: {:s}".format(target))
+        self.show_chosen.configure(fg="black")
+        self.saveto = target
+
     def terminate(self):
         self.recorder.disconnect()
         self.master.destroy()
@@ -151,18 +175,16 @@ class GUI(FileActionGUI):
         else:
             logger.warning("no data to save")
     
+    def define_dir(self):
+        super(GUI,self).define_dir();
+        self.update_target_display(self.filename,'','w');
+
     def dir_action(self):
         self.recorder.start()
 
     def save(self):
-        f =  self.filename.get()
-        f= re.sub(r'\.[a-z]{1,4}$','',f)
-        f = re.sub(r'[^\w\-\.\_]','',f)
-        if f == "": 
-            showerror("Invalid File Name","incorrect file name: {:s}".format(self.filename.get()))
-            return
-        target = os.path.join(self.target,f+'.csv')
-        self.chosen.set("saving data to: {:s}".format(target))
+        self.update_target_display(self.filename,'','w')
+        target =  self.saveto
         durations = self.recorder.durations
         start = self.recorder.last_reset
         marks = self.recorder.marks
@@ -174,7 +196,7 @@ class GUI(FileActionGUI):
         with open(target,'a') as f:
             f.write("\n")
             f.write("start:,{:s},unix stamp:,{:f}\n".format(time.ctime(start),start))
-        logger.info("file saved")
+        logger.info("data saved to: " + target)
       
 
 if __name__ == '__main__':

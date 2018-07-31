@@ -15,7 +15,7 @@ class FileActionGUI(object):
         self.target = None
         self.chosen = StringVar()
         self.chosen_base = "action target:"
-        self.chosen.set(self.chosen_base+" please choose")
+        self.chosen.set("!!! data destination not set!!!")
         
 
         self.home = os.environ.get('HOME') or os.environ.get('HOMEPATH') or os.getcwd()
@@ -64,3 +64,4 @@ class FileActionGUI(object):
 
     def dir_action(self):
         raise(NotImplementedError,"it seems the child class {:s} has not implemented the dir_action method".format(self.__class__.__name__))
+
