@@ -22,9 +22,34 @@ uiwait(h)
 
 %% load the data
 vcd = ViconData(tarfile).LoadData();
+
+warnings = vcd.ValidateData(30); % will warn if any data is more than 30% NaN
+goon = true;
+if ~isempty(warnings)
+    w = warndlg(strjoin(warnings(:),'\n'),'modal');
+    set(w,'Resize','on');
+    abrt = uicontrol(w,'String', 'Abort','callback',@abort,...
+    'tooltipString', ' this will close everything and exit after you click OK '); %#ok<NASGU>
+    uiwait(w);
+end
+
+function abort(~,~,~)
+    goon = false;
+end
+
+if ~goon
+    close all;
+    return;
+end
+
+if ~isdir(vcd.savefolder)
+    mkdir(vcd.savefolder);
+    vcd.savedata();
+end
+
 Vdata = vcd.fixed;
 Vdata2 = vcd.mutables;
-set(ListBoxPertubation,'string',{Vdata.StringPer}')
+set(ListBoxPertubation,'String',{Vdata.StringPer}')
 
 Vdata3 = Vdata2; % for hidden data
 plotHandles = struct;
@@ -249,8 +274,8 @@ end
 
 
 function drawButtonselected_cb(~,~)
-    pertNumber =get(ListBoxPertubation,'value');
-    if Vdata(pertNumber).edited == 1 % edited-0 (not analyzed) edited -1 (analyzed)
+    pertNumber =get(ListBoxPertubation,'Value');
+    if Vdata(pertNumber).edited % edited-0 (not analyzed) edited -1 (analyzed)
         israw = 2;
         set(typeOfLegMove,'String',Vdata2(pertNumber).TypeLegMove);
         set(typeOfArmMove,'String',Vdata2(pertNumber).TypeArmMove);
@@ -258,21 +283,29 @@ function drawButtonselected_cb(~,~)
         set(checkBoxMS,'Value',Vdata2(pertNumber).MS);
     else         
         israw = 1;
-        set(typeOfLegMove,'string','');
-        set(typeOfArmMove,'string','');
+        set(typeOfLegMove,'String','');
+        set(typeOfArmMove,'String','');
         set(checkBoxFall,'Value',0);
         set(checkBoxMS,'Value',0);
     end
-    clearButtonselected_cb([],[]);
+    clearButtonselected_cb();
     DrawCOP(pertNumber, israw);
     set(patientNameLabel,'string',vcd.subjname)
 end
 
-function clearButtonselected_cb(~,~)
+function clearButtonselected_cb()
     fields = fieldnames(plotHandles.handles);
+    % one loop to set active handles off
     for i=1:length(fields)
-        %o = plotHandles.handles.(fields{i});
-        %set(o(plotHandles.isplotted.fixed == 1),'Visible','off');
+        f = fields{i};
+        o = plotHandles.handles.(strip(f,'2'));
+        set(o(plotHandles.isplotted.fixed == 1 & o ~= 0),'Visible','off');
+        if endsWith(f,'2') || ~isempty(regexp(f,'(Left|Right)CG','ONCE'))
+            set(o(plotHandles.isplotted.mutables == 1 & o ~= 0),'Visible','off');
+        end
+    end
+    % and a second loop for the reset.. (long story)
+    for i=1:length(fields)
         plotHandles.handles.(fields{i}) = zeros(size(Vdata));
     end
     plotHandles.isplotted.fixed = zeros(size(Vdata));
@@ -287,208 +320,190 @@ function DrawCOP(pertNumber, israw)
         %% to check
         %obj.lines{1}.setPosition([240 240],tip);
         %obj.lines{2}.setPosition([length(d.bamper)-360 length(d.bamper)-360], [-50000 50000]);
-        haxes.Bamper.lines{1}.setPosition([240,240],tip);
-        l = length(d1.bamper)-360;
-        haxes.Bamper.lines{2}.setPosition([l,l],tip);
-
-
+        ylims = obj.coords.YLim + [-100,100];
+        le = length(d1.bamper)-360;
+        haxes.Bamper.lines{1}.setPosition([240,240],ylims);
+        haxes.Bamper.lines{2}.setPosition([le,le],ylims);
         datas = {'','','steppingTime','','RightarmsTime','','cgOut','','LeftarmsTime'};
         for i=3:2:9
-            position = source.(datas{i});
-            obj.lines{i}.setPosition([position(1),position(1)],tip);
-            obj.lines{i+1}.setPosition([position(2) position(2)],tip);
+            xposition = source.(datas{i});
+            obj.lines{i}.setPosition([xposition(1),xposition(1)],ylims);
+            obj.lines{i+1}.setPosition([xposition(2),xposition(2)],ylims);
         end
-        obj.lines{11}.setPosition([source.EndFirstStep source.EndFirstStep],tip);
-        xlabel(obj.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        ylabel(obj.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        obj.lines{11}.setPosition([source.EndFirstStep source.EndFirstStep],ylims);
     end
+    if israw == 1
+        source = d1;
+    else
+        source = d2;
+    end
+    plotHandles.isplotted.fixed(pertNumber) = 1;
+    set(checkBoxHideRightArms,'Value', 0);
+    set(checkBoxHideLeftArms,'Value', 0);
+    set(checkBoxHideSteps,'Value', 0);
+    set(checkBoxHideCG,'Value', 0);
+    set(checkBoxHideBamper,'Value', 0);
+
+    axes(haxes.Bamper.coords); 
+    set(SFLines{3}, 'YData',ylim,'XData',[1,1])
+    hold on
+    plotHandles.handles.Bamper(pertNumber) = plot(haxes.Bamper.coords,d1.bamper,'color', 'k' ,'LineWidth',1.5); 
+    ylim(haxes.Bamper.coords,[min(d1.bamper)-100, max(d1.bamper)+ 100]);
+    xlim(haxes.Bamper.coords,[1 length(d1.bamper)]);
+    title(haxes.Bamper.coords, 'Bamper X movement');  
+
+    set_line_positions(haxes.Bamper,source);
+
+    if d1.pertubationsTime(1)< 0
+        set(checkBoxBamper, 'value', 1);
+    else
+        set(checkBoxBamper, 'value', 0);
+    end
+    set(slider,'min',1);
+    set(slider,'max', length(d1.bamper));
+    set(slider,'value',1)
+
+    axes(haxes.CG.coords);
+    set(SFLines{1}, 'YData',tip,'XData',[1,1])
+    hold on
+    if strcmp(vcd.perturbation_type(pertNumber),'ML')
+        plotHandles.handles.LeftCG(pertNumber) = plot(haxes.CG.coords,d1.leftAnkleX,'color', 'g' ,'LineWidth',1.5); 
+        hold on
+        plotHandles.handles.RightCG(pertNumber) = plot(haxes.CG.coords, d1.rightAnkleX,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.LeftHCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'g' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.LeftTCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.RightHCG(pertNumber) = plot(haxes.CG.coords,tip,'color', [0.5 0.2 0.7] ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.RightTCG(pertNumber) = plot(haxes.CG.coords,tip,'color', [0.4 0.3 0.6] ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.CG(pertNumber) = plot(haxes.CG.coords, d1.CGX,'color', 'b' ,'LineWidth',1.5); 
+        hold on
+        legend([plotHandles.handles.LeftCG(pertNumber), plotHandles.handles.RightCG(pertNumber),...
+                    plotHandles.handles.CG(pertNumber)], 'left', 'right', 'CG');
+        ylim(haxes.CG.coords,[min(min(d1.rightAnkleX,d1.leftAnkleX))-100,max(max(d1.leftAnkleX,d1.rightAnkleX))+ 100])
+        xlim(haxes.CG.coords,[1, length(d1.bamper)])
+    else 
+        plotHandles.handles.LeftCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'g' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.RightCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.LeftHCG(pertNumber) = plot(haxes.CG.coords, d1.leftHeelY,'color', 'g' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.LeftTCG(pertNumber) = plot(haxes.CG.coords,d1.leftToeY,'color',[ 0.1 0.6 0.4],'LineWidth',1.5);
+        hold on
+        plotHandles.handles.RightHCG(pertNumber) = plot(haxes.CG.coords,d1.rightHeelY,'color', 'r' ,'LineWidth',1.5); 
+        hold on
+        plotHandles.handles.RightTCG(pertNumber) = plot(haxes.CG.coords, d1.rightToeY,'color', [0.9 0.3 0.1] ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.CG(pertNumber) = plot(haxes.CG.coords, Vdata(pertNumber).CGY,'color', 'b' ,'LineWidth',1.5);
+        hold on
+        legend([plotHandles.handles.LeftHCG(pertNumber), plotHandles.handles.LeftTCG(pertNumber),...
+            plotHandles.handles.RightHCG(pertNumber), plotHandles.handles.RightTCG(pertNumber),...
+            plotHandles.handles.CG(pertNumber)], 'leftHeelY', 'leftToeY','rightHeelY', 'rightToeY', 'CGY');
+        ylim(haxes.CG.coords,[min(min(d1.leftToeY),min(d1.rightToeY))-100 max(max(d1.leftHeelY),max(d1.rightHeelY))+ 100])
+        xlim(haxes.CG.coords,[1, length(d1.bamper)])
+    end
+    title(haxes.CG.coords, 'CG and feet movement');
+    set_line_positions(haxes.CG,source); % check first two -- they are bamper in orig for some reason
+    if d1.cgOut(1)< 0
+        set(checkBoxCG, 'Value', 1);
+    else
+        set(checkBoxCG, 'Value', 0);
+    end
+
+    axes(haxes.Step.coords);
+    hold on
+    set(SFLines{2}, 'YData',tip, 'XData', [1 1])
+
+    if strcmp(vcd.condition,'stand')
+        plotHandles.handles.LeftStep(pertNumber) = plot(haxes.Step.coords,d1.leftStepping,'color', 'g' ,'LineWidth',1.5); 
+        hold on
+        plotHandles.handles.RightStep(pertNumber) = plot(haxes.Step.coords,d1.rightStepping,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.RightStep(pertNumber) = plot(haxes.Step.coords,d1.rightAnkleX,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.LeftStepA(pertNumber) =plot(haxes.Step.coords,0,0,'b');
+        hold on
+        plotHandles.handles.RightStepA(pertNumber)= plot(haxes.Step.coords,0,0);
+        hold on
+        ylabel(haxes.Step.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        title(haxes.Step.coords, 'Step');
+        legend([plotHandles.handles.LeftStep(pertNumber),...
+            plotHandles.handles.RightStep(pertNumber)], 'left', 'right');
+
+    else % walking 
+        plotHandles.handles.LeftStep(pertNumber) = plot(haxes.Step.coords,0,0,'b');
+        hold on
+        plotHandles.handles.RightStep(pertNumber)= plot(haxes.Step.coords,0,0);
+        hold on
+        VelocityL = (d1.leftStepping(2:end)-d1.leftStepping(1:end-1))*vcd.datarate;
+        VelocityR = (d1.rightStepping(2:end)-d1.rightStepping(1:end-1))*vcd.datarate;
+        AccL=(VelocityL(2:end)-VelocityL(1:end-1))*vcd.datarate;
+        AccR=(VelocityR(2:end)-VelocityR(1:end-1))*vcd.datarate;
+        plotHandles.handles.LeftStepA(pertNumber) = plot(haxes.Step.coords,AccL ,'color', 'g' ,'LineWidth',1.5);
+        hold on
+        plotHandles.handles.RightStepA(pertNumber) = plot(haxes.Step.coords, AccR ,'color', 'r' ,'LineWidth',1.5);
+        hold on
+        ylabel(haxes.Step.coords,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
+        title(haxes.Step.coords, 'Step Acceleration');
+        legend([plotHandles.handles.LeftStepA(pertNumber), plotHandles.handles.RightStepA(pertNumber)], 'left', 'right');
+    end
+    xlim(haxes.Step.coords,[1, length(d1.bamper)])
+    if strcmp(vcd.condition,'walk')
+        ylim(haxes.Step.coords,[min(min(AccL),min(AccR))-20,max(max(AccL),max(AccR))+20])
+    else
+        ylim(haxes.Step.coords,[min(min(d1.leftStepping),min(d1.rightStepping))-100 max(max(d1.leftStepping),max(d1.rightStepping))+ 100])
+    end
+    set_line_positions(haxes.Step,source);
     
-    function plot_source(israw)
-        if israw == 1
-            source = d1;
+    if d1.steppingTime(1)< 0
+        set(checkBoxSteps, 'value', 1);
+        set(listBoxStep,'value', 3);
+
+    else
+        set(checkBoxSteps, 'value', 0);
+        if d1.firstStep==1
+            set(listBoxStep,'value', 1);
         else
-            source = d2;
-        end
-        plotHandles.isplotted.fixed(pertNumber) = 1;
-        set(checkBoxHideRightArms,'Value', 0);
-        set(checkBoxHideLeftArms,'Value', 0);
-        set(checkBoxHideSteps,'Value', 0);
-        set(checkBoxHideCG,'Value', 0);
-        set(checkBoxHideBamper,'Value', 0);
-
-        axes(haxes.Bamper.coords); 
-        set(SFLines{3}, 'YData',tip,'XData',[1,1])
-        hold on
-        plotHandles.handles.Bamper(pertNumber) = plot(haxes.Bamper.coords,d1.bamper,'color', 'k' ,'LineWidth',1.5); 
-        ylim(haxes.Bamper.coords,[min(d1.bamper)-100, max(d1.bamper)+ 100]);
-        xlim(haxes.Bamper.coords,[1 length(d1.bamper)]);
-        title(haxes.Bamper.coords, 'Bamper X movement');  
-        
-        set_line_positions(haxes.Bamper,source);
-        
-        if d1.pertubationsTime(1)< 0
-            set(checkBoxBamper, 'value', 1);
-        else
-            set(checkBoxBamper, 'value', 0);
-        end
-        set(slider,'min',1);
-        set(slider,'max', length(d1.bamper));
-        set(slider,'value',1)
-
-        axes(haxes.CG.coords);
-        set(SFLines{1}, 'YData',tip,'XData',[1,1])
-        hold on
-        if mod(pertNumber, 2) == 0 || length(Vdata)==12 % left or right pertubation or walking protocol
-            plotHandles.handles.LeftCG(pertNumber) = plot(haxes.CG.coords,d1.leftAnkleX,'color', 'g' ,'LineWidth',1.5); 
-            hold on
-            plotHandles.handles.RightCG(pertNumber) = plot(haxes.CG.coords, d1.rightAnkleX,'color', 'r' ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.LeftHCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'g' ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.LeftTCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'r' ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.RightHCG(pertNumber) = plot(haxes.CG.coords,tip,'color', [0.5 0.2 0.7] ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.RightTCG(pertNumber) = plot(haxes.CG.coords,tip,'color', [0.4 0.3 0.6] ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.CG(pertNumber) = plot(haxes.CG.coords, d1.CGX,'color', 'b' ,'LineWidth',1.5); 
-            hold on
-            legend([plotHandles.handles.LeftCG(pertNumber), plotHandles.handles.RightCG(pertNumber),...
-                        plotHandles.handles.CG(pertNumber)], 'left', 'right', 'CG');
-            ylim(haxes.CG.coords,[min(min(d1.rightAnkleX,d1.leftAnkleX))-100 max(max(d1.leftAnkleX,d1.rightAnkleX))+ 100])
-            xlim(haxes.CG.coords,[1, length(d1.bamper)])
-        else % front back pertubation\
-            plotHandles.handles.LeftCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'g' ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.RightCG(pertNumber) = plot(haxes.CG.coords,tip,'color', 'r' ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.LeftHCG(pertNumber) = plot(haxes.CG.coords, d1.leftHeelY,'color', 'g' ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.LeftTCG(pertNumber) = plot(haxes.CG.coords,d1.leftToeY,'color',[ 0.1 0.6 0.4],'LineWidth',1.5);
-            hold on
-            plotHandles.handles.RightHCG(pertNumber) = plot(haxes.CG.coords,d1.rightHeelY,'color', 'r' ,'LineWidth',1.5); 
-            hold on
-            plotHandles.handles.RightTCG(pertNumber) = plot(haxes.CG.coords, d1.rightToeY,'color', [0.9 0.3 0.1] ,'LineWidth',1.5);
-            hold on
-            plotHandles.handles.CG(pertNumber) = plot(haxes.CG.coords, Vdata(pertNumber).CGY,'color', 'b' ,'LineWidth',1.5);
-            hold on
-            legend([plotHandles.handles.LeftHCG(pertNumber), plotHandles.handles.LeftTCG(pertNumber),...
-                plotHandles.handles.RightHCG(pertNumber), plotHandles.handles.RightTCG(pertNumber),...
-                plotHandles.handles.CG(pertNumber)], 'leftHeelY', 'leftToeY','rightHeelY', 'rightToeY', 'CGY');
-            ylim(haxes.CG.coords,[min(min(d1.leftToeY),min(d1.rightToeY))-100 max(max(d1.leftHeelY),max(d1.rightHeelY))+ 100])
-            xlim(haxes.CG.coords,[1, length(d1.bamper)])
-        end
-
-        xlabel(haxes.CG.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        ylabel(haxes.CG.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        title(haxes.CG.coords, 'CG and feet movement');
-        set_line_positions(haxes.CG,source); % check first two -- they are bamper in orig for some reason
-        if d1.cgOut(1)< 0
-            set(checkBoxCG, 'value', 1);
-        else
-            set(checkBoxCG, 'value', 0);
-        end
-
-        axes(haxes.Step.coords);
-        hold on
-        set(SFLines{2}, 'YData',tip, 'XData', [1 1])
-        
-        if strcmp(vcd.condition,'stand')
-            plotHandles.LeftStep(pertNumber) = plot(haxes.Step.coords,d1.leftStepping,'color', 'g' ,'LineWidth',1.5); 
-            hold on
-            plotHandles.RightStep(pertNumber) = plot(haxes.Step.coords,d1.rightStepping,'color', 'r' ,'LineWidth',1.5);
-            hold on
-            plotHandles.RightStep(pertNumber) = plot(haxes.Step.coords,d1.rightAnkleX,'color', 'r' ,'LineWidth',1.5);
-            hold on
-            plotHandles.LeftStepA(pertNumber) =plot(haxes.Step.coords,0,0,'b');
-            hold on
-            plotHandles.RightStepA(pertNumber)= plot(haxes.Step.coords,0,0);
-            hold on
-            ylabel(haxes.Step.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-            title(haxes.Step.coords, 'Step');
-            legend([plotHandles.LeftStep(pertNumber),...
-                plotHandles.RightStep(pertNumber)], 'left', 'right');
-
-        else % walking 
-            plotHandles.LeftStep(pertNumber) = plot(haxes.Step.coords,0,0,'b');
-            hold on
-            plotHandles.RightStep(pertNumber)= plot(haxes.Step.coords,0,0);
-            hold on
-            VelocityL = (d1.leftStepping(2:end)-d1.leftStepping(1:end-1))*vcd.datarate;
-            VelocityR = (d1.rightStepping(2:end)-d1.rightStepping(1:end-1))*vcd.datarate;
-            AccL=(VelocityL(2:end)-VelocityL(1:end-1))*vcd.datarate;
-            AccR=(VelocityR(2:end)-VelocityR(1:end-1))*vcd.datarate;
-            plotHandles.LeftStepA(pertNumber) = plot(haxes.Step.coords,AccL ,'color', 'g' ,'LineWidth',1.5);
-            hold on
-            plotHandles.RightStepA(pertNumber) = plot(haxes.Step.coords, AccR ,'color', 'r' ,'LineWidth',1.5);
-            hold on
-            ylabel(haxes.Step.coords,'Acceleration', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-            title(haxes.Step.coords, 'Step Acceleration');
-            legend([plotHandles.LeftStepA(pertNumber), plotHandles.RightStepA(pertNumber)], 'left', 'right');
-        end
-        xlabel(haxes.Step.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        set_line_positions(haxes.Step,source);
-        xlim(haxes.Step.coords,[1, length(d1.bamper)])
-        if strcmp(vcd.condition,'walkl')
-            ylim(haxes.Step.coords,[min(min(AccL),min(AccR))-20 max(max(AccL),max(AccR))+20])
-        else
-            ylim(haxes.Step.coords,[min(min(d1.leftStepping),min(Vdata(pertNumber).rightStepping))-100 max(max(Vdata(pertNumber).leftStepping),max(Vdata(pertNumber).rightStepping))+ 100])
-
-        end
-        
-        %legend('slider','left', 'right')
-
-        if d1.steppingTime(1)< 0
-            set(checkBoxSteps, 'value', 1);
-            set(listBoxStep,'value', 3);
-
-        else
-            set(checkBoxSteps, 'value', 0);
-            if Vdata(pertNumber).firstStep==1
-                set(listBoxStep,'value', 1);
-            else
-                set(listBoxStep,'value', 2);
-            end
-        end
-
-        axes(haxes.Arms.coords);
-        hold on
-        set(SFLines{4}, 'YData', tip,'XData', [1 1]);
-        plotHandles.LeftArm(pertNumber) = plot(haxes.Arms.coords,d1.leftArmTotal,'color', 'g' ,'LineWidth',1.5);
-        hold on
-        plotHandles.RightArm(pertNumber) = plot(haxes.Arms.coords,d1.rightArmTotal,'color', 'r' ,'LineWidth',1.5);
-        hold on
-        xlabel(haxes.Arms.coords,'Time', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        ylabel(haxes.Arms.coords,'Poisition', 'fontname' , 'Cambria' , 'fontweight' , 'b');
-        title(haxes.Arms.coords, 'Change in arms distance from CG');
-        set_line_positions(haxes.Step,source); % again?
-        ylim(haxes.Arms.coords,[min(min(d1.leftArmTotal),min(d1.rightArmTotal))-100 max(max(d1.leftArmTotal),max(d1.rightArmTotal))+ 100])
-        xlim(haxes.Arms.coords,[1, length(Vdata(pertNumber).bamper)])
-        
-        %legend('slider', 'left', 'right')
-        legend([plotHandles.LeftArm(pertNumber), plotHandles.RightArm(pertNumber)], 'left', 'right')
-        if d1.RightarmsTime(1)< 0
-            set(checkBoxRightArms, 'value', 1);
-        else
-            set(checkBoxRightArms, 'value', 0);
-        end
-         if d1.LeftarmsTime(1)< 0
-            set(checkBoxLeftArms, 'value', 1);
-        else
-            set(checkBoxLeftArms, 'value', 0);
-        end
-
-        set(slider,'min',1);
-        set(slider,'max', length(d1.bamper));
-        set(slider,'value',1);
-        if israw == 2
-            plotHandles.isplotted.mutables(pertNumber) = 1; 
+            set(listBoxStep,'value', 2);
         end
     end
-    plot_source(israw);
+
+    axes(haxes.Arms.coords);
+    hold on
+    set(SFLines{4}, 'YData', ylim,'XData', [1 1]);
+    plotHandles.handles.LeftArm(pertNumber) = plot(haxes.Arms.coords,d1.leftArmTotal,'color', 'g' ,'LineWidth',1.5);
+    hold on
+    plotHandles.handles.RightArm(pertNumber) = plot(haxes.Arms.coords,d1.rightArmTotal,'color', 'r' ,'LineWidth',1.5);
+    hold on
+    title(haxes.Arms.coords, 'Change in arms distance from CG');
+    %set_line_positions(haxes.Step,source); % again?
+    ylim(haxes.Arms.coords,[min(min(d1.leftArmTotal),min(d1.rightArmTotal))-100 max(max(d1.leftArmTotal),max(d1.rightArmTotal))+ 100])
+    xlim(haxes.Arms.coords,[1, length(Vdata(pertNumber).bamper)])
+
+    legend([plotHandles.handles.LeftArm(pertNumber), plotHandles.handles.RightArm(pertNumber)], 'left', 'right')
+    if d1.RightarmsTime(1)< 0
+        set(checkBoxRightArms, 'value', 1);
+    else
+        set(checkBoxRightArms, 'value', 0);
+    end
+     if d1.LeftarmsTime(1)< 0
+        set(checkBoxLeftArms, 'value', 1);
+    else
+        set(checkBoxLeftArms, 'value', 0);
+     end
+    set(slider,'min',1);
+    set(slider,'max', length(d1.bamper));
+    set(slider,'value',1);
+    if israw == 2
+        plotHandles.isplotted.mutables(pertNumber) = 1; 
+    end
     axes(haxes.SF);
     set(gca,'ydir','reverse');
-    view(-11,-20)
+    view(-11,-20);
     xlim([min(d1.SFdATA(1,1:3:end))-1, max(d1.SFdATA(1,1:3:end))+ 1]);
     ylim([min(d1.SFdATA(1,2:3:end))-1, max(d1.SFdATA(1,2:3:end))+ 1]);
     zlim([min(d1.SFdATA(1,3:3:end))-1, max(d1.SFdATA(1,3:3:end))+ 1]);
@@ -591,7 +606,7 @@ function exportButtonselected_cb(~,~)
     % initialize the export variables in an ordered struct
     tomillis = 1000/vcd.datarate;
     export = struct('data',struct);
-    export.header = {'Step','Pertubation side: [1]Right/[2]Left/[3]Forward/[4]Backward',...
+    export.header = {'Step','Perturbation side: [1]Right/[2]Left/[3]Forward/[4]Backward',...
         'Response time [msec])','Time from bamper movement until end of 1st step [msec]',...
         'First step duration [msec]','first step length [mm]',...
         'Time from bamper movement until end of all steps [msec]',...
@@ -614,44 +629,44 @@ function exportButtonselected_cb(~,~)
         protocol = repmat([1, 2],1,6)';
     end
     
-    export.specs ={{'BamperToEndOfSteps','G2',1},... % object name, excell location, type of data 1 - 9999*ones, 2 - zeros, 3 - cell...
-            {'firstStepLength','F2',1},...
-            {'firstStepLength2','AG2',1},...
-            {'firstStepDuration','E2',1},...
-            {'responseTime','C2',1},...
-            {'BamperToEndFirstStep','D2',1},...
-            {'lastStepMax','H2',1},...
-            {'cgOutBeforeMovement','I2',1},...
-            {'loseOfBalanceToFirstStep','J2',1},...
-            {'minCGDistFromLeg','K2',1},...
-            {'CGToNearestAtFirstStep','L2',1},...
-            {'MaxCGOutFromLeg','M2',1},...  
-            {'totalDistCGMade','N2',1},...
-            {'rightArmDistance','O2',1},...
-            {'leftArmDistance','P2',1},...
-            {'BamperToRightArmTime','Q2',1},...
-            {'rightArmSwingTime','R2',1},...
-            {'BamperToLeftArmTime','S2',1},...
-            {'leftArmSwingTime','T2',1},...
-            {'LElbowAng','Y2',1},...
-            {'RElbowAng','AC2',1},...
-            {'Fall','U2',2},...
-            {'MS','V2',2},...
-            {'TypeArmMove','W2',3},...
-            {'TypeLegMove','X2',3},...
-            {'LShoulderAng','Z2:AB2',4},...
-            {'RShoulderAng','AD2:AF2',4}...
+    export.specs ={{'BamperToEndOfSteps','G',1},... % object name, excell location, type of data 1 - 9999*ones, 2 - zeros, 3 - cell...
+            {'firstStepLength','F',1},...
+            {'firstStepLength2','AG',1},...
+            {'firstStepDuration','E',1},...
+            {'responseTime','C',1},...
+            {'BamperToEndFirstStep','D',1},...
+            {'lastStepMax','H',1},...
+            {'cgOutBeforeMovement','I',1},...
+            {'loseOfBalanceToFirstStep','J',1},...
+            {'minCGDistFromLeg','K',1},...
+            {'CGToNearestAtFirstStep','L',1},...
+            {'MaxCGOutFromLeg','M',1},...  
+            {'totalDistCGMade','N',1},...
+            {'rightArmDistance','O',1},...
+            {'leftArmDistance','P',1},...
+            {'BamperToRightArmTime','Q',1},...
+            {'rightArmSwingTime','R',1},...
+            {'BamperToLeftArmTime','S',1},...
+            {'leftArmSwingTime','T',1},...
+            {'LElbowAng','Y',1},...
+            {'RElbowAng','AC',1},...
+            {'Fall','U',2},...
+            {'MS','V',2},...
+            {'TypeArmMove','W',3},...
+            {'TypeLegMove','X',3},...
+            {'LShoulderAng','Z:AB',4},...
+            {'RShoulderAng','AD:AF',4}...
         };
     for spec=export.specs
         switch spec{:}{3}
             case 1
-                initializer = ones(vcd.numperts,1)*9999;
+                initializer = ones(vcd.numperts,1)*99999;
             case 2
                 initializer = zeros(vcd.numperts,1);
             case 3
                 initializer = cell(vcd.numperts,1);
             case 4
-                initializer = ones(vcd.numperts,3)*9999;
+                initializer = zeros(vcd.numperts,3);
         end
         export.data.(spec{:}{1}) = initializer;
     end      
@@ -674,12 +689,12 @@ function exportButtonselected_cb(~,~)
         dz = source(range,targetx+2) - source(range(1),targetx+2);
         % ML perturbation -- offset the x component from bamper
         if strcmp(offset_anchor,'bamperL')
-            dx = dx - source(range,anchor) - source(range(1),anchor);
+            dx = (dx - source(range,anchor)) + source(range(1),anchor);
         else
         % AP perturbation -- offset the y component from bamper
-            dy = dy - source(range,anchor) - source(range(1),anchor);
+            dy = (dy - source(range,anchor)) + source(range(1),anchor);
         end
-        [dist,ind] = max(vecnorm([dx,dy,dz]));
+        [dist,ind] = max(vecnorm([dx,dy,dz]'));
     end
     function estl = edge_step_length(row,leftorright,firstorlast)
         if leftorright == 1
@@ -694,9 +709,9 @@ function exportButtonselected_cb(~,~)
         end
         bamp = vcd.cellindex(vcd.trajcolumns,'bamperL');
         source = Vdata(row).SFdATA;
-        dxs = source(ankle_range,[ankx,bamp]) - source(t,[ankx,bamp]); % diff between ankle and bamper at end of stepping minus their diff at stepping start 
+        dxs = (source(ankle_range,ankx) - source(t,ankx)) - source(ankle_range,bamp) + source(t,bamp) ; % x displacement of every point in the range, with bamper set off
         dys = source(ankle_range,ankx+1) - source(t,ankx+1); % same but without the bamper offset
-        estl = max(vecnorm([dxs,dys])); % check if should be transpose
+        estl = max(vecnorm([dxs,dys]'));
     end
     %run over all perturbations
     for i =1:vcd.numperts
@@ -738,20 +753,20 @@ function exportButtonselected_cb(~,~)
             export.data.BamperToLeftArmTime(i) =(d2.LeftarmsTime(1)-d2.pertubationsTime(1))*tomillis;
             export.data.leftArmSwingTime(i) = leftMaxInd*tomillis;
             export.data.LElbowAng(i)=d.LElbowAng(d2.LeftarmsTime(2))-d.LElbowAng(d2.LeftarmsTime(1));
-            export.LShoulderAng(i,:)=d.LShoulderAng(d2.LeftarmsTime(2),:)-d.LShoulderAng(d2.LeftarmsTime(1),:);
+            export.data.LShoulderAng(i,:)=d.LShoulderAng(d2.LeftarmsTime(2),:)-d.LShoulderAng(d2.LeftarmsTime(1),:);
             export.data.leftArmDistance(i) = leftArmDistance;
         end
         if(reactionStepTimes)
             t = d2.steppingTime(1);
             cgr = d2.cgOut(1):d2.cgOut(2);
-            responseTime(i) = (t - d2.pertubationsTime(1))*tomillis;
+            export.data.responseTime(i) = (t - d2.pertubationsTime(1))*tomillis;
             export.data.BamperToEndOfSteps(i) = (d2.steppingTime(2) -  d2.pertubationsTime(1))*tomillis;
             export.data.BamperToEndFirstStep(i) = (d2.EndFirstStep - d2.pertubationsTime(1))*tomillis;
 
 
-            if strcmp(vcd.condition,'walk') || mod(i,2)==0 % ML perturbation
-                totalDistCGMade(i) = sum(abs(diff(d.CGX(241:end)))); %% 241??
-                CGToNearestAtFirstStep(i) = min([...
+            if strcmp(vcd.perturbation_type(i),'ML')
+                export.data.totalDistCGMade(i) = sum(abs(diff(d.CGX(2*vcd.datarate+1:end))));
+                export.data.CGToNearestAtFirstStep(i) = min([...
                     abs(d.CGX(t) - d.leftAnkleX(t)),...
                     abs(d.CGX(t)- d.rightAnkleX(t))...
                 ]);
@@ -763,22 +778,22 @@ function exportButtonselected_cb(~,~)
                     ref = 'leftAnkleX';
                 end
                 if d2.cgOut(1) < 0
-                    cgOutBeforeMovement(i) = 0;
-                    minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.(ref)(1:t)));
+                    export.data.cgOutBeforeMovement(i) = 0;
+                    export.data.minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.(ref)(1:t)));
                 else
-                    MaxCGOutFromLeg(i) = min([...
+                    export.data.MaxCGOutFromLeg(i) = min([...
                         max(abs(d.CGX(cgr) - d.leftAnkleX(cgr))),...
                         max(abs(d.CGX(cgr) - d.rightAnkleX(cgr)))...
                     ]);
                     if cgr(1) < t
-                        cgOutBeforeMovement(i) = 1;
-                        loseOfBalanceToFirstStep(i) = (t - cgr(1))*tomillis;
+                        export.data.cgOutBeforeMovement(i) = 1;
+                        export.data.loseOfBalanceToFirstStep(i) = (t - cgr(1))*tomillis;
                     else
-                        cgOutBeforeMovement(i) = 0;
+                        export.data.cgOutBeforeMovement(i) = 0;
                         if(cgtoleg == 1)
-                            minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.rightAnkleX(1:t)));
+                            export.data.minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.rightAnkleX(1:t)));
                         else
-                            minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.leftAnkleX(1:t)));
+                            export.data.minCGDistFromLeg(i) = min(abs(d.CGX(1:t) - d.leftAnkleX(1:t)));
                         end                    
                     end
                 end
@@ -787,8 +802,8 @@ function exportButtonselected_cb(~,~)
                 export.data.lastStepMax(i)  = edge_step_length(i,d2.firstStep,1);
             
             else % AP perturbation
-                totalDistCGMade(i) = sum(abs(diff(d.CGY(241:end))));
-                CGToNearestAtFirstStep(i) = min(abs([d.leftHeelY(t),d.leftToeY(t),d.rightHeelY(t),d.rightToeY(t)] - d.CGY(t)));
+                export.data.totalDistCGMade(i) = sum(abs(diff(d.CGY(241:end))));
+                export.data.CGToNearestAtFirstStep(i) = min(abs([d.leftHeelY(t),d.leftToeY(t),d.rightHeelY(t),d.rightToeY(t)] - d.CGY(t)));
                 if abs(d.CGY(end) - d.leftHeelY(end)) > abs(d.CGY(end) - d.leftToeY(end))
                     cgtoleg = 3; % cg moves towards Toes
                     ref = 'Toe';
@@ -797,27 +812,27 @@ function exportButtonselected_cb(~,~)
                     ref = 'Heel';
                 end
                 if d2.cgOut(1) < 0
-                    cgOutBeforeMovement(i) = 0;
-                    minCGDistFromLeg(i) = min(abs([min(d.CGY(1:t) - d.(['left' ref 'Y'])(1:t)),min(d.CGY(1:t) - d.(['right' ref 'Y'])(1:t))]));
+                    export.data.cgOutBeforeMovement(i) = 0;
+                    export.data.minCGDistFromLeg(i) = min(abs([min(d.CGY(1:t) - d.(['left' ref 'Y'])(1:t)),min(d.CGY(1:t) - d.(['right' ref 'Y'])(1:t))]));
                 else % cg out is >= 0 whatever that means
-                    MaxCGOutFromLeg(i) = min([...
+                    export.data.MaxCGOutFromLeg(i) = min([...
                         max(abs(d.CGY(cgr) - d.leftHeelY(cgr))),...
                         max(abs(d.CGY(cgr) - d.leftToeY(cgr))),...
                         max(abs(d.CGY(cgr) - d.rightHeelY(cgr))),...
                         max(abs(d.CGY(cgr) - d.rightToeY(cgr)))...
                     ]);
                     if cgr(1) < t
-                        cgOutBeforeMovement(i) = 1;
-                        loseOfBalanceToFirstStep(i) = (t - cgr(1))*tomillis;
+                        export.data.cgOutBeforeMovement(i) = 1;
+                        export.data.loseOfBalanceToFirstStep(i) = (t - cgr(1))*tomillis;
                     else
-                        cgOutBeforeMovement(i) = 0;
+                        export.data.cgOutBeforeMovement(i) = 0;
                         if(cgtoleg == 3) % toes
-                            minCGDistFromLeg(i) = min(...
+                            export.data.minCGDistFromLeg(i) = min(...
                                 (abs(min(d.CGY(1:t) - d.leftToeY(1:t)))),...
                                 (abs(min(d.CGY(1:t) - d.rightToeY(1:t))))...
                             );
                         else % heels
-                            minCGDistFromLeg(i) = min(...
+                            export.data.minCGDistFromLeg(i) = min(...
                                 (abs(min(d.CGY(1:t) - d.leftHeelY(1:t)))),...
                                 (abs(min(d.CGY(1:t) - d.rightHeelY(1:t))))...
                             );
@@ -848,15 +863,15 @@ function exportButtonselected_cb(~,~)
                     lastref = lankx;
                 end
                 % compute once!! accordingly 
-                export.data.firstStepLength(i) = vecnorm(diff(d.SFdATA(d2.EndFirstStep,[lankx:lankx+1,rankx:rankx+1])));
+                export.data.firstStepLength(i) = vecnorm(diff(d.SFdATA(d2.EndFirstStep,[lankx:lankx+1,rankx:rankx+1]))');
                 if do2
                     dx2 = diff(d.SFdATA([d2.EndFirstStep,t],ref2));
                     dy2 = diff(d.SFdATA([d2.EndFirstStep,t],ref2)) + prdist;
-                    export.data.firstStepLength2(i) = vecnorm([dx2,dy2]);                
+                    export.data.firstStepLength2(i) = vecnorm([dx2,dy2]');                
                 end
-                export.data.lastStepMax(i) = max(vecnorm(d.SFdATA(t:d2.steppingTime(2),lastref:lastref+1) - d.SFdATA(t,lastref:lastref+1))); 
+                export.data.lastStepMax(i) = max(vecnorm(d.SFdATA(t:d2.steppingTime(2),lastref:lastref+1) - d.SFdATA(t,lastref:lastref+1)')); 
             end
-            export.data.firstStepDuration(i) = BamperToEndFirstStep(i) - responseTime(i);          
+            export.data.firstStepDuration(i) = export.data.BamperToEndFirstStep(i) - export.data.responseTime(i);          
         end
     end   
     
@@ -868,13 +883,23 @@ function exportButtonselected_cb(~,~)
     xlswrite(saveto,(1:vcd.numperts)','Sheet1','A2');
     xlswrite(saveto,protocol,'Sheet1','B2');
     for spec=export.specs
-        xlswrite(saveto,export.data.(spec{:}{1}),'Sheet1',spec{:}{2});
+        cols = spec{:}{2};
+        m = export.data.(spec{:}{1});
+        if ~contains(cols,':')
+            xlswrite(saveto,m,'Sheet1',[cols '2']);
+        else
+            for r = 1:size(m,1)
+                row = r+1;
+                col = [strrep(cols,':',[num2str(row) ':']) num2str(row)]; % for example Z:AB --> Z3:AB3 when the row is 3
+                xlswrite(saveto,m(r,:),col);
+            end
+        end
     end
     msgbox('export finished');
 end
 
 function checkBoxSteps_call(~,~,~)
-    pertNumber =get(ListBoxPertubation,'value');
+    pertNumber = get(ListBoxPertubation,'Value');
     lines = [3,4,11];
     posxs = [30,70,50];
     stptime = Vdata2(pertNumber).steppingTime;
@@ -882,9 +907,10 @@ function checkBoxSteps_call(~,~,~)
     for line = 1:3 %#ok<FXUP>
         lineid = lines(line);
         posx = posxs(line);
-        if(checkBoxSteps.Value == 0)
+        if checkBoxSteps.Value == 0
             if Vdata(pertNumber).steppingTime < 0 
                 haxes.Step.lines{lineid}.setPosition([posx,posx],tip);
+                lbp = 1;
             else 
                 if lineid == 3
                     xs = stptime(1);
@@ -894,17 +920,17 @@ function checkBoxSteps_call(~,~,~)
                     xs = Vdata2(pertNumber).EndFirstStep;
                 end
                 haxes.Arms.lines{lineid}.setPosition([xs,xs],tip);
+                lbp = 1;
+                if Vdata(pertNumber).firstStep ~= 1
+                    lbp = 2;
+                end
             end
         else
             haxes.Step.lines{lineid}.setPosition(invtip,tip);
+            lbp = 3;
         end
     end
-    if checkBoxSteps.Value == 0
-        lbp = Vdata(pertNumber).firstStep; 
-    else
-        lbp = 3;
-    end
-    listBoxStep.Value = lbp; 
+    set(listBoxStep,'Value',lbp); 
 end
 
 function listBoxSteps_call(~, ~, ~)
@@ -942,7 +968,7 @@ function listBoxSteps_call(~, ~, ~)
             xs = [stpt,d.EndFirstStep];
         end
     else
-        xs = repmat(tip(1),1,2);
+        xs = repmat(tip(1),1,3);
     end
 
     % loop the lines to set the values
@@ -955,21 +981,24 @@ end
 
 function checkBoxArms_call(hObj,~,~)
     if hObj == checkBoxLeftArms
-        lines = [9,10];
+        line_numbers = [9,10];
+        f = 'LeftarmsTime';
     elseif hObj == checkBoxRightArms
-        lines = [5,6];
+        line_numbers = [5,6];
+        f = 'RightarmsTime';
     else
         disp('??');
     end
-    pertNumber = get(ListBoxPertubation,'value');
+    pertNumber = get(ListBoxPertubation,'Value');
     ys = tip;
     d = Vdata(pertNumber);
     linesin = 'Arms';
     if(hObj.Value == 0)
-        if d.RightarmsTime <0        
+        if d.(f) <0        
             xs = [50,100];
+            linesin = 'Step';
         else
-            xs = d.RightarmsTime;
+            xs = d.(f);
         end
     else
         xs = [-30,-30];
@@ -977,64 +1006,62 @@ function checkBoxArms_call(hObj,~,~)
         linesin = 'Step';
     end
     for i = 1:2
-        l = lines(i);
+        current_line = line_numbers(i);
         x = xs(i);
-        y = ys(i);
-        haxes.(linesin).lines{l}.setPosition([x,x],[y,y]);
+        haxes.(linesin).lines{current_line}.setPosition([x,x],ys);
     end
 end
 
 function checkBoxHide(hObject,~,~)
     do11 = false;
-    pert = get(ListBoxPertubation,'value');
-    src = Vdata3(pert);
+    pert = get(ListBoxPertubation,'Value');
+    % sort out what to work on
     switch hObject.String
         case 'hide Right arm'
             tline = 5; 
-            dat = src.RightarmsTime;
+            f = 'RightarmsTime';
         case 'hide CG'
             tline = 7;
-            dat = src.cgOut;
+            f = 'cgOut';
         case 'hide Bamper'
             tline = 1;
-            dat = src.pertubationsTime;
+            f = 'pertubationsTime';
         case 'hide Left arm'
             tline = 9;
-            dat = src.LeftarmsTime;
+            f = 'LeftarmsTime';
         case 'hide first step'
             tline = 3;
             do11 = ~do11;
-            dat = src.steppingTime;
+            f = 'steppingTime';
         otherwise
             disp(hObject.String);
     end
+    
     invtip = [1,-1] .* tip;
     line1 = haxes.Step.lines{tline};
     line2 = haxes.Step.lines{tline+1};
     
+    % hide if checked and show if unchecked
     if hObject.Value == 1
-        %%%%%%%%%%%%%%%%%%
-        %%%%%%%%%%%%%%%%%%
-        %x = line1.getPosition();
-        %y = line2.getPosition();
+        % hide box was checked, get current position of the Step line
+        x = line1.getPosition();
+        y = line2.getPosition();
+        Vdata3(pert).(f) = [x(1,1),y(1,1)];
         if do11
             line3 = haxes.Step.lines{11};
             z = line3.getPosition();
-        end
-        %dat  = [x(1,1),y(1,1)];
-        line1.setPosition(invtip,tip);
-        line2.setPosition(invtip,tip);
-        if do11
-            src.EndFirstStep = z(1,1);
+            Vdata3(pert).EndFirstStep = z(1,1);
             line3.setPosition(invtip,tip);
         end
+        line1.setPosition(invtip,tip);
+        line2.setPosition(invtip,tip);
     else
-        p1 = dat(1);
-        p2 = dat(2);
+        p1 = Vdata3(pert).(f)(1);
+        p2 = Vdata3(pert).(f)(2);
         haxes.Arms.lines{tline}.setPosition([p1 p1],tip);
         haxes.Arms.lines{tline+1}.setPosition([p2 p2],tip);
         if do11
-            e = src.EndFirstStep;
+            e = Vdata3(pert).EndFirstStep;
             haxes.Arms.lines{11}.setPosition([e,e],tip);
         end
     end
@@ -1075,59 +1102,17 @@ function plotSF(time_point)
     c = ceil(time_point);
     axes(haxes.SF);
     cla(haxes.SF);
-    xcols = [...
-        1,4;...      % left forhead - right forehead
-        1,7;...      % left forhead - left backhead
-        10,4;...     % right backhead - right forehead 
-        10,7;...     % right backhead - left backhead
-        
-        19,28;...    % clavicula - left shoulder  
-        19,49;...    % clavicula - right shoulder 
-
-        28,34;...    % left shoulder - left elbow 
-        40,34;...    % left wrist A - left elbow 
-        43,34;...    % left wrist B - left elbow 
-        40,46;...    % left wrist A - left FIN 
-        43,46;...    % left wrist B - left FIN 
-
-        49,55;...    % right shoulder - right elbow    
-        61,55;...    % right wrist A - right elbow 
-        64,55;...    % right wrist B - right elbow 
-        61,67;...    % right wrist A - right FIN 
-        64,67;...    % right wrist B - right FIN 
-        
-        70,73;...    % left asis - right asis
-        70,76;...    % left asis - left PSI
-        79,73;...    % right PSI - right asis   
-        79,76;...    % right PSI - left PSI 
-        
-        70,85;...    % left asis - left knee 
-        91,85;...    % left ankle - left knee  
-        91,97;...    % left ankle - left heel 
-        91,94;...    % left ankle - left toe    
-        94,97;...    % left heel - left toe 
-        
-        73,103;...   % right asis - right knee
-        109,103;...  % right ankle - right knee 
-        109,112;...  % right ankle - right heel 
-        109,115;...  % right ankle - right toe 
-        112,115;...  % right heel - right toe 
-        
-        118,121 ...  % bamper
-    ];
+    xcols = ViconData.stick_figure_markers;
     row = Vdata(pertNumber).SFdATA(c,:);
     for i=1:length(xcols)
-        xcol1 = xcols(i,1);
-        xcol2 = xcols(i,2);
+        xcol1 = vcd.cellindex(vcd.trajcolumns,xcols{i}{1});
+        xcol2 = vcd.cellindex(vcd.trajcolumns,xcols{i}{2});
         xyz = row([xcol1:1:xcol1+2;xcol2:1:xcol2+2]);
         line(xyz(:,1)',xyz(:,2)',xyz(:,3)','Color','k','LineWidth',1.5);
     end
     hold on
-    if strcmp(vcd.condition,'walk')
-        plot3(Vdata(pertNumber).CGX_plot(c),Vdata(pertNumber).CGZ(c),Vdata(pertNumber).CGY(c),'o','MarkerSize',5,'MarkerFaceColor','r')
-    else
-        plot3(Vdata(pertNumber).CGX_plot(c),Vdata(pertNumber).CGZ_plot(c),Vdata(pertNumber).CGY_plot(c),'o','MarkerSize',5,'MarkerFaceColor','r')
-    end
+    plot3(Vdata(pertNumber).CGX_plot(c),Vdata(pertNumber).CGZ_plot(c),...
+        Vdata(pertNumber).CGY_plot(c),'o','MarkerSize',5,'MarkerFaceColor','r');
     xlim([-700, 1500])
     ylim([-200, 2000])
     zlim([-200, 1800])
