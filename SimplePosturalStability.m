@@ -31,7 +31,7 @@ for f = exports
     [cop,~,sample_rate] = parsetsv(f{:});
     cop = cop(chopstart*sample_rate:end - chopend*sample_rate,:);
     params = cparams(cop,sample_rate,15,7.5); % based on Itzik's scripts
-    params = [params sdfjist(cop,sample_rate)];
+    params = [params sdfjist(cop,sample_rate,folder)];
     lines{registered} = findline(f{:},params);
     registered = registered + 1;
 end
@@ -140,7 +140,7 @@ function [output]= cparams(cop,sampling_rate,filt1,filt2)
     output = [r,area_ps,isway,mean(copvel)/seconds];
 end
 
-function sdparams = sdfjist(cop,sample_rate)
+function sdparams = sdfjist(cop,sample_rate,folder)
     % returns this row:
     % Ctx,CtxIntersect,Cty,CtyIntersect,Ctr,CtrIntersect,Dxs,Dys,Drs
     SEC  = size(cop,1)/sample_rate;
@@ -153,12 +153,14 @@ function sdparams = sdfjist(cop,sample_rate)
     sdf(:,2) = sdfx(:,2);
     sdf(:,3) = sdfy(:,2);
     sdf(:,4) = sdf(:,2) + sdf(:,3);
-      
+    f = fullfile(folder,'raw-sdf.csv');
+    dlmwrite(f,{'lag','x','y','r'});
+    dlmwrite(f,sdf,'roffset',1);
     % Calculate SDF Parameters
     % Coeffs format
     %			   1        2       3        4   5      6
     %        95%Conf   Param   95%Conf   R^2  p  Intercept
-    %  1 Dxs
+    %  1 Dxs-
     %  2 Dys
     %  3 Drs
     %  4 Dxl
