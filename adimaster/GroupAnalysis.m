@@ -2,7 +2,8 @@
 %   gathers available steps data and plots group-averaged symmetries
 
 
-clear; clc;
+
+clear; clc; close all;
 addpath '../matclasses'
 % repeat some globals from the subject analysis script
 partnames = {'before excercise','after exercise','after 1 week'};
@@ -60,8 +61,13 @@ specs.model = 'exp2';
 specs.fitmodel = 4:5;
 
 visu = VisHelpers(specs);
-visu.plot_global(false);
-        
+ltimes = visu.plot_global(false);
+for f=specs.fitmodel
+    fname = stagenames(f);
+    cfname = regexprep(fname{:},'[\-\s]','_');
+    s = ltimes.(cfname).split;
+    fprintf('%s return to symmetry: %d steps',cfname,s);
+end
         
         
         

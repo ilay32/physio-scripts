@@ -86,7 +86,7 @@ else
         else
             gin = 2;
         end
-        [xs,~] = ginput(gin); 
+        [xs,~] = ginput(gin);
         ix(latest_index+1:latest_index+gin) = sort(round(xs))' + (from -1);
         close;
     end
@@ -125,7 +125,7 @@ proceed = input('close boundaries graphs and proceed [y/n]? ','s');
 if ~strcmp('y',proceed)
     error('operation aborted');
 else
-    close all;
+    %close all;
 end
 
 % find HS/TO times directly from COP within each stage
@@ -177,8 +177,7 @@ if strcmp(plotseparate,'y')
         visu.plot_symmetries(s);
     end
 end
-visu.plot_global(true);
-
+ltimes = visu.plot_global(true);
 sfilename = [subject_id '_part' num2str(part) '_stepsdata.mat'];
 [sfile,spath] = uiputfile(sfilename,'Save the Step Length Data');
 if sfile
