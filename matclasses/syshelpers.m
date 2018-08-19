@@ -67,24 +67,36 @@ classdef syshelpers
             end
         end
         
-        function dirs = sdfdirs(subject_folder)
-            % returns a list (cell array) of subdirectories
-            % where data for SDF analysis is expected
-            prepost = syshelpers.subdirs(subject_folder,'.*(pre|post).*');
-            dirs = {};
-            for prp = prepost
-                prpr = prp{:}{:};
-                diffu = syshelpers.subdirs(fullfile(subject_folder,prpr),'.*diffusion.*');
-                for suspect=diffu
-                    sus = fullfile(subject_folder,prpr,suspect{:}{:});
-                    ds = syshelpers.subdirs(sus,'(EC|EO)');
-                    ds = cellfun(@(f)fullfile(sus,f),ds,'UniformOutput',false);
-                    dirs = [dirs ds]; %#ok<AGROW>
-                end
+        function dirs = sdfdirs(folder,acc)
+            % recurses through 'folder' and returns a list (cell array) of absolute paths
+            % to decendant directories where TSVs of presumed postural
+            % stability trials reside. The inclusion condition for a
+            % directory is that it contains bioware exports and that it has some parent whose name
+            % includes the word, 'stability' or 'diffusion' (case insensitive).
+            dirs = acc;
+            currsubs = syshelpers.subdirs(folder);
+            if isempty(currsubs)
+                return;
             end
+            for c=currsubs
+                subpath = fullfile(folder,c{:});
+                if regexpi(c{:},'.*(diffusion|stability).*','ONCE')
+                    conds = dir(subpath);
+                    if isempty(conds)
+                        continue;
+                    else
+                        for i=1:length(conds)
+                            condpath = fullfile(conds(i).folder,conds(i).name);
+                            if conds(i).isdir && ~isempty(bioware_exports(condpath))
+                                dirs = [dirs condpath];
+                            end
+                        end
+                    end
+                end
+                dirs = syshelpers.sdfdirs(subpath,dirs);
+            end  
         end
-            
-        
+
         function conds = conditiondirs(folder,acc)
             % recursively identifies directories containing the txt files
             % with the data that this script consolidates

@@ -29,7 +29,7 @@ classdef LoCopp
             d = sortrows(points.data,3);
             self.data = array2table(d,'VariableNames',{'copx','copy','time'}); 
             self.hasdata = true;
-            % sometimes the right column is blank
+            % sometimes the left column is blank
             if all(strcmp(points.textdata(:,1),''))
                 n = points.textdata(:,3);
             else
