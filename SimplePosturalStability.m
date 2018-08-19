@@ -31,7 +31,7 @@ for f = exports
     [cop,~,sample_rate] = parsetsv(f{:});
     cop = cop(chopstart*sample_rate:end - chopend*sample_rate,:);
     params = cparams(cop,sample_rate,15,7.5); % based on Itzik's scripts
-    params = [params sdfjist(cop,sample_rate,folder,f{:})];
+    params = [params sdfjist(cop,sample_rate,f{:})];
     lines{registered} = findline(f{:},params);
     registered = registered + 1;
 end
@@ -140,7 +140,7 @@ function [output]= cparams(cop,sampling_rate,filt1,filt2)
     output = [r,area_ps,isway,mean(copvel)/seconds];
 end
 
-function sdparams = sdfjist(cop,sample_rate,folder,sourcefilename)
+function sdparams = sdfjist(cop,sample_rate,sourcefilename)
     % returns this row:
     % Ctx,CtxIntersect,Cty,CtyIntersect,Ctr,CtrIntersect,Dxs,Dys,Drs
     SEC  = size(cop,1)/sample_rate;

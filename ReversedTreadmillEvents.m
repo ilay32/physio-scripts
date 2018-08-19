@@ -1,10 +1,21 @@
+close all; clear;
 addpath 'matclasses';
+addpath 'matfunctions';
 folder = uigetdir();
-ge = GaitEvents(folder);
-ge = ge.find_heel_strikes();
-ge.quick_export();
-comp = input('compare with GaitForce? [y/n] ','s');
-if strcmp(comp,'y')
-    ge.check_against_gaitforce();
+gr = GaitReversed(folder,'stability-\d+');
+if ~gr.has_loaded_from_disk
+    gr = gr.find_heel_strikes();
+    gr = gr.load_ps_stages();
+    gr = gr.mark_stages(gr.left_hs(1));
+    gr.confirm_stages();
+    gr = gr.group_heel_strikes();
+    savecurrent = input('save the current stage boundaries and heel strikes to disk [y/n]? ','s');
+    if strcmp(savecurrent,'y')
+        gr.save_basic_data();
+    end
+else
+    gr.confirm_stages();
+    gr = gr.group_heel_strikes();
 end
+gr.proper_export();
 
