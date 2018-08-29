@@ -7,14 +7,37 @@ addpath '..\matclasses';
 % choose *.mat file - experiment results and load it
 % !! the .mat file must be the output of a Visual3D pipeline created by Anat Shkedy that
 % runs on the Qualisys .c3d export of the data !!
+
 [log_file, log_path] = uigetfile('*.mat', 'Select data file');
 if log_file == 0, error('No log file specified'); end
 absdfile = fullfile(log_path,log_file);
 load(absdfile);
-[~,toks] = regexp(log_file,'(\w+)_part(\d)','match','tokens');
-assert(all(size(toks) == [1,1]),'the .mat file doesn''t match  the expected name format:\nID_part<no.>.mat');
-part = str2double(toks{1,1}{2});
-subject_id = toks{1,1}{1};
+%[~,toks] = regexp(log_file,'(\w+)_part(\d)','match','tokens');
+%assert(all(size(toks) == [1,1]),'the .mat file doesn''t match  the expected name format:\nID_part<no.>.mat');
+%part = str2double(toks{1,1}{2});
+%subject_id = toks{1,1}{1};
+part = input('which part to process? ');
+subject_id = regexp(log_file,'(?<=\-)0{2,3}\d{1,2}','match');
+subject_id = subject_id{:};
+assert(~isempty(subject_id),'the .mat file doesn''t match  the expected name format: c/p-000<NUM>.mat');
+access_index = 0;
+for f = 1:length(FILE_NAME)
+    n = FILE_NAME{:};
+    [~,toks] = regexp(n,'(\w+)_part(\d)','match','tokens');
+    assert(all(size(toks) == [1,1]),'the .mat file in FILE_NAME doesn''t match  the expected name format:\nID_part<no.>.mat');
+    part_by_filename = str2double(toks{1,1}{2});
+    if(part == part_by_filename)
+        access_index = f;
+        break;
+    end
+end
+assert(access_index > 0,'Could not find which data to take');
+reduce_cells = {'R_COP','L_COP','L_FP','R_FP','FRAME_RATE'};
+for i = 1:length(reduce_cells)
+    d = reduce_cells{i};
+    eval([d '=  ' d '( ' num2str(access_index) ' );']);
+end
+
 
 % define some globals
 partnames = {'before excercise','after exercise','after 1 week'};
@@ -42,7 +65,7 @@ steps = cell(numstages,2);
 % the decision to use column 2 of the force data, is completely arbitrary.
 
 [p,base,~] = fileparts(absdfile);
-absindfile = fullfile(p,[base '-boundaries.mat']);
+absindfile = fullfile(p,[base '-' num2str(part) '-boundaries.mat']);
 
 % user decides whether to load indices from file, if found, or mark them in figures
 action = 0;

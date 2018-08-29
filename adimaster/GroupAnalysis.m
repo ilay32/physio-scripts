@@ -66,7 +66,7 @@ for f=specs.fitmodel
     fname = stagenames(f);
     cfname = regexprep(fname{:},'[\-\s]','_');
     s = ltimes.(cfname).split;
-    fprintf('%s return to symmetry: %d steps',cfname,s);
+    fprintf('%s return to symmetry: %d steps\n',cfname,s);
 end
         
         
