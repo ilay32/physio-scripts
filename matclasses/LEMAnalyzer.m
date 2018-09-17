@@ -14,6 +14,7 @@ classdef LEMAnalyzer
         accuracy = 0.04; % radius of accuracy for the valid touch decision -- 4 cm
         first_touch_scan_window=100;
         lemduration = 20; % 20 seconds of test.
+        multcolors = {'red','green','blue'};
     end
     properties
         data
@@ -27,6 +28,10 @@ classdef LEMAnalyzer
         weakmy
         subjid
         part
+        datfolder
+        filebase
+        extension
+        touch_points
     end
     methods (Static)
         function noisedat =  findnoise(sample)
@@ -107,8 +112,11 @@ classdef LEMAnalyzer
             cx = LEMAnalyzer.centerx;
             self.centers.near = [-1*cx,0];
             self.centers.far = [cx,0];
-            [~,b,~] = fileparts(lemfile);
+            [p,b,e] = fileparts(lemfile);
             [~,t] = regexp(b,'(\w+)LEM(\d).*','match','tokens');
+            self.datfolder = p;
+            self.filebase = b;
+            self.extension = e;
             tok = t{1,1};
             if all(size(tok) == [1,2])
                 self.subjid = tok{1,1};
@@ -118,15 +126,61 @@ classdef LEMAnalyzer
                 self.part = '0';
             end
         end
-        function showtouches(self,points)
-            radius = LEMAnalyzer.accuracy;
+        
+        function showtouches_multiple(self)
+            pspecs = {
+                {'near', 'o'},...
+                {'far','^'},...
+                {'out','x'}
+            };
+            others = self.find_others();
+            if isempty(others)
+                self.showtouches_single();
+                return;
+            end
+            self.init_points_plot();
+            allfiles = [{self},others];
+            labels = cell(1,length(allfiles));
+            title([self.subjid ' All LEMOCOT Reslts']); 
+            lh = [];
+            for inst=1:length(allfiles)
+                if inst>1
+                    lma = LEMAnalyzer(allfiles{inst});
+                else
+                    lma = self;
+                end
+                lma = lma.tare();
+                lma = lma.identify();
+                lma = lma.validate_touches('raw');
+                color = LEMAnalyzer.multcolors{inst};
+                % matlab's stupid way of making an arbitrary legend entry
+                lh(inst) = plot(NaN,NaN,'s','MarkerFaceColor',color,'MarkerEdgeColor',color);
+                labels{inst} = sprintf('part %s',lma.part);
+                for spec=1:3
+                    pspec = pspecs{spec};
+                    copxy = lma.touch_points.(pspec{1});
+                    plts = cell(1,size(copxy,1));
+                    for i = 1:size(copxy,1)
+                        plts{i} = plot(copxy(i,1),copxy(i,2),pspec{2},'MarkerFaceColor',color,'MarkerEdgeColor',color);
+                    end
+                end
+                lma.summary_row();
+                if inst>1
+                    clear lma
+                end
+            end
+            legend(lh,labels)
+            hold off;
+        end
+        
+        function init_points_plot(self)
+            % plot the centers and the required accuracy circle
             figure;
             hold on;
             grid on;
             ylim([-0.15,0.15]);
             xlim([-0.25,0.25]);
-            title([self.subjid ' LEMOCOT No. ' self.part]);
-            % plot the centers and the required accuracy circle
+            radius = LEMAnalyzer.accuracy;
             for c={'near','far'}
                 center = self.centers.(c{:});
                 plot(center(1),center(2),'+','color','black','MarkerSize',20);
@@ -135,7 +189,11 @@ classdef LEMAnalyzer
                 ys = radius * sin(th) + center(2);
                 plot(xs,ys,'color','black');
             end
-          
+        end
+        function showtouches_single(self)
+            self = self.validate_touches('raw');
+            self.init_points_plot();
+            title([self.subjid ' LEMOCOT No. ' self.part]);          
             pspecs = {
                 {'near','b*'},...
                 {'far','g*'},...
@@ -143,17 +201,23 @@ classdef LEMAnalyzer
             };
             for spec=1:3
                 pspec = pspecs{spec};
-                copxy = points.(pspec{1});
+                copxy = self.touch_points.(pspec{1});
                 plts = cell(1,size(copxy,1));
                 for i = 1:size(copxy,1)
-                    plts{i} = plot(copxy(i,1),copxy(i,2),pspec{2});
+                    plts{i} = plot(copxy(i,1),copxy(i,2),pspec{2});   
                 end
                 lh(spec) = plts{:};
             end
-            
             legend(lh,{'near','far','out'});
             hold off;
+            self.summary_row();
         end
+        
+        function summary_row(self)
+            fprintf('subject %s part %s:\n\r counted %d touches on the near side, %d on the far side, and %d invalid\n',...
+    self.subjid, self.part,length(self.touch_points.near),length(self.touch_points.far),length(self.touch_points.out));
+        end
+        
         function [cop,rcop] = copontouch(self,touchindices)
             % given some force peak indices,
             % returns the places on the plate in which they occurred.
@@ -215,7 +279,19 @@ classdef LEMAnalyzer
             fz = LEMAnalyzer.eliminate_noises(fz,n,0);
             self.data(fz == 0,:) = 0;
         end
-        
+        function others = find_others(self)
+            % return a cell array with all other LEMOCOT data files 
+            % pertaining to the current subject in the same directory
+            others = {};
+            for i=1:3
+                if i ~= str2double(self.part)
+                    searchfor = fullfile(self.datfolder,[strrep(self.filebase,self.part,num2str(i)) self.extension]);
+                    if(exist(searchfor,'file'))
+                        others = [others,{searchfor}];
+                    end
+                end
+            end
+        end
         function self = identify(self)
             % having cleaned the data,
             % try to find the leg touches on the plate
@@ -281,9 +357,11 @@ classdef LEMAnalyzer
             % if the user is not satifsfied, abort
             assert(strcmp(ok,'y') || strcmp(ok,'Y'),'Ok. All is lost. I retire.');
             self.lemstart = lstart;
+            hold off;
+            close;
         end
 
-        function points = validate_touches(self,raw)
+        function self = validate_touches(self,raw)
             % plot all the touching points
             radius = LEMAnalyzer.accuracy;
             points = struct('near',[],'far',[],'out',[]);
@@ -343,6 +421,7 @@ classdef LEMAnalyzer
                     points.(c{:}) = ps(sum(ps == [0,0],2) < 2,:);
                 end
             end
+            self.touch_points = points;
         end
     end
 end

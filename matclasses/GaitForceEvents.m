@@ -9,6 +9,7 @@ classdef GaitForceEvents < GaitEvents
         basics
         points
         learning_data
+        stages_offset
     end
 
     methods
@@ -48,7 +49,7 @@ classdef GaitForceEvents < GaitEvents
             self.stages = stages;
             self.numstages = numstages;
             self.points =  LoCopp(self.datafolder);
-            self.stage_reject_message = 'automatic stage identification rejected. press any key but y to quit here ';
+            self.stage_reject_message = 'automatic stage identification rejected. press any key but y to quit here: ';
         end
         
         function self = load_stages(self,pat)
@@ -64,10 +65,11 @@ classdef GaitForceEvents < GaitEvents
             initial_offset = times(2);
             assert(times(1) == 0 && initial_offset > 0,'the protocol files does not include standing at the begining');
             curstage = 1;
+            soffset = self.points.start - initial_offset;
             for r = 2:length(times)
                 % skipping the 1st 10 seconds of standing               
                 if self.protocol.speedL(r) == 0 &&  self.protocol.speedR(r) == 0
-                    lseconds = times(r-1:r) + self.points.start - initial_offset;
+                    lseconds = times(r-1:r) + soffset;
                     % since usually I use readings
                     self.stages(curstage).limits = round((lseconds - self.forces.time(1))*self.datarate);
                     % since GaitForce only uses time
@@ -75,6 +77,7 @@ classdef GaitForceEvents < GaitEvents
                     curstage = curstage + 1;
                 end
             end
+            self.stages_offset= soffset;
         end
 
         function self = compute_basics(self)
@@ -196,7 +199,7 @@ classdef GaitForceEvents < GaitEvents
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
                         leftcol = tmp.(leftname);
-                        cv = GaitEvents.cv([leftco;datcol]);
+                        cv = GaitEvents.cv([leftcol;datcol]);
                         % these columns are coordinated by the construction
                         % of the self.basics tables, but the lengths don't
                         % always match. so just take by shortest
