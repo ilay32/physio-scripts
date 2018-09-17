@@ -1,4 +1,4 @@
-import webbrowser,threading,time,json,os,re,glob,platform,math
+import webbrowser,threading,time,json,os,re,glob,platform,math,yaml
 import http.server as hs
 from openpyxl import Workbook,load_workbook
 
@@ -45,6 +45,31 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         post = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
         command = post['command']
         self._set_headers()
+        if command == "get_experiment":
+            with open(os.path.join(os.path.expanduser("~") ,"Desktop","experiment-sequence.csv")) as exp:
+                experiment = list()
+                try:
+                    for l in exp.readlines():
+                        l = l.strip()
+                        s = list(map(str.strip,l.split(",")))
+                        if s[0] == "title":
+                            continue
+                        assert re.match(r'^[\w\s_–\-]+,\d+,[A-Z]',l),"invalid csv line: {}".format(l)
+                        experiment.append(dict(
+                            title=s[0],
+                            duration=int(s[1]),
+                            stype=s[2]
+                        ))
+                    self.respond(json.dumps({
+                        "response" : "parsed",
+                        "experiment" : experiment
+                    }))
+
+                except Exception as e:
+                    self.respond(json.dumps({
+                        "response": "could not load the sequence:\n{}".format(str(e))
+                    }))
+
         if command  == "check_existing":
             dest = os.path.join(ExpRunner.savedir,post['filename'])
             wb = load_workbook(dest)
