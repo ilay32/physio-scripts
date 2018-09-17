@@ -109,6 +109,7 @@ classdef GaitEvents
             % let the user mark the begining and end of every
             % stage in the trial manually. offset should be given in
             % readings.
+            ready = isa(offset,'char') && strcmp(offset,'ready');
             if isempty(self.protocol)
                 warning('must load protocol first');
                 return;
@@ -117,7 +118,11 @@ classdef GaitEvents
                 warning('must resolve stages first');
                 return
             end
-            chunks = [self.protocol.onset_time(2:2:end)';self.protocol.onset_time(3:2:end)']';
+            if ready
+                chunks = reshape(extractfield(self.stages,'limits'),[2,self.numstages])';
+            else
+                chunks = [self.protocol.onset_time(2:2:end)';self.protocol.onset_time(3:2:end)']';
+            end
             h = figure('name',self.datafolder);
             plot(self.forces.fz);
             VisHelpers.minutize_axes(self.datalength,self.datarate);
@@ -136,17 +141,19 @@ classdef GaitEvents
                 close;
             end
             
-
             for s=1:length(chunks)
                 chunk = chunks(s,:); % in seconds
-                chunk = chunk * self.datarate; % seconds to readings
-                chunk = chunk + [-10*self.datarate,10*self.datarate];  % 10 seconds before and after presumed limits
-                if nargin == 2
-                    chunk = chunk + offset - chunks(1)*self.datarate;
+                if ~ready
+                    
+                    chunk = chunk * self.datarate; % seconds to readings
+                    chunk = chunk + [-10*self.datarate,10*self.datarate];  % 10 seconds before and after presumed limits
+                    if nargin == 2
+                        chunk = chunk + offset - chunks(1)*self.datarate;
+                    end
+                    chunk(1) = max(chunk(1),1);
+                    chunk(2) = min(chunk(2),self.datalength);
+                    chunk = round(chunk);
                 end
-                chunk(1) = max(chunk(1),1);
-                chunk(2) = min(chunk(2),self.datalength);
-                chunk = round(chunk);
                 for boundary=chunk
                     l = imline(gca,[boundary,boundary],ylim);
                     setColor(l,'black');
@@ -181,11 +188,11 @@ classdef GaitEvents
             close;
         end
         function stages_rejected(self,~,~,~)
+            global goon;
             uiresume(gcf);
             close;
             proceed = input(self.stage_reject_message,'s');
             if ~strcmp(proceed,'y')
-                global goon;
                 goon = false;
                 %error('aborting. sort it out and start over');
             end

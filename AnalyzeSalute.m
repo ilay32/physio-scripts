@@ -1,4 +1,6 @@
 clear; close all;
+global goon; 
+goon = true;
 addpath 'matclasses';
 stagenames = struct;
 stagenames.pre = {'slow1','fast','slow2','adaptation','post_adaptation'};
@@ -17,9 +19,12 @@ subjectpattern = '\d{3}_[A-Za-z]{2}';
 folder = uigetdir(syshelpers.driveroot());
 gf = GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
 gf = gf.load_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
+gf = gf.mark_stages('ready');
 gf.confirm_stages();
+if ~goon
+    error('Operation Aborted');
+end
 gf = gf.compute_basics();
-
 for b=basicnames
     fprintf('Computing %s Symmetries:\n',b{:});
     specs = struct; 
