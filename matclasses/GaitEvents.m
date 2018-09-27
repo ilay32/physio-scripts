@@ -51,7 +51,7 @@ classdef GaitEvents
             if isempty(subjmatch)
                 self.subjid = 'IDUNMATCHED';
             else
-                self.subjid = subjmatch{:};
+                self.subjid = strrep(subjmatch{:},'\','_');
             end
             self = self.load_forces();
             self = self.load_cycles();
@@ -141,7 +141,7 @@ classdef GaitEvents
                 close;
             end
             
-            for s=1:length(chunks)
+            for s=1:size(chunks,1)
                 chunk = chunks(s,:); % in seconds
                 if ~ready
                     

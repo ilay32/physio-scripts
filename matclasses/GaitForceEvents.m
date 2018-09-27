@@ -10,6 +10,7 @@ classdef GaitForceEvents < GaitEvents
         points
         learning_data
         stages_offset
+        part
     end
 
     methods
@@ -37,14 +38,28 @@ classdef GaitForceEvents < GaitEvents
             end
             if ispre
                 self.prepost = 'pre';
-                stagenames = stagenames.pre;
+                snames = stagenames.pre;
+                if ~isempty(regexp(self.subjid,'(13|10)','match'))
+                    snames = stagenames.pre10;
+                end
             elseif ispost 
-                self.prepost = 'post';
-                stagenames = stagenames.post;
+                self.prepost = 'post';        
+                snames = stagenames.post;
+                if ~isempty(regexp(self.subjid,'(13|10)','match'))
+                    snames = stagenames.post10;
+                end
+                if ~isempty(regexp(self.subjid,'(11|17|23)','match'))
+                    part = regexp(self.datafolder,'part(1|2)','match');
+                    if(isempty(strfind(self.subjid,'23')))
+                        snames = stagenames.(['post11_' part{:}]);
+                    else
+                        snames = stagenames.(['post23_' part{:}]);
+                    end
+                end                    
             end
-            numstages = length(stagenames);
+            numstages = length(snames);
             for i = 1:numstages
-                stages(i) = struct('name',stagenames{i},'limits',[]); %#ok<AGROW>
+                stages(i) = struct('name',snames{i},'limits',[]); %#ok<AGROW>
             end
             self.stages = stages;
             self.numstages = numstages;
@@ -59,9 +74,9 @@ classdef GaitForceEvents < GaitEvents
             assert(~isempty(protfiles),'could not find the protocol file');
             self = self.read_protocol(protfiles{1,1}{:});
             times = self.protocol.onset_time;
-            assert(length(times) == self.numstages * 2 + 1,...
-                    'missmatch between protocol and given number of stages'...
-            );
+            %assert(length(times) == self.numstages * 2 + 1,...
+            %        'missmatch between protocol and given number of stages'...
+            %);
             initial_offset = times(2);
             assert(times(1) == 0 && initial_offset > 0,'the protocol files does not include standing at the begining');
             curstage = 1;
@@ -79,7 +94,7 @@ classdef GaitForceEvents < GaitEvents
             end
             self.stages_offset= soffset;
         end
-
+    
         function self = compute_basics(self)
             % create table for each stage
             for s = 1:self.numstages
@@ -289,6 +304,40 @@ classdef GaitForceEvents < GaitEvents
                     self.basics.(stage).extras.(b).meansym...
                ];
             end           
+        end
+        
+        function self = combine(self,other)
+            if isempty(self.basics) || isempty(other.basics)
+                return;
+            end
+            thislastname = self.stages(self.numstages).name;
+            otherfirstname = other.stages(1).name;
+           
+            % if the current object last stage is the same as the second
+            % one's, merge this basic table and update the extras to the
+            % mean of both objects
+            if(strcmp(thislastname,otherfirstname))
+                self.basics.(thislastname).data = [self.basics.(thislastname).data;other.basics.(thislastname).data];
+                for bname=self.basicnames
+                    b = bname{:};
+                    e1 = self.basics.(thislastname).extras.(b);
+                    e2 = other.basics.(thislastname).extras.(b);
+                    e1.cv = mean([e1.cv,e2.cv]);
+                    e1.meanysym = mean([e1.meansym,e2.meansym]);
+                    self.basics.(thislastname).extras.(b) = e1;
+                end
+                restindex = 2;
+            else
+                restindex = 1;
+            end
+            % add the rest of the basic tables to basics
+            othernames = fieldnames(other.basics);
+            for f = restindex:length(othernames)
+                n = othernames{f};
+                self.basics.(n) = other.basics.(n);
+                self.stages = [self.stages,struct('name',n,'limits',[],'times',[])];
+                self.numstages  = self.numstages + 1;
+            end
         end
         
         function export(self)
