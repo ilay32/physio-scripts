@@ -1,4 +1,4 @@
-import webbrowser,threading,time,json,os,re,glob,platform,math
+import webbrowser,threading,time,json,os,re,glob,platform,math,yaml
 import http.server as hs
 from openpyxl import Workbook,load_workbook
 
@@ -45,6 +45,31 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         post = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
         command = post['command']
         self._set_headers()
+        if command == "get_experiment":
+            with open(os.path.join(os.path.expanduser("~") ,"Desktop","experiment-sequence.csv")) as exp:
+                experiment = list()
+                try:
+                    for l in exp.readlines():
+                        l = l.strip()
+                        s = list(map(str.strip,l.split(",")))
+                        if s[0] == "title":
+                            continue
+                        assert re.match(r'^[\w\s_–\-]+,\d+,[A-Z]',l),"invalid csv line: {}".format(l)
+                        experiment.append(dict(
+                            title=s[0],
+                            duration=int(s[1]),
+                            stype=s[2]
+                        ))
+                    self.respond(json.dumps({
+                        "response" : "parsed",
+                        "experiment" : experiment
+                    }))
+
+                except Exception as e:
+                    self.respond(json.dumps({
+                        "response": "could not load the sequence:\n{}".format(str(e))
+                    }))
+
         if command  == "check_existing":
             dest = os.path.join(ExpRunner.savedir,post['filename'])
             wb = load_workbook(dest)
@@ -147,7 +172,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         datsheet.append(["trial no.", "retention start","sequence","answer"])
         # data
         for i,t in enumerate(p['data']['trialdata'],1):
-            s,r,a = t; # sequence retention (starting point) answer
+            s,r,a = t # sequence retention (starting point) answer
             row = [i,float(r - start)/1000,s,a]
             datsheet.append(row)
         
@@ -176,7 +201,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             wbsheet.append(["post hoc comments",globj['postcomments'].replace("\n"," ")])
  
     def save_walk_data(self,p):
-        dat = p['data'];
+        dat = p['data']
         if not os.path.isdir(ExpRunner.savedir):
             os.mkdir(ExpRunner.savedir)
         dest = os.path.join(ExpRunner.savedir,p['savefile'])
@@ -203,7 +228,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         # data
         for i,w in enumerate(dat['walkdata']):
             isdist = str(i) in dat['distractions'].keys()
-            s,e = w;
+            s,e = w
             row = [i+1,s,e,float(s - start)/1000, float(e - start)/1000,float(e - s)/1000,1000*float(walks['distance'])/(e - s)]
             if isdist: 
                 row += dat['distractions'][str(i)]
@@ -223,7 +248,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
             subsheet = wb.create_sheet(title="subject")
             for i,(k,v) in enumerate(subj.items(),1):
                 if subj['regular_sport'] == "none" and k == 'weekly_minutes':
-                    continue;
+                    continue
                 subsheet.cell(row=i,column=1,value=k.replace("_"," "))
                 subsheet.cell(row=i,column=2,value=v)
             # new subject -- specify their nirs41 location
@@ -246,7 +271,6 @@ def killserver():
 
 
 if __name__ == '__main__':
-    # on android this has to be manually uncommented
     if platform.system() == "Windows":
         os.chdir(os.path.dirname(__file__))
     server_go = threading.Thread(None,runserver)
