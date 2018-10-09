@@ -330,13 +330,13 @@ classdef GaitForceEvents < GaitEvents
                     b = bname{:};
                     e1 = self.basics.(thislastname).extras.(b);
                     %e2 = other.basics.(thislastname).extras.(b);
-                    newsyms = VisHelpers.symmetries(self.basics.(thislastname).data,true);
-                    e1.cv = GaitEvents.cv(newsyms);
+                    newsyms = self.basics.(thislastname).data.([b '_symmetries']);
+                    e1.symcv = GaitEvents.cv(newsyms);
                     e1.meanysym = mean(newsyms);
-                    e1.(bname).symcv_first5 = GaitEvents.cv(newsyms(1:5));
-                    e1.(bname).symcv_last5 = GaitEvents.cv(newsyms(end-5:end));
-                    e1.(bname).meansym_first5 = nanmean(newsyms(1:5));
-                    e1.(bname).meansym_last5 = nanmean(newsyms(end-5:end));
+                    e1.symcv_first5 = GaitEvents.cv(newsyms(1:5));
+                    e1.symcv_last5 = GaitEvents.cv(newsyms(end-5:end));
+                    e1.meansym_first5 = nanmean(newsyms(1:5));
+                    e1.meansym_last5 = nanmean(newsyms(end-5:end));
                     self.basics.(thislastname).extras.(b) = e1;
                 end
                 restindex = 2;
