@@ -214,15 +214,19 @@ classdef GaitForceEvents < GaitEvents
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
                         leftcol = tmp.(leftname);
-                        cv = GaitEvents.cv([leftcol;datcol]);
+                        %cv = GaitEvents.cv([leftcol;datcol]);
                         % these columns are coordinated by the construction
                         % of the self.basics tables, but the lengths don't
                         % always match. so just take by shortest
                         m = min(length(datcol),length(leftcol));
                         syms = VisHelpers.symmetries([leftcol(1:m),datcol(1:m)],true);
                         stagedata.(symsname) = [syms;nan*ones(longest-length(syms),1)];
-                        extras.(bname).cv = cv;
+                        extras.(bname).symcv = GaitEvents.cv(syms);
                         extras.(bname).meansym = nanmean(syms);
+                        extras.(bname).symcv_first5 = GaitEvents.cv(syms(1:5));
+                        extras.(bname).symcv_last5 = GaitEvents.cv(syms(end-5:end));
+                        extras.(bname).meansym_first5 = nanmean(syms(1:5));
+                        extras.(bname).meansym_last5 = nanmean(syms(end-5:end));
                     end
                 end
                 self.basics.(self.stages(s).name).data = stagedata;
@@ -292,15 +296,19 @@ classdef GaitForceEvents < GaitEvents
                     auto;...
                     length(syms1);...
                     time1;...
-                    GaitEvents.cv([left1;right1]);...
+                    GaitEvents.cv(syms1);...
+                    self.basics.(stage).extras.(b).symcv_first5;...
                     nanmean(syms1);...
+                    self.basics.(stage).extras.(b).meansym_first5;...
                     length(syms2);...
                     time2;...
-                    GaitEvents.cv([left2;right2]);...
+                    GaitEvents.cv(syms2);...
+                    self.basics.(stage).extras.(b).symcv_last5;...
                     nanmean(syms2);...
+                    self.basics.(stage).extras.(b).meansym_first5;...
                     min(length(left)-sum(isnan(left)),length(right)-sum(isnan(right)));...
                     time1 + time2;...
-                    self.basics.(stage).extras.(b).cv;...
+                    self.basics.(stage).extras.(b).symcv;...
                     self.basics.(stage).extras.(b).meansym...
                ];
             end           
@@ -321,9 +329,14 @@ classdef GaitForceEvents < GaitEvents
                 for bname=self.basicnames
                     b = bname{:};
                     e1 = self.basics.(thislastname).extras.(b);
-                    e2 = other.basics.(thislastname).extras.(b);
-                    e1.cv = mean([e1.cv,e2.cv]);
-                    e1.meanysym = mean([e1.meansym,e2.meansym]);
+                    %e2 = other.basics.(thislastname).extras.(b);
+                    newsyms = VisHelpers.symmetries(self.basics.(thislastname).data,true);
+                    e1.cv = GaitEvents.cv(newsyms);
+                    e1.meanysym = mean(newsyms);
+                    e1.(bname).symcv_first5 = GaitEvents.cv(newsyms(1:5));
+                    e1.(bname).symcv_last5 = GaitEvents.cv(newsyms(end-5:end));
+                    e1.(bname).meansym_first5 = nanmean(newsyms(1:5));
+                    e1.(bname).meansym_last5 = nanmean(newsyms(end-5:end));
                     self.basics.(thislastname).extras.(b) = e1;
                 end
                 restindex = 2;
@@ -350,9 +363,9 @@ classdef GaitForceEvents < GaitEvents
             putname = [putname '.xlsx'];
             [s,p] = uiputfile(putname);
             lrows = {...
-                'quality','detection by curve','steps1','time1','cv1','meansym1',...
-                'steps2','time2','cv2','meansym2',...
-                'stepstotal','timetotal','cvtotal','meantotal'...
+                'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
+                'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5',...
+                'meansym2','mansym_last5','stepstotal','timetotal','cvtotal','meantotal'...
             };
             if s ~= 0
                 saveto = fullfile(p,s);
@@ -390,16 +403,26 @@ classdef GaitForceEvents < GaitEvents
                         % column in the dsource.data table
                         extras_header = {};
                         enames = fieldnames(dsource.extras);
-                        row = [];
+                        row1 = [];
+                        row2 = [];
+                        row3 = [];
                         for b=1:length(enames)
                             bn = enames{b};
-                            cv = dsource.extras.(bn).cv;
+                            cv = dsource.extras.(bn).symcv;
                             meansym = dsource.extras.(bn).meansym;
-                            extras_header = [extras_header,[bn '_cv'],[bn '_meansym']];
-                            row = [row,cv,meansym];
+                            f5cv = dsource.extras.(bn).symcv_first5;
+                            l5cv = dsource.extras.(bn).symcv_last5;
+                            f5m = dsource.extras.(bn).meansym_first5;
+                            l5m = dsource.extras.(bn).meansym_last5;
+                            extras_header = [extras_header,[bn '_symcv'],[bn '_meansym']];
+                            row1 = [row1,cv,meansym];
+                            row2 = [row2,f5cv,f5m];
+                            row3 = [row3,l5cv,l5m];
                         end
                         xlswrite(saveto,extras_header,stagename,['A' num2str(h+5)]);
-                        xlswrite(saveto,row,stagename,['A' num2str(h+6)]);
+                        xlswrite(saveto,row1,stagename,['A' num2str(h+6)]);
+                        xlswrite(saveto,row2,stagename,['A' num2str(h+7)]);
+                        xlswrite(saveto,row3,stagename,['A' num2str(h+8)]);
                     end
                 end
                 syshelpers.remove_default_sheets(saveto);
