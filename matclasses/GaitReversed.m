@@ -6,12 +6,14 @@ classdef GaitReversed < GaitEvents
         smoothwindow = 10; % trial and error shows this is reasonable
         scanwindow = 20; % this is just to make sure the scan method doesn't pick up on some single missread. could be set heigher maybe.
         slope_thresh = 0.1; % this does not depend on the data **assuming the diff is devided by the delta width i.e 1/datarate**
+        lcopformat = '%d\t%s\tCOP\t%f\t%f\t%f\n\r';
     end
     properties
         right_hs
         left_hs
         has_loaded_from_disk
         savefilename
+        toe_offs
     end
     methods(Static)
         function [left,right,dels] = alternate(sourcel,sourcer)
@@ -156,7 +158,17 @@ classdef GaitReversed < GaitEvents
             %ind = round((idxs(curind) - idxs(curind - 1))/2);
             ind = GaitReversed.scanbackward(dat,idxs,curind,thresh*1.2);
         end
-        
+        function ind = scanforward(d,from,to)
+            cur = from;
+            while abs(mean((d(cur:cur+GaitReversed.smoothwindow)))) > 0.05 && cur < to 
+                cur = cur + round(GaitReversed.smoothwindow/2);
+            end
+            ind = cur;
+        end
+        function ind = improve_toeoff(from,to,fz)
+            [~,i] = min(fz(from:to));
+            ind = from + i;
+        end
         function d = squish(data,window)
             inds = find(diff(data) < window);
             for i=1:length(inds)
@@ -184,6 +196,31 @@ classdef GaitReversed < GaitEvents
             end
             self.savefilename = svn;
         end
+        
+        function self = load_salute_stages(self,pat)
+            protfiles = syshelpers.subdirs(self.datafolder,pat,true);
+            assert(~isempty(protfiles),'could not find the protocol file');
+            self = self.read_protocol(protfiles{1,1}{:});
+            if ~isempty(regexpi(self.datafolder,'pre','match'))
+                stagenames = {'slow1','fast','slow2','adaptation','post_adaptation'};
+                timings = [10,130,140,260,270,390,400,1000,1010,1310];
+            elseif ~isempty(regexpi(self.datafolder,'post','match'))
+                stagenames = {'fast','salute','post_salute'};
+                timings = [10,310,940,970,1270];
+            else
+                error('something''s wrong');
+            end
+            for s=1:length(stagenames)
+                t = s;
+                if mod(s,2) == 0
+                    t = s+1;
+                end
+                stages(s) = struct('name',stagenames{s},'limits',[timings(t),timings(t+1)]);
+            end
+            self.stages = stages;
+            self.numstages = length(stagenames);
+        end
+        
         function self = load_ps_stages(self)
             % reads the stages from the protocol and names them by the 
             % log file produced in the gazing points experiment if exists
@@ -223,36 +260,57 @@ classdef GaitReversed < GaitEvents
                 warning('the number of stages in the protocol doesnt match the one in the log file');
             end
         end
-        function self = group_heel_strikes(self)
+        function self = group_events(self,ev)
             if isempty(self.stages) || isempty([self.stages(:).limits])
                 warning('must resolve stage limits first');
                 return;
             end
-            if isempty(self.left_hs)
-                warning('must perform initial heel strike identification first');
-                return;
+            if strcmp(ev,'TO')
+                if isempty(self.left_hs)
+                    warning('must perform initial toe off identification first');
+                    return;
+                end
+            elseif strcmp(ev,'HS')
+                if isempty(self.left_hs)
+                    warning('must perform initial heel strike identification first');
+                    return;
+                end
             end
             for s=1:self.numstages
-                [lfirst,llast,rfirst,rlast] = self.edge_heel_strikes(s);
-                lhs = self.left_hs(lfirst:llast,1);
-                rhs = self.right_hs(rfirst:rlast,1);
+                [lfirst,llast,rfirst,rlast] = self.edge_events(s,ev);
                 fprintf('aligning stage no. %d -- %s: ',s,self.stages(s).name);
-                [l,r,d] = GaitReversed.alternate(lhs,rhs);
-                self.stages(s).left_hs = [l,self.forces.copx(l)];
-                self.stages(s).right_hs = [r,self.forces.copx(r)];
-                fprintf('performed %d deletions (%.2f%%)\n',d,d*100/mean(numel(lhs),numel(rhs)));
+                if strcmp(ev,'HS')
+                    left = self.left_hs(lfirst:llast,1);
+                    right = self.right_hs(rfirst:rlast,1);
+                elseif strcmp(ev,'TO')
+                    left = self.toe_offs.left(lfirst:llast,1);
+                    right = self.toe_offs.right(rfirst:rlast,1);
+                end
+                [l,r,d] = GaitReversed.alternate(left,right);
+                if strcmp(ev,'HS')
+                    self.stages(s).left_hs = [l,self.forces.copx(l)];
+                    self.stages(s).right_hs = [r,self.forces.copx(r)];
+                elseif strcmp(ev,'TO')
+                    self.stages(s).left_to = [l,self.forces.copx(l)];
+                    self.stages(s).right_to = [r,self.forces.copx(r)];
+                end
+                fprintf('performed %d deletions (%.2f%%)\n',d,d*100/mean(numel(left),numel(right)));
                 %self.show_heel_strikes(self.stages(s).left_hs,self.stages(s).right_hs);
                 %hold off;
             end
         end
-        function [lf,ll,rf,rl] = edge_heel_strikes(self,stageindex)
+        function [lf,ll,rf,rl] = edge_events(self,stageindex,ev)
             limits = round(self.stages(stageindex).limits);
             for side = {'left','right'}
-                hs = self.get_strikes(side{:},-1);
-                first = find(hs(:,1) > limits(1),1);
-                last = find(hs(:,1) > limits(2),1) - 1;
+                if strcmp(ev,'TO')
+                    events = self.toe_offs.(side{:});
+                elseif strcmp(ev,'HS') 
+                    events = self.get_strikes(side{:},-1);
+                end
+                first = find(events(:,1) > limits(1),1);
+                last = find(events(:,1) > limits(2),1) - 1;
                 if isempty(last)
-                    last = length(hs(:,1));
+                    last = length(events(:,1));
                 end
                 if startsWith(side{:},'l')
                     ll = last;
@@ -260,6 +318,70 @@ classdef GaitReversed < GaitEvents
                 else
                     rl = last;
                     rf = first;
+                end
+            end
+        end
+        
+        function self = find_toe_offs(self)
+            % given a  heel strike, scan forward until the copx
+            % flattens to find the toe off for that side
+            % assumes heel strikes have been grouped with
+            % group_heel_strikes
+            scopx = movmean(self.forces.copx,GaitReversed.smoothwindow);
+            deriv = diff(scopx) * self.datarate;
+            smoothed_deriv = movmean(deriv,GaitReversed.smoothwindow);
+            smoothed_fz = movmean(self.forces.fz,GaitReversed.smoothwindow);
+            fzderiv = diff(self.forces.fz);
+            qstep = round(self.datarate/4); % i.e 0.25 seconds, the fz peaks are assumed farther than this. also the next - current gap should be smaller
+            for s=1:length(self.stages)
+                stage = self.stages(s);
+                for side={'left','right'}
+                    this_hs = stage.([side{:} '_hs']);
+                    tofs = [];
+                    if strcmp(side,'left')
+                        oposide = 'right';
+                    else
+                        oposide = 'left';
+                    end
+                    op_hs = stage.([oposide '_hs']);
+                    op_index = find(op_hs > this_hs(1,1),1);
+                    % loop the left/right heel strikes
+                    for i = 1:size(this_hs,1)
+                        % constrict the search range to between the 
+                        % current heel strike and the subsequent one (other
+                        % foot)
+                        strike = this_hs(i,1);
+                        if op_index > length(op_hs)
+                            continue;
+                        else
+                            nextstrike = op_hs(op_index);
+                        end
+                        search_range = strike:nextstrike;
+                        % the GaitForce method seems to be the max upward slope
+                        % of fz between the two relevant peaks -- the first is
+                        % right after the heel strike.
+                        % the second is ??
+                        if nextstrike - strike < qstep
+                            continue;
+                        end
+                        [fzpeaks,fpinds] = findpeaks(smoothed_fz(search_range),'MinPeakDistance',qstep);
+                        if size(fzpeaks,1) >= 2
+                            fzrange = strike + fpinds(1): strike + fpinds(2);
+                        elseif size(fzpeaks,1) == 1
+                            %fzrange = strike + fpinds(1):nextstrike;
+                            [~,fzmin] = min(smoothed_fz(strike:nextstrike));
+                            fzrange = (strike + fzmin):(strike + min(max(fpinds(1),fzmin),nextstrike));
+                        else
+                            fzrange = search_range;
+                        end
+                        [~,mslind] = max(movmean(fzderiv(fzrange),round(GaitReversed.smoothwindow/2)));
+                        tofs = [tofs;fzrange(1) + mslind];
+                        op_index = op_index + 1;
+                        %byfz = GaitReversed.improve_toeoff(strike,nextstrike,self.forces.fz);
+                        %tofs(i) = round(mean([bycopx,byfz]));
+                        %tofs(i) = bycopx;
+                    end
+                    self.stages(s).([side{:} '_to']) = tofs;
                 end
             end
         end
@@ -317,6 +439,19 @@ classdef GaitReversed < GaitEvents
             self.show_heel_strikes(allhs.left,allhs.right,scopx);
             self.add_fz();
         end
+        function show_grouped(self,ev)
+            % plots the stage-grouped events "ev" on the copx line
+            assert(strcmp(ev,'hs') || strcmp(ev,'to'),'event must be either ''to'' or ''hs''');
+            lhs = [];
+            rhs = [];
+            for s = 1:self.numstages
+                levs = self.stages(s).(['left_' ev]);
+                revs = self.stages(s).(['right_' ev]);
+                lhs = [lhs;levs(:,1)];
+                rhs = [rhs;revs(:,1)];
+            end
+            self.show_heel_strikes(lhs(:,1),rhs(:,1));
+        end
         
         function show_heel_strikes(self,lhs,rhs,cop)
             figure;
@@ -362,7 +497,7 @@ classdef GaitReversed < GaitEvents
             end
             if si > 0
                 if isempty([self.stages(:).limits])
-                    self = self.group_heel_strikes();
+                    self = self.group_events('HS');
                 end
                 s = self.stages(si).([side '_hs']);
             else
@@ -623,6 +758,31 @@ classdef GaitReversed < GaitEvents
         function save_basic_data(self)
             dat = struct('left_hs',self.left_hs,'right_hs',self.right_hs,'stages',self.stages); %#ok<NASGU>
             save(self.savefilename,'dat');
+        end
+        function list_cop_points(self)
+            destfile = fullfile(self.datafolder,'List of COP points.txt');
+            fid = fopen(destfile,'wt');
+            copx = self.forces.copx;
+            copy = self.forces.copy;
+            rowid = 1;
+            function printline(eventname,copxval,copyval,eventtime)
+                fprintf(fid,GaitReversed.lcopformat,rowid,eventname,copxval,copyval,eventtime);
+                rowid = rowid + 1;
+            end
+            for i = 1:length(self.left_hs)
+                hsl = self.left_hs(i);
+                tol = self.toe_offs.left(i);
+                printline('HSL',copx(hsl),copy(hsl),hsl/self.datarate);
+                %fprintf(fid,GaitReversed.lcopformat,i+1,'MidSS',0.0,0.0,0.0);
+                printline('TO',copx(tol),copy(tol),tol/self.datarate);
+                if(i < length(self.right_hs))
+                    hsr = self.right_hs(i+1);
+                    tor = self.toe_offs.right(i+1);
+                    printline('HSR',copx(hsr),copy(hsr),hsr/self.datarate);
+                    printline('TO',copx(tor),copy(tor),tor/self.datarate);
+                end
+            end
+            fclose(fid);
         end
     end
 end
