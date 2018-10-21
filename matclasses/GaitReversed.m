@@ -328,6 +328,7 @@ classdef GaitReversed < GaitEvents
             % assumes heel strikes have been grouped with
             % group_heel_strikes
             scopx = movmean(self.forces.copx,GaitReversed.smoothwindow);
+            scopy = movmean(self.forces.copy,GaitReversed.smoothwindow);
             deriv = diff(scopx) * self.datarate;
             smoothed_deriv = movmean(deriv,GaitReversed.smoothwindow);
             smoothed_fz = movmean(self.forces.fz,GaitReversed.smoothwindow);
@@ -375,13 +376,15 @@ classdef GaitReversed < GaitEvents
                             fzrange = search_range;
                         end
                         [~,mslind] = max(movmean(fzderiv(fzrange),round(GaitReversed.smoothwindow/2)));
-                        tofs = [tofs;fzrange(1) + mslind];
+                        [~,maxcopy] = max(scopy(strike:nextstrike));
+                        %tofs = [tofs;fzrange(1) + mslind];
+                        tofs = [tofs;strike + maxcopy];
                         op_index = op_index + 1;
                         %byfz = GaitReversed.improve_toeoff(strike,nextstrike,self.forces.fz);
                         %tofs(i) = round(mean([bycopx,byfz]));
                         %tofs(i) = bycopx;
                     end
-                    self.stages(s).([side{:} '_to']) = tofs;
+                    self.stages(s).([oposide '_to']) = tofs;
                 end
             end
         end

@@ -136,7 +136,7 @@ classdef GaitEvents
                 allboundaries = sort(allboundaries);
                 allboundaries = reshape(allboundaries,[2,size(allboundaries,1)/2]);
                 for i=1:size(allboundaries,2)
-                    self.stages(i).limits = allboundaries(:,i)';
+                    self.stages(i).limits = round(allboundaries(:,i))';
                 end
                 close;
             end

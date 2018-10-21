@@ -39,7 +39,7 @@ classdef GaitForceEvents < GaitEvents
             if ispre
                 self.prepost = 'pre';
                 snames = stagenames.pre;
-                if ~isempty(regexp(self.subjid,'(13|10)','match'))
+                if ~isempty(regexp(self.subjid,'0?(13|10)_','match'))
                     snames = stagenames.pre10;
                 end
             elseif ispost 
@@ -95,116 +95,117 @@ classdef GaitForceEvents < GaitEvents
             self.stages_offset= soffset;
         end
     
-        function self = compute_basics(self)
-            % create table for each stage
-            for s = 1:self.numstages
-                stage = self.stages(s);
-                % eventually, you want a table which is easy to write to excell
-                % but column lengths are not known at this point, so I just collect them to
-                % a temp struct, from which i'll make the table at the end.
-                tmp = struct;
-                takecycles = self.cycles.time >= stage.times(1) & self.cycles.time < stage.times(2);
-                % add the left and right columns of every base to the temp struct
-                longest = 1;
-                for base = self.basicnames
-                    for side = {'left','right'}
-                        varname = [base{:} '_' side{:}];                       
-                        if strcmp(side{:},'left')
-                            thiskey = 'HSL';
-                            thatkey = 'HSR';
-                        else
-                            thiskey = 'HSR';
-                            thatkey = 'HSL';
-                        end
-                        switch base{:}
-                            case 'step_length'
-                                % the steps lengths are given in the cycles
-                                % file
-                                cycles_key = ['step' upper(side{:}(1))];
-                                datcol = self.cycles(takecycles,cycles_key).Variables;
-                            case 'step_duration'
-                                thistimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                                thattimes = self.points.get_event(thatkey,'time',stage.times).Variables;
-                                % now we have to sequences of HS timings, where 'this' is those of the current side
-                                % the durations for left steps are diffs between left heel strikes and their preceding right ones
-                                % find the first pair of 'this' and preceding 'that':
-                                cur = 1;
-                                while thistimes(cur) < thattimes(1)
-                                    cur = cur + 1;
-                                end
-                                % now subtract by matching ranges
-                                datcol = thistimes(cur:end) - thattimes(1:length(thistimes) - cur +1);
-                            case 'stride_duration'
-                                % since the cycles file only has the left stride timings,
-                                % we might as well read both from the list of cop points
-                                datcol = diff(self.points.get_event(thiskey,'time',stage.times).time);
-                            case 'stride_length'
-                                % i will naively assume that the left stride lengths are steplength_left + steplength_right in the same row
-                                % of the cycles file, and that the right lenghts are steplength_right of row i + steplength_left of row i+1
-                                lcols = self.cycles(takecycles,{'stepL','stepR'});
-                                l = height(lcols);
-                                if strcmp(side{:},'left')
-                                    datcol = sum(lcols.Variables,2);                       
-                                else
-                                    datcol = lcols.stepR(1:l-1) + lcols.stepL(2:end);
-                                end
-                            case 'step_width'
-                                % again the cycles files provides only left data
-                                thiscopx = self.points.get_event(thiskey,{'time','copx'},stage.times);
-                                thatcopx = self.points.get_event(thatkey,{'time','copx'},stage.times);
-                                % here, it's this minus subsequent that, so find the minimal by time. 
-                                cur = 1;
-                                while thiscopx.time(1) > thatcopx.time(cur)
-                                    cur = cur + 1;
-                                end
-                                minlength = min(height(thiscopx),height(thatcopx));
-                                datcol = abs(thiscopx.copx(1:minlength - cur +1) - thatcopx.copx(cur:minlength));
-                            case 'swing_duration'
-                                hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                                totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).Variables;
-                                % find the first HS that's after the first TO
-                                cur = 1;
-                                while hstimes(cur) < totimes(1)
-                                    cur = cur + 1;
-                                end
-                                datcol = hstimes(cur:end) - totimes(1:length(hstimes)-cur+1);
-                                assert(all(datcol) > 0,'wrong swing');
-                            case 'stance_duration'
-                                hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                                totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).Variables;
-                                % find the first TO that's after the first HS
-                                cur = 1;
-                                while totimes(cur) < hstimes(1)
-                                    cur = cur + 1;
-                                end
-                                datcol = abs(totimes(cur:end) - hstimes(1:length(totimes) - cur+1));
-                            case 'ds_duration'
-                                hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                                if strcmp(side{:},'left')
-                                    tokey = 'TOR';
-                                else
-                                    tokey = 'TOL';
-                                end
-                                totimes = self.points.get_event(tokey,'time',stage.times).Variables;
-                                cur = 1;
-                                while totimes(cur) < hstimes(1)
-                                    cur = cur + 1;
-                                end
-                                datcol = totimes(cur:end) - hstimes(1:length(totimes) - cur + 1);
-                        end
-                        if length(datcol) > longest
-                            longest = length(datcol);
-                        end
-                        tmp.(varname) = datcol;
+        function [longest,stagedata] = compute_stage_basics(self,stageindex)           
+            % eventually, you want a table which is easy to write to excell
+            % but column lengths are not known at this point, so I just collect them to
+            % a temp struct, from which i'll make the table at the end.
+            longest = 1;
+            stagedata = struct;
+            stage = self.stages(stageindex);
+            takecycles = self.cycles.time >= stage.times(1) & self.cycles.time < stage.times(2);
+            for base = self.basicnames
+                for side = {'left','right'}
+                    varname = [base{:} '_' side{:}];                       
+                    if strcmp(side{:},'left')
+                        thiskey = 'HSL';
+                        thatkey = 'HSR';
+                    else
+                        thiskey = 'HSR';
+                        thatkey = 'HSL';
                     end
+                    switch base{:}
+                        case 'step_length'
+                            % the steps lengths are given in the cycles
+                            % file
+                            cycles_key = ['step' upper(side{:}(1))];
+                            datcol = self.cycles(takecycles,cycles_key).Variables;
+                        case 'step_duration'
+                            thistimes = self.points.get_event(thiskey,'time',stage.times).Variables;
+                            thattimes = self.points.get_event(thatkey,'time',stage.times).Variables;
+                            % now we have to sequences of HS timings, where 'this' is those of the current side
+                            % the durations for left steps are diffs between left heel strikes and their preceding right ones
+                            % find the first pair of 'this' and preceding 'that':
+                            cur = 1;
+                            while thistimes(cur) < thattimes(1)
+                                cur = cur + 1;
+                            end
+                            % now subtract by matching ranges
+                            datcol = thistimes(cur:end) - thattimes(1:length(thistimes) - cur +1);
+                        case 'stride_duration'
+                            % since the cycles file only has the left stride timings,
+                            % we might as well read both from the list of cop points
+                            datcol = diff(self.points.get_event(thiskey,'time',stage.times).time);
+                        case 'stride_length'
+                            % i will naively assume that the left stride lengths are steplength_left + steplength_right in the same row
+                            % of the cycles file, and that the right lenghts are steplength_right of row i + steplength_left of row i+1
+                            lcols = self.cycles(takecycles,{'stepL','stepR'});
+                            l = height(lcols);
+                            if strcmp(side{:},'left')
+                                datcol = sum(lcols.Variables,2);                       
+                            else
+                                datcol = lcols.stepR(1:l-1) + lcols.stepL(2:end);
+                            end
+                        case 'step_width'
+                            % again the cycles files provides only left data
+                            thiscopx = self.points.get_event(thiskey,{'time','copx'},stage.times);
+                            thatcopx = self.points.get_event(thatkey,{'time','copx'},stage.times);
+                            % here, it's this minus subsequent that, so find the minimal by time. 
+                            cur = 1;
+                            while thiscopx.time(1) > thatcopx.time(cur)
+                                cur = cur + 1;
+                            end
+                            minlength = min(height(thiscopx),height(thatcopx));
+                            datcol = abs(thiscopx.copx(1:minlength - cur +1) - thatcopx.copx(cur:minlength));
+                        case 'swing_duration'
+                            hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
+                            totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).Variables;
+                            % find the first HS that's after the first TO
+                            cur = 1;
+                            while hstimes(cur) < totimes(1)
+                                cur = cur + 1;
+                            end
+                            datcol = hstimes(cur:end) - totimes(1:length(hstimes)-cur+1);
+                            assert(all(datcol) > 0,'wrong swing');
+                        case 'stance_duration'
+                            hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
+                            totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).Variables;
+                            % find the first TO that's after the first HS
+                            cur = 1;
+                            while totimes(cur) < hstimes(1)
+                                cur = cur + 1;
+                            end
+                            datcol = abs(totimes(cur:end) - hstimes(1:length(totimes) - cur+1));
+                        case 'ds_duration'
+                            hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
+                            if strcmp(side{:},'left')
+                                tokey = 'TOR';
+                            else
+                                tokey = 'TOL';
+                            end
+                            totimes = self.points.get_event(tokey,'time',stage.times).Variables;
+                            cur = 1;
+                            while totimes(cur) < hstimes(1)
+                                cur = cur + 1;
+                            end
+                            datcol = totimes(cur:end) - hstimes(1:length(totimes) - cur + 1);
+                    end
+                    if length(datcol) > longest
+                        longest = length(datcol);
+                    end
+                    stagedata.(varname) = datcol;
                 end
+            end
+        end
+        function self= compute_basics(self)
+            for s = 1:self.numstages
+                [longest,src] = self.compute_stage_basics(s);
                 % create the table from tmp and save it to self.basics
-                fnames = fieldnames(tmp);
+                fnames = fieldnames(src);
                 stagedata = table();
                 extras = struct;
                 for n = 1:length(fnames)
                     name = fnames{n,1};
-                    datcol = tmp.(name);
+                    datcol = src.(name);
                     % initialize with some margin at the bottom for the cv
                     % and stuff
                     stagedata.(name) = [datcol;nan*ones(longest-length(datcol),1)];
@@ -213,7 +214,7 @@ classdef GaitForceEvents < GaitEvents
                         bname = strrep(name,'_right',''); % this is a little stupid but...
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
-                        leftcol = tmp.(leftname);
+                        leftcol = src.(leftname);
                         %cv = GaitEvents.cv([leftcol;datcol]);
                         % these columns are coordinated by the construction
                         % of the self.basics tables, but the lengths don't
@@ -386,17 +387,17 @@ classdef GaitForceEvents < GaitEvents
                     if any(strcmp(fieldnames(self.learning_data),stagename))
                         ld = self.learning_data.(stagename);
                         bnames = fieldnames(ld); % should be the same as self.basicnames
-                        xlswrite(saveto,{'curve fit data'},stagename,['A' num2str(h+9)]);
+                        xlwrite(saveto,{'curve fit data'},stagename,['A' num2str(h+9)]);
                         % write the basicnames as a header row -- offset
                         % one to the right because of the row names
-                        xlswrite(saveto,bnames',stagename,['B' num2str(h+10)]);
+                        xlwrite(saveto,bnames',stagename,['B' num2str(h+10)]);
                         % write a column with the learning rows names --
                         % one below the header
-                        xlswrite(saveto,lrows',stagename,['A' num2str(h+11)]);
+                        xlwrite(saveto,lrows',stagename,['A' num2str(h+11)]);
                         % loop the basic names and write the column of computed
                         % values under each
                         for b = 1:length(bnames)
-                            xlswrite(saveto,ld.(bnames{b}),stagename,[char(A + b) num2str(h+11)]);
+                            xlwrite(saveto,ld.(bnames{b}),stagename,[char(A + b) num2str(h+11)]);
                         end
                     else
                         % write the extra data: cv and mean symm of every
@@ -419,10 +420,10 @@ classdef GaitForceEvents < GaitEvents
                             row2 = [row2,f5cv,f5m];
                             row3 = [row3,l5cv,l5m];
                         end
-                        xlswrite(saveto,extras_header,stagename,['A' num2str(h+5)]);
-                        xlswrite(saveto,row1,stagename,['A' num2str(h+6)]);
-                        xlswrite(saveto,row2,stagename,['A' num2str(h+7)]);
-                        xlswrite(saveto,row3,stagename,['A' num2str(h+8)]);
+                        xlwrite(saveto,extras_header,stagename,['A' num2str(h+5)]);
+                        xlwrite(saveto,row1,stagename,['A' num2str(h+6)]);
+                        xlwrite(saveto,row2,stagename,['A' num2str(h+7)]);
+                        xlwrite(saveto,row3,stagename,['A' num2str(h+8)]);
                     end
                 end
                 syshelpers.remove_default_sheets(saveto);

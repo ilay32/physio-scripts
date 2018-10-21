@@ -2,6 +2,7 @@ clear; close all;
 global goon; 
 goon = true;
 addpath 'matclasses';
+addpath 'matfunctions';
 stagenames = struct;
 stagenames.pre = {'slow1','fast','slow2','adaptation','post_adaptation'};
 stagenames.post = {'fast','salute','post_salute'};
@@ -19,13 +20,20 @@ basicnames = {...
 	'ds_duration'...
 };
 subjectpattern = '\d{3}_[A-Za-z]{2}';
-folder = uigetdir(syshelpers.driveroot());
-gf = GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
-gf = gf.load_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
-gf = gf.mark_stages('ready');
-gf.confirm_stages();
-if ~goon
-    error('Operation Aborted');
+%subjectpattern = '[A-Za-z]{2}\d{3}';
+%folder = uigetdir(syshelpers.driveroot());
+listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
+if isempty(listofcop)
+    gf = GaitMissing(folder,stagenames,basicnames,subjectpattern);
+    gf = gf.load_from_disk();
+else
+    gf = GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
+    gf = gf.load_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
+    gf = gf.mark_stages('ready');
+    gf.confirm_stages();
+    if ~goon
+        error('Operation Aborted');
+    end
 end
 gf = gf.compute_basics();
 for b=basicnames

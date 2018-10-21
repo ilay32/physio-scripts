@@ -1,10 +1,12 @@
-%close all; clear;
+close all; clear;
 addpath 'matclasses';
 addpath 'matfunctions';
-folder = uigetdir();
-gr = GaitReversed(folder,'\d{3}_[A-Za-z]{2}');
+%folder = uigetdir();
+folder = '/home/ilay/PhysioLabs/misc-data/AK105/pre';
+%gr = GaitReversed(folder,'\d{3}_[A-Za-z]{2}');
+gr = GaitReversed(folder,'[A-Za-z]{2}\d{3}');
 gr = gr.find_heel_strikes();
-close
+close;
 gr = gr.load_salute_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
 gr = gr.mark_stages(gr.left_hs(1));
 gr.confirm_stages();
@@ -12,5 +14,6 @@ gr = gr.group_events('HS');
 %gr.show_grouped('hs');
 gr = gr.find_toe_offs();
 gr.show_grouped('to');
+gr.save_basic_data();
 %gr = gr.group_events('TO');
 %gr.list_cop_points();
