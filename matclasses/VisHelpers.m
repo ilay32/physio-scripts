@@ -134,7 +134,7 @@ classdef VisHelpers
                 if ismember(s,self.fitmodel)
                     x = 1:length(stagesymms);
                     %fprintf('\n\ndouble exponential model results for %s:',self.stagenames{s});
-                    [mfit,goodness,~,comment] = fit(x',stagesymms,self.model);
+                    [mfit,goodness,~,comment] = fit(x',stagesymms,self.model,'Lower',-1,'Upper',1);
                     %if goodness.adjrsquare < 0.7
                     %    fprintf('insufficient curve fit: %.3f\n',goodness.adjrsquare);
                     %end
