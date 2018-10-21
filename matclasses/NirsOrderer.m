@@ -8,23 +8,23 @@ classdef NirsOrderer
        event_colors = {'red','green','black','blue','magenta','cyan','yellow'};
     end
     methods(Static)
-        function longer = spline_stretch(shorter)
+        function longer = spline_stretch(shorter,stretchto)
             % expects column vector(s)
             rows = size(shorter,1);
             columns = size(shorter,2);
-            lrows = NirsOrderer.uniwalklength;
-            longer = zeros(lrows,columns);
+            longer = zeros(stretchto,columns);
             for c=1:columns
                 sp = spline(1:rows,shorter(:,c));
-                longer(c,:) = ppval(sp,(1:lrows)');
+                longer(:,c) = ppval(sp,(1:stretchto)');
             end
         end
     end
     properties
         inputdat
+        datarate
         source
+        conditions
         event_times
-        event_names
         source_folder
     end
     methods
@@ -33,17 +33,19 @@ classdef NirsOrderer
             %   Input: full path to the .nirs file holding the data
             self.source = nirsfile;
             self.source_folder = path;
-            self.inputdat = load(fullfile(path,nirsfile),'-mat'); 
+            self.inputdat = load(fullfile(path,nirsfile),'-mat');
+            self.conditions = cellfun(@(c)strrep(c,'-','_'),self.inputdat.CondNames,'UniformOutput',false);
+            self.datarate = 1/mean(diff(self.inputdat.t));
         end
         
         function self = learn_events(self)
             % gather event timings by name
             events = table(); 
-            for event_index=1:size(self.inputdat.CondNames,2)
+            for event_index=1:size(self.conditions,2)
                 times = find(self.inputdat.s(:,event_index)==1);
                 for t=1:length(times)
                     %n = strrep(self.inputdat.CondNames(event_index),'-','_');
-                    events = [events;{times(t),self.inputdat.CondNames(event_index)}];
+                    events = [events;{times(t),self.conditions(event_index)}];
                 end
             end
             events.Properties.VariableNames =  {'time','name'};
@@ -88,7 +90,7 @@ classdef NirsOrderer
             etimes = self.event_times;
             % loop the event times to find the next one
             nextTime = inf;
-            fns = self.inputdat.CondNames;
+            fns = self.conditions;
             nextName = fns{1};
             for f=1:length(fns)
                 fn = fns{f};
@@ -133,7 +135,7 @@ classdef NirsOrderer
             data = self.inputdat.procResult.dc(:,1,:);
             data = reshape(data,[size(data,1),size(data,3)]);
          
-            exp = struct;
+            export = struct;
             for r=1:height(self.event_times)
                 row = self.event_times(r,:);
                 if(~isempty(regexp(row.name{:},'^(E|F|S)$','match'))) % event is 'E' 'F' or 'S' -- skip
@@ -143,22 +145,36 @@ classdef NirsOrderer
                 walk_start = row.time;
                 base_start = walk_start - 14*self.datarate;
                 base_end = base_start + 5*self.datarate;
-                center = mean(data(base_start:base_end,:),2);
+                center = mean(data(base_start:base_end,:));
                 prewalk = data(base_start:walk_start,:) - center;
                 % normalize the walk duration by interpolation
-                walk = NirsOrderer.spline_stretch(data(walk_start+1:nextrow.time,:));
-                exp.(row.name) = [exp.(row.name),{prewalk,walk}];
+                walk = NirsOrderer.spline_stretch(data(walk_start+1:nextrow.time,:),NirsOrderer.uniwalklength*self.datarate);
+                if any(strcmp(fieldnames(export),row.name{:}))
+                    export.(row.name{:}) = [export.(row.name{:}),{{prewalk,walk}}];
+                else
+                    export.(row.name{:}) = {{prewalk,walk}};
+                end
             end
             outfile = fullfile(self.source_folder,strrep(self.source,'.nirs','.xlsx'));
-            for sheet=fieldnames(exp)
-                writetable(outfile,sheet,self.make_table(exp.(sheet{:})));
+            sheets = fieldnames(export);
+            for s=1:length(sheets)
+                writetable(self.make_table(export.(sheets{s})),outfile,'Sheet',sheets{s});
             end
+        end
+        function t = make_table(self,blocks)
+            pres = [];
+            walks = [];
+            for block=blocks
+                pres = [pres,block{:}{1},nan*ones(size(block{:}{1},1),2)];
+                walks = [walks,block{:}{2},nan*ones(size(block{:}{2},1),2)];
+            end
+            t = array2table([pres;nan*ones(2,size(pres,2));walks]);
         end
         function plotevents(self)
             d = self.inputdat.d(:,1);
             plot(d);
             hold on;
-            fns = self.inputdat.CondNames;
+            fns = self.conditions;
             for i=1:length(fns)
                 color = NirsOrderer.event_colors{i};
                 erows = self.event_times(strcmp(self.event_times.name,fns{i}),:);
@@ -169,8 +185,8 @@ classdef NirsOrderer
                 end
                 lh(i) = lines{:};
             end
-            %legend(lh,cellfun(@(c)strrep(c,'_',' '),fns,'UniformOutput',false));
-            legend(lh,fns);
+            legend(lh,cellfun(@(c)strrep(c,'_',' '),fns,'UniformOutput',false));
+            %legend(lh,fns);
             hold off;
         end
     end

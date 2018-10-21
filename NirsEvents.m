@@ -4,9 +4,8 @@
 clear; close all;
 addpath 'matclasses';
 % let the user choose a file
-%[file,path,~] = uigetfile([syshelpers.driveroot() '/*.nirs']);
-%nor = NirsOrderer(fullfile(path,file));
-nor = NirsOrderer('C:\Users\soferil\misc-data\','vision-1.nirs');
+[file,path,~] = uigetfile([syshelpers.driveroot() '/*.nirs']);
+nor = NirsOrderer(fullfile(path,file));
 nor = nor.learn_events();
 nor.plotevents();
 nor.export_walks();
