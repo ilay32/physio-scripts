@@ -232,7 +232,9 @@ classdef GaitReversed < GaitEvents
                 warning('could not find the log file. conditions will be numerically named');
                 for i = 1:self.numstages
                     stages(i) = struct('name',num2str(i),'limits',[]);
+                    self.stages = stages;
                 end
+                return
             end
             pid = fopen(logfile);
             tline = fgetl(pid);

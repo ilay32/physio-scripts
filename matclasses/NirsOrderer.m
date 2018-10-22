@@ -146,7 +146,7 @@ classdef NirsOrderer
                 base_start = walk_start - 14*self.datarate;
                 base_end = base_start + 5*self.datarate;
                 center = mean(data(base_start:base_end,:));
-                prewalk = data(base_start:walk_start,:) - center;
+                prewalk = data(base_start:base_end,:) - center;
                 % normalize the walk duration by interpolation
                 walk = NirsOrderer.spline_stretch(data(walk_start+1:nextrow.time,:),NirsOrderer.uniwalklength*self.datarate);
                 if any(strcmp(fieldnames(export),row.name{:}))
