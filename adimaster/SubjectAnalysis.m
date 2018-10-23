@@ -3,7 +3,8 @@
 %   With the stages, it finds step lengths and computes step symmetry
 %   accordingly
 clear; clc; close all;
-addpath '..\matclasses';
+addpath(['..' filesep 'matclasses']);
+addpath(['..' filesep 'matfunctions']);
 % choose *.mat file - experiment results and load it
 % !! the .mat file must be the output of a Visual3D pipeline created by Anat Shkedy that
 % runs on the Qualisys .c3d export of the data !!
@@ -22,7 +23,7 @@ subject_id = subject_id{:};
 assert(~isempty(subject_id),'the .mat file doesn''t match  the expected name format: c/p-000<NUM>.mat');
 access_index = 0;
 for f = 1:length(FILE_NAME)
-    n = FILE_NAME{:};
+    n = FILE_NAME{f};
     [~,toks] = regexp(n,'(\w+)_part(\d)','match','tokens');
     assert(all(size(toks) == [1,1]),'the .mat file in FILE_NAME doesn''t match  the expected name format:\nID_part<no.>.mat');
     part_by_filename = str2double(toks{1,1}{2});
@@ -148,7 +149,7 @@ proceed = input('close boundaries graphs and proceed [y/n]? ','s');
 if ~strcmp('y',proceed)
     error('operation aborted');
 else
-    %close all;
+    close all;
 end
 
 % find HS/TO times directly from COP within each stage
@@ -175,10 +176,10 @@ end
 % collect aligned steps to cell array of matrices
 stagedat = cell(1,numstages);
 for stage=1:numstages
-    fprintf('\nentering %s',stagenames{stage});
-    paired  = AlignSteps(steps(stage,:),R_COP{1,1},L_COP{1,1},1);
+    fprintf('\nentering %s\n',stagenames{stage});
+    paired  = AlignSteps(steps(stage,:),R_COP{1,1},L_COP{1,1},1,frate);
     numsteps = size(paired,1);
-    fprintf('\nfound %d matching steps out of %d left and %d right\n',numsteps,size(steps{stage,2},1),size(steps{stage,1},1));
+    fprintf('found %d matching steps out of %d left and %d right\n',numsteps,size(steps{stage,2},1),size(steps{stage,1},1));
     globsteps = 1;
     stagedat{stage} = paired;
 end
