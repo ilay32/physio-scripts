@@ -6,6 +6,8 @@ classdef NirsOrderer
        uniwalklength = 20; %??
        baseline_duration = 5; %seconds
        event_colors = {'red','green','black','blue','magenta','cyan','yellow'};
+       testlength = 20;
+       export_scale_factor = 1000000;
     end
     methods(Static)
         function longer = spline_stretch(shorter,stretchto)
@@ -26,6 +28,8 @@ classdef NirsOrderer
         conditions
         event_times
         source_folder
+        channels
+        test_matrix
     end
     methods
         function self = NirsOrderer(path,nirsfile)
@@ -36,6 +40,9 @@ classdef NirsOrderer
             self.inputdat = load(fullfile(path,nirsfile),'-mat');
             self.conditions = cellfun(@(c)strrep(c,'-','_'),self.inputdat.CondNames,'UniformOutput',false);
             self.datarate = 1/mean(diff(self.inputdat.t));
+            self = self.read_export();
+            disp('HOMER Processing Parameters:');
+            disp(self.inputdat.procInput.procParam);
         end
         
         function self = learn_events(self)
@@ -52,77 +59,46 @@ classdef NirsOrderer
             self.event_times = sortrows(events,'time');
         end
         
-        function chunk_data(self)
-            data = self.inputdat.procResult.dc(:,1,:);
-            data = reshape(data,[size(data,1),size(data,3)]);
-            chunks = [];
-            e = self.event_times;
-            % loop the S event and register the chunks
-            chunks_index = 1;
-            for t=1:length(e.S)
-                current_cond = self.next_event(e.S(t),'S');
-                % from S look one forward to get the wait block
-                %wait = struct;
-                current_cond.data = data(t:current_cond.time,:);
-                %wait.details = current_cond;
-                current_cond.type = 'wait';
-                current_cond.global_index = chunks_index;
-                chunks = [chunks,current_cond];
-                chunks_index = chunks_index + 1;
-
-                % from the next, look one forward to get the walk chunk
-                next_cond = next_event(current_cond.time,current_cond.name,event_times);
-                if ~isempty(next_cond)
-                    %walk = struct;
-                    next_cond.data = data(current_cond.time:next_cond.time);
-                    %current_cond.details = next_cond;
-                    next_cond.type = 'walk';
-                    next_cond.global_index = chunks_index;
-                    chunks = [chunks,next_cond];
-                    chunks_index = chunks_index + 1;
-                end
+       
+        function self = read_export(self)
+            % this will read the first lines of the .txt export
+            % and will make sure that the correct data is produced for
+            % every channel
+            fid = fopen(fullfile(self.source_folder,strrep(self.source,'.nirs','.txt')));
+            channels = regexp(fgetl(fid),'S\d_D\d_Hb(R|O)','match');
+            assert(~isempty(channels),'could not read text export');
+            test = nan*ones(20,length(channels));
+            for i=1:NirsOrderer.testlength
+                row = sscanf(fgetl(fid),'%f\t');
+                test(i,:) = row(2:end);
             end
+            fclose(fid);
+            self.channels = channels;
+            self.test_matrix = test;
         end
-        function e = next_event(etime,ename)
-            % this function takes time index of an event as 'etime' and the name of that event, as by the input data,
-            % and returns a struct representing the subsequent event
-            e = struct;
-            etimes = self.event_times;
-            % loop the event times to find the next one
-            nextTime = inf;
-            fns = self.conditions;
-            nextName = fns{1};
-            for f=1:length(fns)
-                fn = fns{f};
-                % skip if same -- can happen with 's'
-                if strcmp(ename,fn)
-                    continue;
+        function d = fetch_data(self)
+            src = self.inputdat.procResult.dc;
+            dlength = size(src,1);
+            dwidth = size(src,3);
+            raw1 = src(:,1,:);
+            raw1 = fliplr(reshape(raw1,[dlength,dwidth]));            
+            if length(self.channels) == dwidth
+                d = raw1;
+            else
+                if length(self.channels) == dwidth*2
+                    warning('text export contains %d columns instead of 6 (only HbO or HbR) or 12 (both).\n')
                 end
-                in_current_ind = find(etimes.(fn) > etime,1);
-                if isempty(in_current_ind)
-                    continue;
-                end
-                next_in_current_event = etimes.(fn)(in_current_ind);
-                if(next_in_current_event < nextTime)
-                    nextTime = next_in_current_event;
-                    nextName = fn;
-                end
+                raw2 = src(:,2,:);
+                raw2 = fliplr(reshape(raw2,[dlength,dwidth]));
+                d = [raw1,raw2];
             end
-            if(nextTime == inf)
-                e = [];
-                return;
-            end
-            e.name = nextName;
-            e.shoes = 'normal';
-            if(strfind(nextName,'RS_') == 1)
-                e.shoes = 'RS';
-            end
-            e.time = nextTime;
-            e.sitting = logical(strcmp(fn,'F'));
-            e.distractor = 'without';
-            if(e.sitting || length(strfind(fn,'dual')) > 0) %#ok<ISMT>
-                e.distractor = 'with';
-            end
+            precision = 1/NirsOrderer.export_scale_factor;
+            d = d*NirsOrderer.export_scale_factor;
+            test = reshape(abs(d(2:NirsOrderer.testlength+1,:) - self.test_matrix),1,numel(self.test_matrix));
+            assert(sum(test)/numel(test) < precision...
+                && max(test) < precision,... 
+                'missmatch between .nirs data and .txt export\nmax diff: %d, mean diff: %f',max(test),mean(test));           
+            clear src;
         end
         function export_walks(self)
             % output the data by these guidlines:
@@ -132,9 +108,7 @@ classdef NirsOrderer
             % NirsOrddrer.spline_stretch. data is saved in one excel file
             % with four tabs corresponding to the four walking conditions.
             % every tab holds a 6 channels x 6 walks matrix
-            data = self.inputdat.procResult.dc(:,1,:);
-            data = reshape(data,[size(data,1),size(data,3)]);
-         
+            data = self.fetch_data();
             export = struct;
             for r=1:height(self.event_times)
                 row = self.event_times(r,:);
@@ -158,17 +132,22 @@ classdef NirsOrderer
             outfile = fullfile(self.source_folder,strrep(self.source,'.nirs','.xlsx'));
             sheets = fieldnames(export);
             for s=1:length(sheets)
-                writetable(self.make_table(export.(sheets{s})),outfile,'Sheet',sheets{s});
+                [t,r] = self.make_table(export.(sheets{s}));
+                writetable(t,outfile,'Sheet',sheets{s},'Range','A2','WriteVariableNames',false);
+                xlswrite(outfile,r,sheets{s},'A1');
             end
         end
-        function t = make_table(self,blocks)
+        function [t,r] = make_table(self,blocks)
             pres = [];
             walks = [];
+            header = {};
             for block=blocks
                 pres = [pres,block{:}{1},nan*ones(size(block{:}{1},1),2)];
                 walks = [walks,block{:}{2},nan*ones(size(block{:}{2},1),2)];
+                header = [header,self.channels,{' ',' '}];
             end
             t = array2table([pres;nan*ones(2,size(pres,2));walks]);
+            r = header;
         end
         function plotevents(self)
             d = self.inputdat.d(:,1);
