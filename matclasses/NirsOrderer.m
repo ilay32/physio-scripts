@@ -30,6 +30,7 @@ classdef NirsOrderer
         source_folder
         channels
         test_matrix
+        nirs_channels
     end
     methods
         function self = NirsOrderer(path,nirsfile)
@@ -38,6 +39,15 @@ classdef NirsOrderer
             self.source = nirsfile;
             self.source_folder = path;
             self.inputdat = load(fullfile(path,nirsfile),'-mat');
+            self.nirs_channels = string();
+            cdefs = self.inputdat.mL;
+            for cdef=1:size(cdefs,1)
+                oxy = 'HbO';
+                if cdefs(cdef,4) == 2
+                    oxy = 'HbR';
+                end
+                self.nirs_channels(cdef) = ['S' num2str(cdefs(cdef,1)) '_D' num2str(cdefs(cdef,2)) '_' oxy];
+            end
             self.conditions = cellfun(@(c)strrep(c,'-','_'),self.inputdat.CondNames,'UniformOutput',false);
             self.datarate = 1/mean(diff(self.inputdat.t));
             self = self.read_export();
@@ -58,7 +68,6 @@ classdef NirsOrderer
             events.Properties.VariableNames =  {'time','name'};
             self.event_times = sortrows(events,'time');
         end
-        
        
         function self = read_export(self)
             % this will read the first lines of the .txt export
@@ -75,6 +84,10 @@ classdef NirsOrderer
             fclose(fid);
             self.channels = channels;
             self.test_matrix = test;
+            nc = fliplr(self.nirs_channels);
+            if ~all(strcmp(self.channels,nc(length(self.channels))))
+                disp('channel missmatch');
+            end
         end
         function d = fetch_data(self)
             src = self.inputdat.procResult.dc;
@@ -131,11 +144,13 @@ classdef NirsOrderer
             end
             outfile = fullfile(self.source_folder,strrep(self.source,'.nirs','.xlsx'));
             sheets = fieldnames(export);
+            warning('off','MATLAB:xlswrite:AddSheet');
             for s=1:length(sheets)
                 [t,r] = self.make_table(export.(sheets{s}));
                 writetable(t,outfile,'Sheet',sheets{s},'Range','A2','WriteVariableNames',false);
                 xlswrite(outfile,r,sheets{s},'A1');
             end
+            syshelpers.remove_default_sheets(outfile);
         end
         function [t,r] = make_table(self,blocks)
             pres = [];

@@ -9,6 +9,3 @@ nor = NirsOrderer(path,file);
 nor = nor.learn_events();
 nor.plotevents();
 nor.export_walks();
-
-
-  
