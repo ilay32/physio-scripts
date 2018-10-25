@@ -32,6 +32,7 @@ classdef LEMAnalyzer
         filebase
         extension
         touch_points
+        tare_points
     end
     methods (Static)
         function noisedat =  findnoise(sample)
@@ -266,6 +267,7 @@ classdef LEMAnalyzer
                 close;
             
             n = LEMAnalyzer.findnoise(fz(min(xs):max(xs)));
+            self.tare_points = [min(xs),max(xs)];
             weakindex = find((fz >= n.minimal.val - n.minimal.eps) & (fz <= n.minimal.val + n.minimal.eps));
             if ~isempty(weakindex)
                 weak_mys = abs(self.data(weakindex,5));
@@ -285,7 +287,7 @@ classdef LEMAnalyzer
             others = {};
             for i=1:3
                 if i ~= str2double(self.part)
-                    searchfor = fullfile(self.datfolder,[strrep(self.filebase,self.part,num2str(i)) self.extension]);
+                    searchfor = fullfile(self.datfolder,[self.subjid 'LEM' num2str(i) self.extension]);
                     if(exist(searchfor,'file'))
                         others = [others,{searchfor}];
                     end
@@ -302,16 +304,16 @@ classdef LEMAnalyzer
             my =  filtfilt(self.butterb,self.buttera,self.data(:,5));
             
             % scan for first significant drop below zero within the first
-            % 20 seconds.
+            % 20 seconds after tare start
             w = LEMAnalyzer.first_touch_scan_window;
-            for i=1:w:20*self.datarate
+            for i=self.tare_points(1):w:20*self.datarate
                 if (mean(my(i:i+w)) < 0) && (min(my(i:i+w)) < self.weakmy*-1)
                     break;
                 end
             end
-            lstart = i - w;
+            lstart = i + w;
             clear i;
-            % for better peak identification we can assuming 
+            % for better peak identification we can assume 
             % that a sixth of a second between touches **on the same side**
             % is faster than anyone, and take only the identified start +
             % 25 secs. take as maximal index 20 seconds from first near
