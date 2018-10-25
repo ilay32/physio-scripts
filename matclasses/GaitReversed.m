@@ -420,11 +420,11 @@ classdef GaitReversed < GaitEvents
                 for i = 2:length(idx)
                     bycopx = GaitReversed.scanbackward(smoothed_deriv*slopesign,idx,i);
                     heel_strikes(i) = bycopx;
-%                     byfz = GaitReversed.improve_on_cop(bycopx,idx(i),self.forces.fz);
-%                     if isnumeric(byfz) && byfz > bycopx && byfz < idx(i)
-%                         %disp('prefer fz');
-%                         heel_strikes(i) = byfz;
-%                     end
+                    byfz = GaitReversed.improve_on_cop(bycopx,idx(i),self.forces.fz);
+                    if isnumeric(byfz) && byfz > bycopx && byfz < idx(i)
+                        %disp('prefer fz');
+                        heel_strikes(i) = byfz;
+                    end
                    % elseif isnumeric(byfz)
                    %     fprintf('range limits: [%d,%d] forces result: %d\n',bycopx,idx(i),byfz);
                    % else
