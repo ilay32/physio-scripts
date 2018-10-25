@@ -21,7 +21,7 @@ basicnames = {...
 };
 subjectpattern = '\d{3}_[A-Za-z]{2}';
 %subjectpattern = '[A-Za-z]{2}\d{3}';
-%folder = uigetdir(syshelpers.driveroot());
+folder = uigetdir(syshelpers.driveroot());
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
 if isempty(listofcop)
     gf = GaitMissing(folder,stagenames,basicnames,subjectpattern);
@@ -47,7 +47,7 @@ for b=basicnames
     end
     specs.data = syms;
     specs.stagenames = extractfield(gf.stages,'name');
-    specs.titlesprefix = gf.prepost;
+    specs.titlesprefix = [gf.subjid ' ' gf.prepost ' ' b{:}];
     if strcmp(gf.prepost,'pre')
         specs.baselines = 1:3;
         specs.fitmodel = 4:5;

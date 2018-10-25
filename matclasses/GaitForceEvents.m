@@ -306,7 +306,7 @@ classdef GaitForceEvents < GaitEvents
                     GaitEvents.cv(syms2);...
                     self.basics.(stage).extras.(b).symcv_last5;...
                     nanmean(syms2);...
-                    self.basics.(stage).extras.(b).meansym_first5;...
+                    self.basics.(stage).extras.(b).meansym_last5;...
                     min(length(left)-sum(isnan(left)),length(right)-sum(isnan(right)));...
                     time1 + time2;...
                     self.basics.(stage).extras.(b).symcv;...
@@ -366,7 +366,7 @@ classdef GaitForceEvents < GaitEvents
             lrows = {...
                 'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
                 'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5',...
-                'meansym2','mansym_last5','stepstotal','timetotal','cvtotal','meantotal'...
+                'meansym2','meansym_last5','stepstotal','timetotal','cvtotal','meantotal'...
             };
             if s ~= 0
                 saveto = fullfile(p,s);
@@ -387,17 +387,17 @@ classdef GaitForceEvents < GaitEvents
                     if any(strcmp(fieldnames(self.learning_data),stagename))
                         ld = self.learning_data.(stagename);
                         bnames = fieldnames(ld); % should be the same as self.basicnames
-                        xlwrite(saveto,{'curve fit data'},stagename,['A' num2str(h+9)]);
+                        xlswrite(saveto,{'curve fit data'},stagename,['A' num2str(h+9)]);
                         % write the basicnames as a header row -- offset
                         % one to the right because of the row names
-                        xlwrite(saveto,bnames',stagename,['B' num2str(h+10)]);
+                        xlswrite(saveto,bnames',stagename,['B' num2str(h+10)]);
                         % write a column with the learning rows names --
                         % one below the header
-                        xlwrite(saveto,lrows',stagename,['A' num2str(h+11)]);
+                        xlswrite(saveto,lrows',stagename,['A' num2str(h+11)]);
                         % loop the basic names and write the column of computed
                         % values under each
                         for b = 1:length(bnames)
-                            xlwrite(saveto,ld.(bnames{b}),stagename,[char(A + b) num2str(h+11)]);
+                            xlswrite(saveto,ld.(bnames{b}),stagename,[char(A + b) num2str(h+11)]);
                         end
                     else
                         % write the extra data: cv and mean symm of every
@@ -420,10 +420,10 @@ classdef GaitForceEvents < GaitEvents
                             row2 = [row2,f5cv,f5m];
                             row3 = [row3,l5cv,l5m];
                         end
-                        xlwrite(saveto,extras_header,stagename,['A' num2str(h+5)]);
-                        xlwrite(saveto,row1,stagename,['A' num2str(h+6)]);
-                        xlwrite(saveto,row2,stagename,['A' num2str(h+7)]);
-                        xlwrite(saveto,row3,stagename,['A' num2str(h+8)]);
+                        xlswrite(saveto,extras_header,stagename,['A' num2str(h+5)]);
+                        xlswrite(saveto,row1,stagename,['A' num2str(h+6)]);
+                        xlswrite(saveto,row2,stagename,['A' num2str(h+7)]);
+                        xlswrite(saveto,row3,stagename,['A' num2str(h+8)]);
                     end
                 end
                 syshelpers.remove_default_sheets(saveto);
