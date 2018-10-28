@@ -1,4 +1,4 @@
-function [matched_lengths] = AlignSteps(stage,rcop,lcop,start)
+function [matched_lengths] = AlignSteps(stage,rcop,lcop,start,datarate)
     % the stage of each side are assumed to be valid -- times are
     % correctly ordered: hs1 < to1 < hs2 < to2 ...
     % stage: 1 x [ RIGHT LEFT ] cell array. 
@@ -9,6 +9,8 @@ function [matched_lengths] = AlignSteps(stage,rcop,lcop,start)
     left = stage{:,2};
     right = stage{:,1};
     
+    timeprox = datarate/10; %10th of a second
+    
     % recursion stop
     if start > size(left,1) | start > size(right,1)
         matched_lengths = double.empty(0,2);
@@ -16,19 +18,24 @@ function [matched_lengths] = AlignSteps(stage,rcop,lcop,start)
     end
     
     % find where to start
-    while right(rcur,1) <= left(lcur,2)
+    % sometimes it's like running, so instead of looking for the left TO
+    % right after, look for the closest
+    
+    while abs(right(rcur,1) - left(lcur,2)) > timeprox
         rcur = rcur + 1;
-        % make sure we don't run of data at this stage too
+        % make sure we don't run out of data at this stage too
         if rcur >= size(left,1) | rcur >= size(right,1)
             matched_lengths = double.empty(0,2);
             return;
         end
-   end
-    
-    % find the closest lto after the found right heel strike
-    while left(lcur,2) <= right(rcur,1)
-        lcur = lcur + 1;
     end
+    
+    % find the closest lto preferably after the found right heel strike
+    [~,lcur] = min(abs(left(:,2) - right(rcur,1)));
+    lcur = lcur + start;
+%     while left(lcur,2) <= right(rcur,1)
+%         lcur = lcur + 1;
+%     end
     
     % starting at 'cur', cycle through the hs/to data seeking the nearest appropriate entry
     % every time: RHS -> LTO -> LHS -> RTO -> RHS each one must be
@@ -36,26 +43,36 @@ function [matched_lengths] = AlignSteps(stage,rcop,lcop,start)
     % shorter side is reached.
     % HS in same row. if a mismatch is encountered, register the bad index
     % and recurse starting from the bad.
+    isrunning = [];
     while lcur < size(left,1) & rcur < size(right,1)
         rhs = right(rcur,1);
         lto = left(lcur,2);
         lhs = left(lcur + 1,1);
         rto = right(rcur,2);
-        if all(abs([rto - lhs,lto - rhs])<50) & rhs < lhs & lto < rto % rule of thumb: allow for small difference between consecutive hs and to, require strict ordering of rto-lto,rhs-lhs 
+        % require  small difference between consecutive hs and to
+        if all(abs([rto - lhs,lto - rhs])<timeprox)
             matched_lengths(m,:) = [lcop(lhs) - rcop(rto),rcop(rhs) - lcop(lto)];
             m = m + 1;
+            % check for strict ordering of rto-lto,rhs-lhs 
+            if rhs > lhs | lto > rto
+                isrunning = [isrunning;[lcur,rcur]];
+            end
         else
-            fprintf('\nproblem at %d left -- %d right:\nRTO: %d\tLHS: %d\tLTO: %d\tRHS: %d',...
+            fprintf('problem at %d left -- %d right:\nRTO: %d\tLHS: %d\tLTO: %d\tRHS: %d\n',...
                 lcur,rcur,rto,lhs,lto,rhs...
             );
             if exist('matched_lengths','var')
-                matched_lengths = [matched_lengths;AlignSteps(stage,rcop,lcop,max(rcur,lcur))];
+                matched_lengths = [matched_lengths;AlignSteps(stage,rcop,lcop,max(rcur,lcur)),datarate];
             else
-                matched_lengths = AlignSteps(stage,rcop,lcop,max(rcur,lcur));
+                matched_lengths = AlignSteps(stage,rcop,lcop,max(rcur,lcur),datarate);
             end
             break;
         end
         rcur = rcur + 1;
         lcur = lcur + 1;
+    end
+    if ~isempty(isrunning)
+        warning('these steps look like like running in:');
+        disp(isrunning);
     end
 end   

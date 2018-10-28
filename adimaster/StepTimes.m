@@ -1,7 +1,7 @@
 function [timings] = StepTimes(start,finish,COPY,Fz)
     % this function takes cleaned COP data from one plate and a global index range
     % and returns step lengths along with their global indices. 
-    % Every row represents a step: [ start(ind) length(meters) end(ind) ]
+    % Every row represents a leg stance: [ start index i.e HS time,   end index i.e TO time ]
     % start: int starting index for steps
     % finish: int final index for steps
     % COPY: COP data from forceplate along Y axis
@@ -40,6 +40,10 @@ function [timings] = StepTimes(start,finish,COPY,Fz)
                 step_end = min(finish,cur + lookahead);
             end
             cur = cur + 1;
+        end
+        
+        if step_end < step_start
+            disp(step_end);
         end
         
         % if step_end = 0 it means the stage finish mark is in the middle
