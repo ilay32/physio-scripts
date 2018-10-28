@@ -1,6 +1,6 @@
 close all
 clear
-addpath '../matclasses';
+addpath(['..' filesep 'matclasses']);
 [lemfile,path] = uigetfile('*.txt','Select LEMOCOT CSV file');
 if lemfile == 0
     return

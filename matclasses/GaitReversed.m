@@ -420,11 +420,11 @@ classdef GaitReversed < GaitEvents
                 for i = 2:length(idx)
                     bycopx = GaitReversed.scanbackward(smoothed_deriv*slopesign,idx,i);
                     heel_strikes(i) = bycopx;
-%                     byfz = GaitReversed.improve_on_cop(bycopx,idx(i),self.forces.fz);
-%                     if isnumeric(byfz) && byfz > bycopx && byfz < idx(i)
-%                         %disp('prefer fz');
-%                         heel_strikes(i) = byfz;
-%                     end
+                    byfz = GaitReversed.improve_on_cop(bycopx,idx(i),self.forces.fz);
+                    if isnumeric(byfz) && byfz > bycopx && byfz < idx(i)
+                        %disp('prefer fz');
+                        heel_strikes(i) = byfz;
+                    end
                    % elseif isnumeric(byfz)
                    %     fprintf('range limits: [%d,%d] forces result: %d\n',bycopx,idx(i),byfz);
                    % else
@@ -441,26 +441,27 @@ classdef GaitReversed < GaitEvents
             end
             self.left_hs = allhs.left;
             self.right_hs = allhs.right;
-            self.show_heel_strikes(allhs.left,allhs.right,scopx);
+            self.show_heel_strikes(allhs.left,allhs.right,'hs',scopx);
             self.add_fz();
         end
         function show_grouped(self,ev)
             % plots the stage-grouped events "ev" on the copx line
             assert(strcmp(ev,'hs') || strcmp(ev,'to'),'event must be either ''to'' or ''hs''');
-            lhs = [];
-            rhs = [];
+            l = [];
+            r = [];
             for s = 1:self.numstages
                 levs = self.stages(s).(['left_' ev]);
                 revs = self.stages(s).(['right_' ev]);
-                lhs = [lhs;levs(:,1)];
-                rhs = [rhs;revs(:,1)];
+                l = [l;levs(:,1)];
+                r = [r;revs(:,1)];
             end
-            self.show_heel_strikes(lhs(:,1),rhs(:,1));
+            self.show_heel_strikes(l(:,1),r(:,1),ev);
         end
         
-        function show_heel_strikes(self,lhs,rhs,cop)
+        function show_heel_strikes(self,lhs,rhs,event_name,cop)
             figure;
-            if nargin == 3
+            eu = upper(event_name);
+            if nargin == 4
                 cop = movmean(self.forces.copx,GaitReversed.smoothwindow);
             end
             c = plot(cop);
@@ -480,7 +481,7 @@ classdef GaitReversed < GaitEvents
             lh(1) = c;
             lh(2) = dotts{:,1};
             lh(3) = dotts{:,2};
-            legend(lh,{'copx','left hs','right hs'});
+            legend(lh,{'COPX',['Left ' eu],['Right ' eu]});
         end
         
         function add_fz(self)
