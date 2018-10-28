@@ -3,36 +3,35 @@ function [matched_lengths] = AlignSteps(stage,rcop,lcop,start,datarate)
     % correctly ordered: hs1 < to1 < hs2 < to2 ...
     % stage: 1 x [ RIGHT LEFT ] cell array. 
     % R and L are [ No. Steps ] x [ HS-INDEX LENGTH TO-INDEX] matrices.
-    m = 1;
-    rcur = start;
-    lcur = start;
-    left = stage{:,2};
-    right = stage{:,1};
-    
-    timeprox = datarate/10; %10th of a second
-    
+
+    matched_lengths = double.empty(0,2);
     % recursion stop
-    if start > size(left,1) | start > size(right,1)
-        matched_lengths = double.empty(0,2);
+    if start >= size(stage{1},1) || start >= size(stage{2},1)s        
         return;
     end
+    m = 1;
+
+    left = stage{2}(start:end,:);
+    right = stage{1}(start:end,:);
+    
+    timeprox = datarate/3; % 3rd of a second -- maximal allowed time between consecutive lto - rhs and rto - lhs 
     
     % find where to start
     % sometimes it's like running, so instead of looking for the left TO
     % right after, look for the closest
     
-    while abs(right(rcur,1) - left(lcur,2)) > timeprox
-        rcur = rcur + 1;
-        % make sure we don't run out of data at this stage too
-        if rcur >= size(left,1) | rcur >= size(right,1)
-            matched_lengths = double.empty(0,2);
-            return;
-        end
-    end
-    
+%     while abs(right(rcur,1) - left(lcur,2)) > timeprox
+%         rcur = rcur + 1;
+%         % make sure we don't run out of data at this stage too
+%         if rcur >= size(left,1) | rcur >= size(right,1)
+%             matched_lengths = double.empty(0,2);
+%             return;
+%         end
+%     end
+    rcur = find(right(:,1) > left(1,2),1);
     % find the closest lto preferably after the found right heel strike
     [~,lcur] = min(abs(left(:,2) - right(rcur,1)));
-    lcur = lcur + start;
+%    lcur = lcur + start;
 %     while left(lcur,2) <= right(rcur,1)
 %         lcur = lcur + 1;
 %     end
@@ -59,12 +58,17 @@ function [matched_lengths] = AlignSteps(stage,rcop,lcop,start,datarate)
             end
         else
             fprintf('problem at %d left -- %d right:\nRTO: %d\tLHS: %d\tLTO: %d\tRHS: %d\n',...
-                lcur,rcur,rto,lhs,lto,rhs...
+                start+lcur,start+rcur,rto,lhs,lto,rhs...
             );
-            if exist('matched_lengths','var')
-                matched_lengths = [matched_lengths;AlignSteps(stage,rcop,lcop,max(rcur,lcur)),datarate];
+            if rcur == lcur == 1
+                newstart = start + 1;
             else
-                matched_lengths = AlignSteps(stage,rcop,lcop,max(rcur,lcur),datarate);
+                newstart = max(rcur,lcur);
+            end
+            if exist('matched_lengths','var')
+                matched_lengths = [matched_lengths;AlignSteps(stage,rcop,lcop,newstart,datarate)];
+            else
+                matched_lengths = AlignSteps(stage,rcop,lcop,newstart,datarate);
             end
             break;
         end

@@ -177,7 +177,7 @@ end
 stagedat = cell(1,numstages);
 for stage=1:numstages
     fprintf('\nentering %s\n',stagenames{stage});
-    paired  = AlignSteps(steps(stage,:),R_COP{1,1},L_COP{1,1},1);
+    paired  = AlignSteps(steps(stage,:),R_COP{1,1},L_COP{1,1},1,frate);
     numsteps = size(paired,1);
     fprintf('found %d matching steps out of %d left and %d right\n',numsteps,size(steps{stage,2},1),size(steps{stage,1},1));
     globsteps = 1;

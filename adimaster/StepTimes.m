@@ -42,9 +42,9 @@ function [timings] = StepTimes(start,finish,COPY,Fz)
             cur = cur + 1;
         end
         
-        if step_end < step_start
-            disp(step_end);
-        end
+%         if step_end < step_start
+%             disp(step_end);
+%         end
         
         % if step_end = 0 it means the stage finish mark is in the middle
         % of a step on this plate
