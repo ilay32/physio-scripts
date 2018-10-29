@@ -8,6 +8,7 @@ classdef NirsOrderer
        event_colors = {'red','green','black','blue','magenta','cyan','yellow'};
        testlength = 20;
        export_scale_factor = 1000000;
+       midwalk_range= 5;
     end
     methods(Static)
         function longer = spline_stretch(shorter,stretchto)
@@ -84,8 +85,7 @@ classdef NirsOrderer
             fclose(fid);
             self.channels = channels;
             self.test_matrix = test;
-            nc = fliplr(self.nirs_channels);
-            if ~all(strcmp(self.channels,nc(length(self.channels))))
+            if ~all(strcmp(self.channels,fliplr(self.nirs_channels(1:length(self.channels)))))
                 disp('channel missmatch');
             end
         end
@@ -107,7 +107,7 @@ classdef NirsOrderer
             end
             precision = 1/NirsOrderer.export_scale_factor;
             d = d*NirsOrderer.export_scale_factor;
-            test = reshape(abs(d(2:NirsOrderer.testlength+1,:) - self.test_matrix),1,numel(self.test_matrix));
+            test = reshape(abs(d(1:NirsOrderer.testlength,:) - self.test_matrix),1,numel(self.test_matrix));
             assert(sum(test)/numel(test) < precision...
                 && max(test) < precision,... 
                 'missmatch between .nirs data and .txt export\nmax diff: %d, mean diff: %f',max(test),mean(test));           
@@ -133,13 +133,14 @@ classdef NirsOrderer
                 base_start = walk_start - 14*self.datarate;
                 base_end = base_start + 5*self.datarate;
                 center = mean(data(base_start:base_end,:));
-                prewalk = data(base_start:base_end,:) - center;
+                base = data(base_start:base_end,:) - center;
+                prewalk = data(base_end:walk_start,:) - center;
                 % normalize the walk duration by interpolation
                 walk = NirsOrderer.spline_stretch(data(walk_start+1:nextrow.time,:),NirsOrderer.uniwalklength*self.datarate);
                 if any(strcmp(fieldnames(export),row.name{:}))
-                    export.(row.name{:}) = [export.(row.name{:}),{{prewalk,walk}}];
+                    export.(row.name{:}) = [export.(row.name{:}),{{base,prewalk,walk}}];
                 else
-                    export.(row.name{:}) = {{prewalk,walk}};
+                    export.(row.name{:}) = {{base,prewalk,walk}};
                 end
             end
             outfile = fullfile(self.source_folder,strrep(self.source,'.nirs','.xlsx'));
@@ -150,18 +151,44 @@ classdef NirsOrderer
                 writetable(t,outfile,'Sheet',sheets{s},'Range','A2','WriteVariableNames',false);
                 xlswrite(outfile,r,sheets{s},'A1');
             end
+            self.midwalk_averages(outfile,export);
             syshelpers.remove_default_sheets(outfile);
         end
+        function midwalk_averages(self,filename,export_data)
+            conds = fieldnames(export_data);
+            current_row = 1;
+            sheet = 'mid-walk-averages';
+            for c = 1:length(conds)
+                xlswrite(filename,[conds{c},self.channels],sheet,['A' num2str(current_row)]);
+                current_row = current_row + 1;
+                walks  = export_data.(conds{c});
+                averages = nan*ones(length(walks),length(self.channels));
+                for w = 1:length(walks)
+                    walk = walks{w}{3};
+                    middle = size(walk,1)/2;
+                    twosecs = (NirsOrderer.midwalk_range/2)*self.datarate;
+                    averages(w,:) = mean(walk(round(middle - twosecs):round(middle + twosecs),:)); 
+                    xlswrite(filename,{['walk ' num2str(w)]},sheet,['A' num2str(current_row + w - 1)]);
+                end
+                xlswrite(filename,averages,sheet,['B' num2str(current_row)]);
+                current_row = current_row + size(averages,2);
+                xlswrite(filename,nan*ones(2,size(averages,2)+1),sheet,['A' num2str(current_row)]);
+                current_row = current_row + 2;
+            end
+        end
         function [t,r] = make_table(self,blocks)
+            bases = [];
             pres = [];
             walks = [];
             header = {};
-            for block=blocks
-                pres = [pres,block{:}{1},nan*ones(size(block{:}{1},1),2)];
-                walks = [walks,block{:}{2},nan*ones(size(block{:}{2},1),2)];
-                header = [header,self.channels,{' ',' '}];
+            for b=1:length(blocks)
+                block = blocks{b};
+                bases = [bases,block{1},nan*ones(size(block{1},1),2)];
+                pres = [pres,block{2},nan*ones(size(block{2},1),2)];
+                walks = [walks,block{3},nan*ones(size(block{3},1),2)];
+                header = [header,self.channels,{['walk ' num2str(b)],' '}];
             end
-            t = array2table([pres;nan*ones(2,size(pres,2));walks]);
+            t = array2table([bases;nan*ones(2,size(bases,2));pres;nan*ones(2,size(pres,2));walks]);
             r = header;
         end
         function plotevents(self)
