@@ -29,7 +29,7 @@ classdef NirsOrderer
         conditions
         event_times
         source_folder
-        channels
+        text_channels
         test_matrix
         nirs_channels
     end
@@ -67,7 +67,34 @@ classdef NirsOrderer
                 end
             end
             events.Properties.VariableNames =  {'time','name'};
-            self.event_times = sortrows(events,'time');
+            events = sortrows(events,'time');
+            % sometimes events are somehow doubled in short succession
+            % catch this cases and take the middle value as correct
+            % condition is twice the same name and less the 2sec between.
+            for row=1:height(events)-1
+                if height(events) <= row
+                    % this can happen since rows get deleted
+                    break;
+                end
+                thisrow = events(row,:);
+                nextrow = events(row+1,:);
+                if ~isempty(regexp(thisrow.name{:},'^(E|F|S)$','match'))
+                    continue;
+                end
+                if strcmp(thisrow.name,nextrow.name)
+                    warning('double event found (%s):\n\tplace:%d,%d,time difference:%.3f seconds',...
+                        thisrow.name{:},row,row+1,(nextrow.time- thisrow.time)/self.datarate);
+                    if nextrow.time - thisrow.time < 2*self.datarate
+                        fprintf('using middle value\n\r');
+                        mid = [thisrow.time+round(nextrow.time-thisrow.time),thisrow.name];
+                        events(row,:) = mid;
+                        events(row+1,:) = [];
+                    else
+                        error('that''s too long. please check the data. aborting\n\r');
+                    end
+                end
+            end
+            self.event_times = events;
         end
        
         function self = read_export(self)
@@ -83,11 +110,14 @@ classdef NirsOrderer
                 test(i,:) = row(2:end);
             end
             fclose(fid);
-            self.channels = channels;
             self.test_matrix = test;
-            if ~all(strcmp(self.channels,fliplr(self.nirs_channels(1:length(self.channels)))))
+            numOx = sum(cell2mat(regexp(channels,'.*HbO.*')));
+            numDox = sum(cell2mat(regexp(channels,'.*HbR.*')));
+            nc = self.nirs_channels;
+            if ~all(strcmp(channels,[fliplr(nc(1:numOx)),fliplr(nc(numOx+1:numOx+numDox))]))
                 disp('channel missmatch');
             end
+            self.text_channels = channels;
         end
         function d = fetch_data(self)
             src = self.inputdat.procResult.dc;
@@ -95,11 +125,11 @@ classdef NirsOrderer
             dwidth = size(src,3);
             raw1 = src(:,1,:);
             raw1 = fliplr(reshape(raw1,[dlength,dwidth]));            
-            if length(self.channels) == dwidth
+            if length(self.text_channels) == dwidth
                 d = raw1;
             else
-                if length(self.channels) == dwidth*2
-                    warning('text export contains %d columns instead of 6 (only HbO or HbR) or 12 (both).\n')
+                if length(self.text_channels) ~= dwidth/2
+                    warning('text export contains %d columns instead of 6 (only HbO or HbR) or 12 (both).\n',length(self.text_channels))
                 end
                 raw2 = src(:,2,:);
                 raw2 = fliplr(reshape(raw2,[dlength,dwidth]));
@@ -134,9 +164,13 @@ classdef NirsOrderer
                 base_end = base_start + 5*self.datarate;
                 center = mean(data(base_start:base_end,:));
                 base = data(base_start:base_end,:) - center;
-                prewalk = data(base_end:walk_start,:) - center;
+                prewalk = data(base_end+1:walk_start,:) - center;
                 % normalize the walk duration by interpolation
-                walk = NirsOrderer.spline_stretch(data(walk_start+1:nextrow.time,:),NirsOrderer.uniwalklength*self.datarate);
+                if nextrow.time - walk_start > NirsOrderer.uniwalklength*self.datarate
+                    fprintf('long walk: %f at no. %d %s',(nextrow.time - walk_start)/self.datarate,r,row.name)
+                end
+                walkraw = data(walk_start+1:nextrow.time,:) - center;
+                walk = NirsOrderer.spline_stretch(walkraw,NirsOrderer.uniwalklength*self.datarate);
                 if any(strcmp(fieldnames(export),row.name{:}))
                     export.(row.name{:}) = [export.(row.name{:}),{{base,prewalk,walk}}];
                 else
@@ -159,10 +193,10 @@ classdef NirsOrderer
             current_row = 1;
             sheet = 'mid-walk-averages';
             for c = 1:length(conds)
-                xlswrite(filename,[conds{c},self.channels],sheet,['A' num2str(current_row)]);
+                xlswrite(filename,[conds{c},self.text_channels],sheet,['A' num2str(current_row)]);
                 current_row = current_row + 1;
                 walks  = export_data.(conds{c});
-                averages = nan*ones(length(walks),length(self.channels));
+                averages = nan*ones(length(walks),length(self.text_channels));
                 for w = 1:length(walks)
                     walk = walks{w}{3};
                     middle = size(walk,1)/2;
@@ -186,7 +220,7 @@ classdef NirsOrderer
                 bases = [bases,block{1},nan*ones(size(block{1},1),2)];
                 pres = [pres,block{2},nan*ones(size(block{2},1),2)];
                 walks = [walks,block{3},nan*ones(size(block{3},1),2)];
-                header = [header,self.channels,{['walk ' num2str(b)],' '}];
+                header = [header,self.text_channels,{['walk ' num2str(b)],' '}];
             end
             t = array2table([bases;nan*ones(2,size(bases,2));pres;nan*ones(2,size(pres,2));walks]);
             r = header;
