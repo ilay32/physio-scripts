@@ -128,7 +128,7 @@ classdef NirsOrderer
             if length(self.text_channels) == dwidth
                 d = raw1;
             else
-                if length(self.text_channels) ~= dwidth/2
+                if length(self.text_channels) ~= dwidth*2
                     warning('text export contains %d columns instead of 6 (only HbO or HbR) or 12 (both).\n',length(self.text_channels))
                 end
                 raw2 = src(:,2,:);
