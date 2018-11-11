@@ -20,7 +20,7 @@ basicnames = {...
 	'ds_duration'...
 };
 subjectpattern = '\d{3}_[A-Za-z]{2}';
-%subjectpattern = '[A-Za-z]{2}\d{3}';
+% katrin subjectpattern = '[A-Za-z]{2}\d{3}');
 folder = uigetdir(syshelpers.driveroot());
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
 if isempty(listofcop)
@@ -38,25 +38,7 @@ end
 gf = gf.compute_basics();
 for b=basicnames
     fprintf('Computing %s Symmetries:\n',b{:});
-    specs = struct; 
-    specs.name = b{:};
-    syms = cell(1,gf.numstages);
-    for s=1:gf.numstages
-        stage = gf.stages(s);
-        syms{s} = gf.basics.(stage.name).data.([b{:} '_symmetries']);
-    end
-    specs.data = syms;
-    specs.stagenames = extractfield(gf.stages,'name');
-    specs.titlesprefix = [gf.subjid ' ' gf.prepost ' ' b{:}];
-    if strcmp(gf.prepost,'pre')
-        specs.baselines = 1:3;
-        specs.fitmodel = 4:5;
-    else
-        specs.baselines = 1;
-        specs.fitmodel = 2:3;
-    end
-    specs.model = 'exp2';
-    visu = VisHelpers(specs);
+    visu = gf.get_visualizer(b{:});
     learning_times = visu.plot_global(false);
     gf = gf.process_learning_times(learning_times,b{:});
     fprintf('done.\n\n');

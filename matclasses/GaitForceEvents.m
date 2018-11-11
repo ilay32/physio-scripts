@@ -3,6 +3,10 @@ classdef GaitForceEvents < GaitEvents
     % Inherits from GaitEvents. Meant to be used where the GaitForce output
     % is complete, and the analysis is concerned with symmetries e.g the
     % Salute expriment
+    properties(Constant)
+        model = 'dual';
+        remove_outliers = true; % in symmetries that is
+    end
     properties
         basicnames
         prepost     
@@ -11,6 +15,8 @@ classdef GaitForceEvents < GaitEvents
         learning_data
         stages_offset
         part
+        subjpat
+        other_stagenames
     end
 
     methods
@@ -28,6 +34,7 @@ classdef GaitForceEvents < GaitEvents
             % scripts for examples.
             self@GaitEvents(folder,subjectpattern);
             self.basicnames=  basicnames;
+            self.subjpat = subjectpattern;
             ispre = ~isempty(regexpi(folder,'pre'));
             ispost = ~isempty(regexpi(folder,'post'));
             if ~ispre && ~ispost
@@ -42,6 +49,7 @@ classdef GaitForceEvents < GaitEvents
                 if ~isempty(regexp(self.subjid,'0?(13|10)_','match'))
                     snames = stagenames.pre10;
                 end
+                self.other_stagenames = stagenames.post;
             elseif ispost 
                 self.prepost = 'post';        
                 snames = stagenames.post;
@@ -55,7 +63,8 @@ classdef GaitForceEvents < GaitEvents
                     else
                         snames = stagenames.(['post23_' part{:}]);
                     end
-                end                    
+                end
+                self.other_stagenames = stagenames.pre;
             end
             numstages = length(snames);
             for i = 1:numstages
@@ -196,6 +205,62 @@ classdef GaitForceEvents < GaitEvents
                 end
             end
         end
+        function d = resolve_symmetry_details(self,stageindex)
+            d.faster = 'none';
+            d.normalize = false;
+            d.speeds = [];
+            d.isbaseline = false;
+            d.isfitcurve = false;
+            name = self.stages(stageindex).name;
+            if isempty(regexp(name,'(salute|adaptation)','ONCE'))
+                d.isbaseline = true;
+            else
+                d.isfitcurve = true;
+                d.normalize = true;
+                if strcmp(self.prepost,'pre')
+                    reducedprot = self.protocol(self.protocol.speedL ~= 0 & self.protocol.speedR ~= 0,:);
+                    thispeeds = reducedprot(stageindex,{'speedL','speedR'});
+                    prevspeeds = reducedprot(stageindex-1,{'speedL','speedR'});
+                    if isempty(regexp(name,'post','ONCE'))
+                        if thispeeds.speedL > thispeeds.speedR
+                            f = 'left';
+                        elseif thispeeds.speedR > thispeeds.speedL
+                            f = 'right';
+                        else
+                            error('expecting different belt speeds at this stage');
+                        end
+                    else
+                        if prevspeeds.speedL > prevspeeds.speedR
+                            f = 'left';
+                        else
+                            f = 'right';
+                        end
+                    end
+                    d.faster = f;
+                    d.speeds = thispeeds;
+                else
+                    grr = struct;
+                    grr.post = {};
+                    grr.pre = self.other_stagenames;
+                    otherdir  = regexprep(self.datafolder,'(?<=[\\\/][Pp])ost(?=[\\\/])','re');
+                    otherdir = regexprep(otherdir,'[pP]art[12]','');
+                    other = GaitForceEvents(otherdir,grr,self.basicnames,self.subjpat);
+                    other = other.load_stages('.*(salute)?.*pre.*(left|right)?.*txt$');
+                    for s=1:other.numstages
+                        details = other.resolve_symmetry_details(s);
+                        if ~isempty(details.speeds) && details.speeds.speedL ~= details.speeds.speedR
+                            if details.speeds.speedL > details.speeds.speedR
+                                d.faster = 'left';
+                            else
+                                d.faster = 'right';
+                            end
+                            d.speeds = details.speeds;
+                            break;
+                        end
+                    end
+                end
+            end
+        end
         function self= compute_basics(self)
             for s = 1:self.numstages
                 [longest,src] = self.compute_stage_basics(s);
@@ -214,20 +279,23 @@ classdef GaitForceEvents < GaitEvents
                         bname = strrep(name,'_right',''); % this is a little stupid but...
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
+                        details = self.resolve_symmetry_details(s);
                         leftcol = src.(leftname);
                         %cv = GaitEvents.cv([leftcol;datcol]);
                         % these columns are coordinated by the construction
                         % of the self.basics tables, but the lengths don't
                         % always match. so just take by shortest
                         m = min(length(datcol),length(leftcol));
-                        syms = VisHelpers.symmetries([leftcol(1:m),datcol(1:m)],true);
+                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),details.faster,GaitForceEvents.remove_outliers,details.normalize);
                         stagedata.(symsname) = [syms;nan*ones(longest-length(syms),1)];
                         extras.(bname).symcv = GaitEvents.cv(syms);
                         extras.(bname).meansym = nanmean(syms);
                         extras.(bname).symcv_first5 = GaitEvents.cv(syms(1:5));
                         extras.(bname).symcv_last5 = GaitEvents.cv(syms(end-5:end));
+                        extras.(bname).symcv_last30 = GaitEvents.cv(syms(end-30:end));
                         extras.(bname).meansym_first5 = nanmean(syms(1:5));
                         extras.(bname).meansym_last5 = nanmean(syms(end-5:end));
+                        extras.(bname).meansym_last30 = nanmean(syms(end-30:end));
                     end
                 end
                 self.basics.(self.stages(s).name).data = stagedata;
@@ -281,14 +349,19 @@ classdef GaitForceEvents < GaitEvents
                     splitindex = round(height(basictable)/2);
                     auto = 0;
                 end               
-                left = basictable.([b '_left']);
-                right = basictable.([b '_right']);
-                left1 = left(1:splitindex);
-                left2 = left(splitindex+1:end);
-                right1 = right(1:splitindex);
-                right2 = right(splitindex+1:end);
-                syms1 = VisHelpers.symmetries([left1,right1],true);
-                syms2 = VisHelpers.symmetries([left2,right2],true);
+                 left = basictable.([b '_left']);
+                 right = basictable.([b '_right']);
+%                 left1 = left(1:splitindex);
+%                 left2 = left(splitindex+1:end);
+%                 right1 = right(1:splitindex);
+%                 right2 = right(splitindex+1:end);
+%                 syms1 = VisHelpers.symmetries([left1,right1],true);
+%                 syms2 = VisHelpers.symmetries([left2,right2],true);
+                syms = basictable.([b '_symmetries']);
+                syms1 = syms(1:splitindex);
+                syms2 = syms(splitindex+1:end);
+                syms2 = syms2(~isnan(syms2));
+                
                 time1 = self.timespan(stage,b,1,splitindex);
                 time2 = self.timespan(stage,b,splitindex+1,min(length(left),length(right)));
                 % see self.export lcolumns below
@@ -305,8 +378,10 @@ classdef GaitForceEvents < GaitEvents
                     time2;...
                     GaitEvents.cv(syms2);...
                     self.basics.(stage).extras.(b).symcv_last5;...
+                    self.basics.(stage).extras.(b).symcv_last30;...
                     nanmean(syms2);...
                     self.basics.(stage).extras.(b).meansym_last5;...
+                    self.basics.(stage).extras.(b).meansym_last30;...
                     min(length(left)-sum(isnan(left)),length(right)-sum(isnan(right)));...
                     time1 + time2;...
                     self.basics.(stage).extras.(b).symcv;...
@@ -353,7 +428,32 @@ classdef GaitForceEvents < GaitEvents
                 self.numstages  = self.numstages + 1;
             end
         end
-        
+        function v = get_visualizer(self,basicname)
+            specs = struct; 
+            specs.name = basicname;
+            specs.titlesprefix = [self.subjid ' ' self.prepost ' ' basicname];
+            specs.model = GaitForceEvents.model;
+            specs.remove_outliers = GaitForceEvents.remove_outliers;
+            stages = VisHelpers.initialize_stages(self.numstages);
+            for s=1:self.numstages
+                stage = stages(s);
+                source = self.stages(s);
+                stage.data = self.basics.(source.name).data.([basicname '_symmetries']);
+                stage.data = stage.data(~isnan(stage.data));
+                stage.name = source.name;
+                details = self.resolve_symmetry_details(s);
+                stage.faster = details.faster;
+                stage.normalize = details.normalize;
+                stage.fit_curve = details.isfitcurve;
+                stage.include_inbaseline = details.isbaseline;
+                if details.isfitcurve
+                    stage.speeds = struct('left',details.speeds.speedL,'right',details.speeds.speedR);
+                end
+                stages(s) = stage;
+            end
+            specs.stages = stages;
+            v = VisHelpers(specs);
+        end
         function export(self)
             A = int16('A');
             warning('off','MATLAB:xlswrite:AddSheet');
@@ -365,8 +465,8 @@ classdef GaitForceEvents < GaitEvents
             [s,p] = uiputfile(putname);
             lrows = {...
                 'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
-                'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5',...
-                'meansym2','meansym_last5','stepstotal','timetotal','cvtotal','meantotal'...
+                'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5','symcv_last30',...
+                'meansym2','meansym_last5','meansym_last30','stepstotal','timetotal','cvtotal','meantotal'...
             };
             if s ~= 0
                 saveto = fullfile(p,s);

@@ -37,25 +37,7 @@ end
 gf = part1.combine(part2);
 for b=basicnames
     fprintf('Computing %s Symmetries:\n',b{:});
-    specs = struct; 
-    specs.name = b{:};
-    syms = cell(1,gf.numstages);
-    for s=1:gf.numstages
-        stage = gf.stages(s);
-        syms{s} = gf.basics.(stage.name).data.([b{:} '_symmetries']);
-    end
-    specs.data = syms;
-    specs.stagenames = extractfield(gf.stages,'name');
-    specs.titlesprefix = gf.prepost;
-    if strcmp(gf.prepost,'pre')
-        specs.baselines = 1:3;
-        specs.fitmodel = 4:5;
-    else
-        specs.baselines = 1;
-        specs.fitmodel = 2:3;
-    end
-    specs.model = 'exp2';
-    visu = VisHelpers(specs);
+    visu = gf.get_visualizer(b{:});
     learning_times = visu.plot_global(false);
     gf = gf.process_learning_times(learning_times,b{:});
     fprintf('done.\n\n');
