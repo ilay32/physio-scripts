@@ -93,7 +93,7 @@ classdef VisHelpers
             end                       
             if regexp(model,'exp\d')
                 x = 1:max(S);
-                [mfit,goodness,~,comment] = fit(x',yNoise,model,'Lower',-1,'Upper',0);
+                [mfit,goodness,~,comment] = fit(x',yNoise,model,'Lower',-1,'Upper',1);
                 summ = sprintf('a:%f\nb:%f',mfit.a,mfit.b);
                 optresults.params = struct('a',mfit.a,'b',mfit.b);
                 if strcmp(model,'exp2')
