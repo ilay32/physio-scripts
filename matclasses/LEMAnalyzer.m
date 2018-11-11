@@ -33,6 +33,7 @@ classdef LEMAnalyzer
         extension
         touch_points
         tare_points
+        count
     end
     methods (Static)
         function noisedat =  findnoise(sample)
@@ -85,7 +86,7 @@ classdef LEMAnalyzer
             % and puts everything on the principal value
             cleaned = zeros(size(d));
             for i=1:size(d,2)
-                n = findnoise(d(:,i));
+                n = LEMAnalyzer.findnoise(d(:,i));
                 if nargin == 1
                     reduceto = n.princval;
                 end
@@ -156,7 +157,9 @@ classdef LEMAnalyzer
                 color = LEMAnalyzer.multcolors{inst};
                 % matlab's stupid way of making an arbitrary legend entry
                 lh(inst) = plot(NaN,NaN,'s','MarkerFaceColor',color,'MarkerEdgeColor',color);
-                labels{inst} = sprintf('part %s',lma.part);
+                labels{inst} = sprintf('part %s: %d near, %d far, %d out',...
+                    lma.part,lma.count.near,lma.count.far,lma.count.out...
+                );
                 for spec=1:3
                     pspec = pspecs{spec};
                     copxy = lma.touch_points.(pspec{1});
@@ -209,14 +212,17 @@ classdef LEMAnalyzer
                 end
                 lh(spec) = plts{:};
             end
-            legend(lh,{'near','far','out'});
+            legend(lh,{sprintf('near (%d)',self.count.near),...
+                sprintf('far (%d)',self.count.far),...
+                sprintf('out (%d)',self.count.out),...
+            });
             hold off;
             self.summary_row();
         end
         
         function summary_row(self)
             fprintf('subject %s part %s:\n\r counted %d touches on the near side, %d on the far side, and %d invalid\n',...
-    self.subjid, self.part,length(self.touch_points.near),length(self.touch_points.far),length(self.touch_points.out));
+    self.subjid, self.part,self.count.near,self.count.far,self.count.out);
         end
         
         function [cop,rcop] = copontouch(self,touchindices)
@@ -422,6 +428,7 @@ classdef LEMAnalyzer
                 if ~isempty(ps)
                     points.(c{:}) = ps(sum(ps == [0,0],2) < 2,:);
                 end
+                self.count.(c{:}) = length(points.(c{:}));
             end
             self.touch_points = points;
         end
