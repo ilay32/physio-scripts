@@ -3,7 +3,7 @@ classdef NirsOrderer
     %   takes HOMER-processed data (.nirs) and chunks it by event and condition
     %   can plot the event timings and export the chunks to excel
     properties(Constant)
-       uniwalklength = 20; %??
+       uniwalklength = 13;
        baseline_duration = 5; %seconds
        event_colors = {'red','green','black','blue','magenta','cyan','yellow'};
        testlength = 20;
@@ -11,14 +11,14 @@ classdef NirsOrderer
        midwalk_range= 5;
     end
     methods(Static)
-        function longer = spline_stretch(shorter,stretchto)
+        function unified = spline_unify(orig,unilength)
             % expects column vector(s)
-            rows = size(shorter,1);
-            columns = size(shorter,2);
-            longer = zeros(stretchto,columns);
+            rows = size(orig,1);
+            columns = size(orig,2);
+            unified = zeros(unilength,columns);
             for c=1:columns
-                sp = spline(1:rows,shorter(:,c));
-                longer(:,c) = ppval(sp,(1:stretchto)');
+                %sp = spline(1:rows,shorter(:,c));
+                unified(:,c) = spline(1:rows,orig(:,c),1:rows/unilength:rows);%ppval(sp,(1:stretchto)');
             end
         end
     end
@@ -148,7 +148,7 @@ classdef NirsOrderer
             % baseline of walk is 5 seconds of standing before
             % distractor/letters onset. all data is centered around the
             % baseline average. the walk part itself is normalized by
-            % NirsOrddrer.spline_stretch. data is saved in one excel file
+            % NirsOrddrer.spline_unify. data is saved in one excel file
             % with four tabs corresponding to the four walking conditions.
             % every tab holds a 6 channels x 6 walks matrix
             data = self.fetch_data();
@@ -166,11 +166,13 @@ classdef NirsOrderer
                 base = data(base_start:base_end,:) - center;
                 prewalk = data(base_end+1:walk_start,:) - center;
                 % normalize the walk duration by interpolation
-                if nextrow.time - walk_start > NirsOrderer.uniwalklength*self.datarate
-                    fprintf('long walk: %f at no. %d %s',(nextrow.time - walk_start)/self.datarate,r,row.name)
+                walk_length = nextrow.time - walk_start;
+                u = NirsOrderer.uniwalklength*self.datarate;
+                if walk_length > 1.5*u || walk_length < u/1.5
+                    fprintf('deviant walk duration: %.2f seconds at no. %d (%s)',walk_length/self.datarate,r,row.name{:})
                 end
                 walkraw = data(walk_start+1:nextrow.time,:) - center;
-                walk = NirsOrderer.spline_stretch(walkraw,NirsOrderer.uniwalklength*self.datarate);
+                walk = NirsOrderer.spline_unify(walkraw,u);
                 if any(strcmp(fieldnames(export),row.name{:}))
                     export.(row.name{:}) = [export.(row.name{:}),{{base,prewalk,walk}}];
                 else
@@ -179,6 +181,9 @@ classdef NirsOrderer
             end
             outfile = fullfile(self.source_folder,strrep(self.source,'.nirs','.xlsx'));
             sheets = fieldnames(export);
+            if exist(outfile,'file')
+                delete(outfile);
+            end
             warning('off','MATLAB:xlswrite:AddSheet');
             for s=1:length(sheets)
                 [t,r] = self.make_table(export.(sheets{s}));
@@ -205,7 +210,7 @@ classdef NirsOrderer
                     xlswrite(filename,{['walk ' num2str(w)]},sheet,['A' num2str(current_row + w - 1)]);
                 end
                 xlswrite(filename,averages,sheet,['B' num2str(current_row)]);
-                current_row = current_row + size(averages,2);
+                current_row = current_row + size(averages,1);
                 xlswrite(filename,nan*ones(2,size(averages,2)+1),sheet,['A' num2str(current_row)]);
                 current_row = current_row + 2;
             end
@@ -226,7 +231,7 @@ classdef NirsOrderer
             r = header;
         end
         function plotevents(self)
-            d = self.inputdat.d(:,1);
+            d = self.inputdat.procResult.dc(:,2,1);
             plot(d);
             hold on;
             fns = self.conditions;
