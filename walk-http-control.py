@@ -58,7 +58,8 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
                 plt.plot(x, m*x + c, 'r', label='Fitted line')
                 plt.legend()
                 plt.grid()
-                os.remove(tfile)
+                if os.path.exists(tfile):
+                    os.remove(tfile)
                 plt.savefig(tfile)
                 #plt.show()
                 self.respond(json.dumps({"response":{

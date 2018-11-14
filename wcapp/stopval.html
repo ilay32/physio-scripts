@@ -1,0 +1,40 @@
+
+<html ng-app="walkControl"> 
+    <head>
+        <meta charset="utf-8">
+        <title>Corridor Walk Helper</title>
+        <meta name="author" content="ilay">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <link rel="stylesheet" href="Skeleton-2.0.4/css/normalize.css?123">
+        <link rel="stylesheet" href="Skeleton-2.0.4/css/skeleton.css?123">
+        <link rel="stylesheet" href="style.css?123">
+
+        <link rel="icon" type="image/png" href="Skeleton-2.0.4/images/favicon.png">
+
+   		<script src="angular-1.6.9/angular.js"></script> 
+		<script src="walk-control.js?123"></script>
+    </head>
+       
+    <body ng-controller="RunExp">
+        <div id="server-message" class="corner-message" ng-show="srvMessage">
+            {{srvMessage}}
+        </div>
+         <center id="main" class="row"> 
+            <div id="results">
+                <img src="{{sValid}}"/> 
+            </div>
+            <h2>
+                {{countDtime}}
+            </h2>
+         </center>
+        <div id="footer" class="row">
+            <button class="button-primary" ng-click="validate_stopper()">run</button>
+
+        <button class="button-drastic" ng-click="terminate()">exit</button>
+
+        </div>
+    </body>
+</html>
+    
