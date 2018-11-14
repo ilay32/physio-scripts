@@ -45,6 +45,32 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         post = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
         command = post['command']
         self._set_headers()
+        if command == "stopper_validation":
+            try:
+                tfile = 'wcapp/stopper-validation.png'
+                import numpy as np
+                import matplotlib.pyplot as plt
+                x = np.array(list(post['data'].keys())).astype(float)
+                y = np.mean(list(post['data'].values()),axis=1)
+                A = np.vstack([x, np.ones(len(x))]).T
+                m,c = np.linalg.lstsq(A,y,rcond=-1)[0]
+                plt.plot(x, y, 'o', label='Original data', markersize=10)
+                plt.plot(x, m*x + c, 'r', label='Fitted line')
+                plt.legend()
+                plt.grid()
+                os.remove(tfile)
+                plt.savefig(tfile)
+                #plt.show()
+                self.respond(json.dumps({"response":{
+                        "a" : m,
+                        "b": c
+                }}))
+            except Exception as e:
+                self.respond(json.dumps({
+                        "response": str(e)
+                }))
+
+                                     
         if command == "get_experiment":
             with open(os.path.join(os.path.expanduser("~") ,"Desktop","experiment-sequence.csv")) as exp:
                 experiment = list()
@@ -273,9 +299,10 @@ def killserver():
 if __name__ == '__main__':
     if platform.system() == "Windows":
         os.chdir(os.path.dirname(__file__))
-    server_go = threading.Thread(None,runserver)
+    #server_go = threading.Thread(None,runserver)
+    #server_go.start()
     server_stop = threading.Thread(None,killserver)
     server_stop.setDaemon(True)
-    server_go.start()
     webbrowser.open('http://localhost:8000/wcapp/')
+    runserver()
 

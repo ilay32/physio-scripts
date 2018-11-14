@@ -199,6 +199,7 @@ angular.module('walkControl', []).controller(
     $scope.distractorLength = undefined;
     $scope.reportSlots = [];
     $scope.postWalkDelay = 25;
+    $scope.sValid = '';
     
     
     var state = null;
@@ -576,7 +577,52 @@ angular.module('walkControl', []).controller(
         });
     }
     
-    
+    $scope.validate_stopper = function() {
+        var times = [5,10,15,20,30,40,50],
+            samples = 2,
+            table = {};
+        for(t in times) {
+            table[times[t]] = [];
+        }
+        $scope.rec_val(times,0,samples,table);
+    }
+             
+    $scope.process_validation = function(table) {
+        $http.post('/', {
+            command: 'stopper_validation',
+            data : table
+        }).then(
+            function succ(r) {
+                $scope.srvMessage = r.data.response.a+"x + "+r.data.response.b;
+                $scope.sValid = 'stopper-validation.png';
+            },
+            function fail(r) {
+                $scope.srvMessage(r.data)
+            }
+        );
+
+    }
+    $scope.rec_val = function(times,sample,samples,acc) {
+        var start = Date.now();
+        $scope.stopper_countdown(50,function() {
+            acc[times[0]].push((Date.now() - start)/1000);
+            if(sample == samples - 1) {    
+                if(times.length == 1) {
+                    // last one is finished
+                    $scope.process_validation(acc);
+                    return acc;
+                }
+                else {
+                    // start a new time to test
+                    return $scope.rec_val(times.slice(1),0,samples,acc);
+                }
+            }
+            else {
+                return $scope.rec_val(times,sample+1,samples,acc);
+            }
+        },times[0]*1000);
+    }
+
     // save the data
     $scope.save = function() {
         if($scope.isDemo) {
