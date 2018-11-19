@@ -6,6 +6,11 @@ classdef GaitForceEvents < GaitEvents
     properties(Constant)
         model = 'dual';
         remove_outliers = true; % in symmetries that is
+        lrows = {...
+                'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
+                'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5','symcv_last30',...
+                'meansym2','meansym_last5','meansym_last30','stepstotal','timetotal','cvtotal','meantotal'...
+            };
     end
     properties
         basicnames
@@ -35,8 +40,8 @@ classdef GaitForceEvents < GaitEvents
             self@GaitEvents(folder,subjectpattern);
             self.basicnames=  basicnames;
             self.subjpat = subjectpattern;
-            ispre = ~isempty(regexpi(folder,'pre'));
-            ispost = ~isempty(regexpi(folder,'post'));
+            ispre = ~isempty(regexpi(folder,'(pre|day1)'));
+            ispost = ~isempty(regexpi(folder,'(post|day2)'));
             if ~ispre && ~ispost
                 %error('The data folder must be a decendant of either a pre or a post folder');
                 self.prepost = '';
@@ -242,7 +247,7 @@ classdef GaitForceEvents < GaitEvents
                     grr = struct;
                     grr.post = {};
                     grr.pre = self.other_stagenames;
-                    otherdir  = regexprep(self.datafolder,'(?<=[\\\/][Pp])ost(?=[\\\/])','re');
+                    otherdir  = regexprep(self.datafolder,'(?<=[\\\/][Pp])ost','re');
                     otherdir = regexprep(otherdir,'[pP]art[12]','');
                     other = GaitForceEvents(otherdir,grr,self.basicnames,self.subjpat);
                     other = other.load_stages('.*(salute)?.*pre.*(left|right)?.*txt$');
@@ -463,11 +468,6 @@ classdef GaitForceEvents < GaitEvents
             end
             putname = [putname '.xlsx'];
             [s,p] = uiputfile(putname);
-            lrows = {...
-                'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
-                'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5','symcv_last30',...
-                'meansym2','meansym_last5','meansym_last30','stepstotal','timetotal','cvtotal','meantotal'...
-            };
             if s ~= 0
                 saveto = fullfile(p,s);
                 if exist(saveto,'file')
@@ -493,7 +493,7 @@ classdef GaitForceEvents < GaitEvents
                         xlswrite(saveto,bnames',stagename,['B' num2str(h+10)]);
                         % write a column with the learning rows names --
                         % one below the header
-                        xlswrite(saveto,lrows',stagename,['A' num2str(h+11)]);
+                        xlswrite(saveto,GaitForceEvents.lrows',stagename,['A' num2str(h+11)]);
                         % loop the basic names and write the column of computed
                         % values under each
                         for b = 1:length(bnames)
@@ -528,6 +528,31 @@ classdef GaitForceEvents < GaitEvents
                 end
                 syshelpers.remove_default_sheets(saveto);
             end
+        end
+        function short_export(self,basic)
+            saveto = fullfile(self.datafolder,[self.subjid '-learning-data-' basic '.csv']);
+            fid = fopen(saveto,'wt');
+            lnames = fieldnames(self.learning_data);
+            cols = {'stage','quality','detection by curve','steps1','time1','meansym_first5','meansym_last30'};
+            fprintf(fid,[strjoin(cols,',') '\n']);
+            for l=1:length(lnames)
+                name = lnames{l};
+                dat = self.learning_data.(name).(basic);
+                fprintf(fid,'%s',name);
+                for c=2:length(cols)
+                    take = strcmp(GaitForceEvents.lrows,cols{c});
+                    fprintf(fid,',%f',dat(take));
+                end
+                fprintf(fid,'\n');
+            end
+            fclose(fid);
+        end
+        function save_gist(self)
+            savename =  fullfile(self.datafolder,[self.subjid '-' self.prepost '-gist.mat']);
+            exp = struct('learning',self.learning_data,'basics',struct);
+            exp.learning = self.learning_data;
+            exp.basics = self.basics;
+            save(savename,'exp');
         end
     end
 end

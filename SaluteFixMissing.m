@@ -3,14 +3,16 @@ addpath 'matclasses';
 addpath 'matfunctions';
 folder = uigetdir();
 subpat = '\d{3}_[A-Za-z]{2}';
-if ~regexpi(folder,'salute')
+protpat = '.*(salute)?.*(pre|post).*(left|right)?.*txt$';
+if isempty(regexpi(folder,'salute'))
     subpat = '[A-Za-z]{2}\d{3}';
+    protpat = '.*Day_\d\.txt$';
 end
 gr = GaitReversed(folder,subpat);
 if ~gr.has_loaded_from_disk
     gr = gr.find_heel_strikes();
     close;
-    gr = gr.load_salute_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
+    gr = gr.load_salute_stages(protpat);
     gr = gr.mark_stages(gr.left_hs(1));
 end
 gr.confirm_stages();
