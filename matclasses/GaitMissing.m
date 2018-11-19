@@ -10,6 +10,13 @@ classdef GaitMissing < GaitForceEvents
             svn = fullfile(self.datafolder,[self.subjid '_hsandboundaries.mat']);
             load(svn,'dat');
             self.stages = dat.stages;
+            protpat = '.*(salute)?.*(pre|post).*(left|right)?.*txt$';
+            if isempty(regexpi(self.datafolder,'salute'))
+                protpat = '.*Day_\d\.txt$';
+            end
+            protfiles = syshelpers.subdirs(self.datafolder,protpat,true);
+            assert(~isempty(protfiles),'could not find the protocol file');
+            self = self.read_protocol(protfiles{1,1}{:});
             clear dat;
         end
         
