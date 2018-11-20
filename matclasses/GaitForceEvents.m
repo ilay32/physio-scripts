@@ -549,10 +549,11 @@ classdef GaitForceEvents < GaitEvents
         end
         function save_gist(self)
             savename =  fullfile(self.datafolder,[self.subjid '-' self.prepost '-gist.mat']);
-            exp = struct('learning',self.learning_data,'basics',struct);
-            exp.learning = self.learning_data;
-            exp.basics = self.basics;
-            save(savename,'exp');
+            gist = struct;
+            gist.learning = self.learning_data;
+            gist.learning_keys = GaitForceEvents.lrows;
+            gist.basics = self.basics; %#ok<STRNU>
+            save(savename,'gist');
         end
     end
 end
