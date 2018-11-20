@@ -240,6 +240,8 @@ classdef GaitForceEvents < GaitEvents
                         else
                             f = 'right';
                         end
+                        thispeeds.speedR = prevspeeds.speedL;
+                        thispeeds.speedL = prevspeeds.speedR;
                     end
                     d.faster = f;
                     d.speeds = thispeeds;
@@ -252,15 +254,9 @@ classdef GaitForceEvents < GaitEvents
                     other = GaitForceEvents(otherdir,grr,self.basicnames,self.subjpat);
                     other = other.load_stages('.*(salute)?.*pre.*(left|right)?.*txt$');
                     for s=1:other.numstages
-                        details = other.resolve_symmetry_details(s);
-                        if ~isempty(details.speeds) && details.speeds.speedL ~= details.speeds.speedR
-                            if details.speeds.speedL > details.speeds.speedR
-                                d.faster = 'left';
-                            else
-                                d.faster = 'right';
-                            end
-                            d.speeds = details.speeds;
-                            break;
+                        oname = other.stages(s).name;
+                        if strcmp(name,'salute') && strcmp(oname,'adaptation') || strcmp(name,'post_salute') && strcmp(oname,'post_adaptation')
+                            d = other.resolve_symmetry_details(s);
                         end
                     end
                 end
