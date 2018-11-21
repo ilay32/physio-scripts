@@ -3,7 +3,7 @@ classdef NirsOrderer
     %   takes HOMER-processed data (.nirs) and chunks it by event and condition
     %   can plot the event timings and export the chunks to excel
     properties(Constant)
-       uniwalklength = 13;
+       uniwalklength = 20;
        baseline_duration = 5; %seconds
        event_colors = {'red','green','black','blue','magenta','cyan','yellow'};
        testlength = 20;
@@ -18,7 +18,7 @@ classdef NirsOrderer
             unified = zeros(unilength,columns);
             for c=1:columns
                 %sp = spline(1:rows,shorter(:,c));
-                unified(:,c) = spline(1:rows,orig(:,c),1:rows/unilength:rows);%ppval(sp,(1:stretchto)');
+                unified(:,c) = spline(1:rows,orig(:,c),linspace(1,rows,unilength));%ppval(sp,(1:stretchto)');
             end
         end
     end
