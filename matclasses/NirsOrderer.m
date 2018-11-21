@@ -41,7 +41,11 @@ classdef NirsOrderer
             self.source_folder = path;
             self.inputdat = load(fullfile(path,nirsfile),'-mat');
             self.nirs_channels = string();
-            cdefs = self.inputdat.mL;
+            ml = 'ml';
+            if ~any(strcmp(fieldnames(self.inputdat),ml))
+                ml = 'mL';
+            end
+            cdefs = self.inputdat.(ml);
             for cdef=1:size(cdefs,1)
                 oxy = 'HbO';
                 if cdefs(cdef,4) == 2
@@ -82,7 +86,7 @@ classdef NirsOrderer
                     continue;
                 end
                 if strcmp(thisrow.name,nextrow.name)
-                    warning('double event found (%s):\n\tplace:%d,%d,time difference:%.3f seconds',...
+                    fprintf('double event found (%s):\n\tplace:%d,%d,time difference:%.3f seconds\n',...
                         thisrow.name{:},row,row+1,(nextrow.time- thisrow.time)/self.datarate);
                     if nextrow.time - thisrow.time < 2*self.datarate
                         fprintf('using middle value\n\r');
@@ -169,7 +173,7 @@ classdef NirsOrderer
                 walk_length = nextrow.time - walk_start;
                 u = NirsOrderer.uniwalklength*self.datarate;
                 if walk_length > 1.5*u || walk_length < u/1.5
-                    fprintf('deviant walk duration: %.2f seconds at no. %d (%s)',walk_length/self.datarate,r,row.name{:})
+                    fprintf('deviant walk duration: %.2f seconds at no. %d (%s)\n',walk_length/self.datarate,r,row.name{:})
                 end
                 walkraw = data(walk_start+1:nextrow.time,:) - center;
                 walk = NirsOrderer.spline_unify(walkraw,u);
@@ -233,6 +237,7 @@ classdef NirsOrderer
         function plotevents(self)
             d = self.inputdat.procResult.dc(:,2,1);
             plot(d);
+            title(['data from ' self.source]);
             hold on;
             fns = self.conditions;
             for i=1:length(fns)
