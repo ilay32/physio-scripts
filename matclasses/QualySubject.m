@@ -282,7 +282,8 @@ classdef QualySubject
             if new
                 saveit = input('save the marked stage boundaries [y/n]? ', 's');
                 if strcmp(saveit,'y')
-                    save(indsfile,'boundaries');
+                    boundaries= ix;
+                    save(boundaries_file,'boundaries');
                 end
             end
             self.stage_boundaries = ix;
