@@ -50,14 +50,25 @@ classdef VisHelpers
             repname = strrep(stage.name,'_',' ');
             optresults.failed = false;
             F = max([ls,rs])/min([ls,rs]); % ratio between treadmill belt speeds
-            if ls > rs && strcmp(stage.faster,'right')
+%             if ls > rs && strcmp(stage.faster,'right')
+%                 F = -1*F;
+%             end
+            yNoise = stage.data;
+            if mean(yNoise(1:5)) < mean(yNoise(end-5:end))
                 F = -1*F;
             end
-            yNoise = stage.data;
-            %yNoise = movmean(yNoise,5);
             S = size(yNoise);
             curve = zeros(S);
+            sRange = sign(F)*abs(yNoise(end) - yNoise(1));
             summ = '';
+            
+            function MSE = bastian(initial)
+                a = initial(1);
+                c = initial(2);
+                curve = a + sRange * exp(-1*(1:S)'/c);
+                MSE = sumsqr(curve - yNoise);
+            end
+            
             function MSE = single_rate(initial)
                 %iterative implementation of a single error decay theory
                 %   This is an adaptation of Firas Mawasef's optimization function
@@ -71,7 +82,7 @@ classdef VisHelpers
                     zEst(n+1) = zEst(n)+B*yEst(n);
                 end
                 curve = yEst;
-                MSE = sum((yEst - yNoise).^2);
+                MSE = sumsqr(yEst - yNoise);
             end
             
             function MSE = dual_rate(initial)
@@ -130,6 +141,10 @@ classdef VisHelpers
                     );
                     summ = sprintf('Af: %f\nBf: %f\nAs: %f\nBs: %f',params);
                     p = 4;
+                elseif strcmp(model,'bastian')
+                    [params,~] = fmincon(@bastian,[0,20],[],[],[],[],[-0.5,1]',[0.5,40]');
+                    optresults.params = struct('a',params(1),'c',params(2),'b',sRange);
+                    summ = sprintf('a: %f\nc: %f\nb: %f',[params,sRange]);
                 end
                 ar2 = 1 - (sumsqr(curve - yNoise)/(max(S) - p))/var(yNoise);
             end
@@ -244,6 +259,7 @@ classdef VisHelpers
             psyms = {};
             maxsym = 0;
             minsym = 0;
+            ylim([-1,1]);
             for s = 1:self.numstages
                 stage = self.stages(s);
                 if max(stage.data) > maxsym
@@ -274,7 +290,7 @@ classdef VisHelpers
                         %maxslope = (ma - mi)/abs(mand - mind);
                         maxslope = max(abs(diff(stage.data)))/length(stage.data);
                         ltime = VisHelpers.determine_learning_time(fitresults.curve,maxslope);
-                        line([pltrange(1)+ltime,pltrange(1)+ltime],ylim);                        
+                        line([pltrange(1)+ltime,pltrange(1)+ltime],ylim,'color','black','Linestyle', '--');                        
                         ltimes.(snameclean).split = ltime;
                         ltimes.(snameclean).quality = fitresults.ar2;
                         ltimes.(snameclean).params = fitresults.params;
@@ -287,7 +303,9 @@ classdef VisHelpers
                 cur = pltrange(end) + 1;
             end
             l = max(abs(maxsym),abs(minsym));
-            ylim([-1.1*l,1.1*l]);
+            if l > min(abs(ylim))
+                ylim([-1.1*l,1.1*l]);
+            end
             pbase = line([1,pltrange(end)],[baseline,baseline],'color','green');
             
             lh(1) = psyms{:};
