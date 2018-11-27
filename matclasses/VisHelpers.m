@@ -34,9 +34,7 @@ classdef VisHelpers
             % model, determines if the curve flattens out, and if so, when
             % -- as an index in the given range
             t = -1;
-            
-            % find where the derivative first drops below 
-            %dvals = abs(double(d(r)));
+            % find where the derivative first drops below
             dvals = abs(diff(curve));
             first_dsmall = find(dvals < maxslope,1);
             
@@ -50,11 +48,13 @@ classdef VisHelpers
             ls = stage.speeds.left;
             rs = stage.speeds.right;
             repname = strrep(stage.name,'_',' ');
+            optresults.failed = false;
             F = max([ls,rs])/min([ls,rs]); % ratio between treadmill belt speeds
             if ls > rs && strcmp(stage.faster,'right')
                 F = -1*F;
             end
             yNoise = stage.data;
+            %yNoise = movmean(yNoise,5);
             S = size(yNoise);
             curve = zeros(S);
             summ = '';
@@ -93,20 +93,27 @@ classdef VisHelpers
             end                       
             if regexp(model,'exp\d')
                 x = 1:max(S);
-                [mfit,goodness,~,comment] = fit(x',yNoise,model,'Lower',-1,'Upper',1);
-                summ = sprintf('a:%f\nb:%f',mfit.a,mfit.b);
-                optresults.params = struct('a',mfit.a,'b',mfit.b);
-                if strcmp(model,'exp2')
-                    summ = [summ sprintf('\nc:%f\nd:%f',mfit.c,mfit.d)];
-                    optresults.params.c = mfit.c;
-                    optresults.params.d = mfit.d;
+                try
+                    [mfit,goodness,~,comment] = fit(x',yNoise,model);
+                    summ = sprintf('a:%f\nb:%f',mfit.a,mfit.b);
+                    optresults.params = struct('a',mfit.a,'b',mfit.b);
+                    if strcmp(model,'exp2')
+                        summ = [summ sprintf('\nc:%f\nd:%f',mfit.c,mfit.d)];
+                        optresults.params.c = mfit.c;
+                        optresults.params.d = mfit.d;
+                    end
+                    if any(size(comment)> 0)
+                        disp(comment);
+                    end
+                    %fitdata = [fitdata,dadd];
+                    curve = mfit(x);
+                    ar2 = goodness.adjrsquare;
+                catch e
+                    summ = 'model fitting failed';
+                    optresults.failed = true;
+                    ar2 = nan;
+                    warning(e.message);
                 end
-                if any(size(comment)> 0)
-                    disp(comment);
-                end
-                %fitdata = [fitdata,dadd];
-                curve = mfit(x);
-                ar2 = goodness.adjrsquare;
             else
                 p = 2;
                 if strcmp(model,'single')
@@ -141,6 +148,9 @@ classdef VisHelpers
             % expects positive left and right vectors of same size
             % side tells which to subtract from which
             % remove outliers speaks for itself
+            rnanr = VisHelpers.remove_nan_rows([left,right]);
+            left = rnanr(:,1);
+            right = rnanr(:,2);
             if any([left,right] <0)
                 warning('symmetries expects non-negative values');
             end
@@ -153,7 +163,9 @@ classdef VisHelpers
                 s = s(~isoutlier(s));
             end
             if normalize
-                s = s/abs(mean(s(1:3)));
+                %s = s/mean(abs(s(1:3)));
+                %s = s/mean(abs(s(1:3)));
+                %s = s/abs(s(1));
             end
         end
         
@@ -230,27 +242,43 @@ classdef VisHelpers
             grid on;
             cur = 1;
             psyms = {};
+            maxsym = 0;
+            minsym = 0;
             for s = 1:self.numstages
                 stage = self.stages(s);
+                if max(stage.data) > maxsym
+                    maxsym = max(stage.data);
+                end
+                if min(stage.data) < minsym
+                    minsym = min(stage.data);
+                end
                 %stagesymms = stagesymms - baseline;
                 pltrange = (cur:cur+length(stage.data)-1);    
                 psyms{s} = plot(pltrange,stage.data);
                 title([strrep(self.basename,'_',' ') ' symmetry']);            
                 ylabel('symmetry');
-                ylim([-5,5]);
+                
                 if stage.fit_curve
                     fitresults = VisHelpers.learncurve(stage,self.model);
-                    pmod = plot(pltrange,fitresults.curve,'color','red');
-                    % compute the maximal slope of the graph
-                    [ma,mand] = max(stage.data);
-                    [mi,mind] = min(stage.data);
-                    maxslope = (ma - mi)/abs(mand - mind);
-                    ltime = VisHelpers.determine_learning_time(fitresults.curve,maxslope*VisHelpers.straightening_ratio_criterion);
-                    line([pltrange(1)+ltime,pltrange(1)+ltime],ylim);
                     snameclean = regexprep(stage.name,'[\-\s]','_');
-                    ltimes.(snameclean).split = ltime;
-                    ltimes.(snameclean).quality = fitresults.ar2;
-                    ltimes.(snameclean).params = fitresults.params;
+                    if fitresults.failed
+                        ltimes.(snameclean).split = -1;
+                        ltimes.(snameclean).quality = nan;
+                        ltimes.(snameclean).params = [];
+                        pmod = plot(1,0,'color','red');
+                    else
+                        pmod = plot(pltrange,fitresults.curve,'color','red');
+                        % compute the maximal slope of the graph
+                        %[ma,mand] = max(stage.data);
+                        %[mi,mind] = min(stage.data);
+                        %maxslope = (ma - mi)/abs(mand - mind);
+                        maxslope = max(abs(diff(stage.data)))/length(stage.data);
+                        ltime = VisHelpers.determine_learning_time(fitresults.curve,maxslope);
+                        line([pltrange(1)+ltime,pltrange(1)+ltime],ylim);                        
+                        ltimes.(snameclean).split = ltime;
+                        ltimes.(snameclean).quality = fitresults.ar2;
+                        ltimes.(snameclean).params = fitresults.params;
+                    end
                     ltimes.(snameclean).mf5 = mean(stage.data(1:5));
                     ltimes.(snameclean).ml30 = mean(stage.data(end-30:end));
                     ltimes.(snameclean).ml5 = mean(stage.data(end-5:end));
@@ -258,6 +286,8 @@ classdef VisHelpers
                 end
                 cur = pltrange(end) + 1;
             end
+            l = max(abs(maxsym),abs(minsym));
+            ylim([-1.1*l,1.1*l]);
             pbase = line([1,pltrange(end)],[baseline,baseline],'color','green');
             
             lh(1) = psyms{:};

@@ -1,7 +1,7 @@
 close all; clear;
 addpath 'matclasses';
 addpath 'matfunctions';
-folder = uigetdir();
+folder = uigetdir(syshelpers.driveroot());
 subpat = '\d{3}_[A-Za-z]{2}';
 protpat = '.*(salute)?.*(pre|post).*(left|right)?.*txt$';
 if isempty(regexpi(folder,'salute'))

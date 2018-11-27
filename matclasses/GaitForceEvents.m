@@ -4,7 +4,7 @@ classdef GaitForceEvents < GaitEvents
     % is complete, and the analysis is concerned with symmetries e.g the
     % Salute expriment
     properties(Constant)
-        model = 'dual';
+        model = 'exp1';
         remove_outliers = true; % in symmetries that is
         lrows = {...
                 'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
@@ -22,6 +22,7 @@ classdef GaitForceEvents < GaitEvents
         part
         subjpat
         other_stagenames
+        iskat
     end
 
     methods
@@ -42,6 +43,7 @@ classdef GaitForceEvents < GaitEvents
             self.subjpat = subjectpattern;
             ispre = ~isempty(regexpi(folder,'(pre|day1)'));
             ispost = ~isempty(regexpi(folder,'(post|day2)'));
+            self.iskat = ~isempty(regexp(folder,'katherin','ONCE'));
             if ~ispre && ~ispost
                 %error('The data folder must be a decendant of either a pre or a post folder');
                 self.prepost = '';
@@ -133,9 +135,10 @@ classdef GaitForceEvents < GaitEvents
                             % file
                             cycles_key = ['step' upper(side{:}(1))];
                             datcol = self.cycles(takecycles,cycles_key).Variables;
+                            timecol = self.points.get_event(thiskey,'time',stage.times).time;
                         case 'step_duration'
-                            thistimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                            thattimes = self.points.get_event(thatkey,'time',stage.times).Variables;
+                            thistimes = self.points.get_event(thiskey,'time',stage.times).time;
+                            thattimes = self.points.get_event(thatkey,'time',stage.times).time;
                             % now we have to sequences of HS timings, where 'this' is those of the current side
                             % the durations for left steps are diffs between left heel strikes and their preceding right ones
                             % find the first pair of 'this' and preceding 'that':
@@ -145,20 +148,26 @@ classdef GaitForceEvents < GaitEvents
                             end
                             % now subtract by matching ranges
                             datcol = thistimes(cur:end) - thattimes(1:length(thistimes) - cur +1);
+                            timecol = thistimes(cur:end);
                         case 'stride_duration'
                             % since the cycles file only has the left stride timings,
                             % we might as well read both from the list of cop points
-                            datcol = diff(self.points.get_event(thiskey,'time',stage.times).time);
+                            times = self.points.get_event(thiskey,'time',stage.times).time;
+                            datcol = diff(times);
+                            timecol = times(2:end);
                         case 'stride_length'
                             % i will naively assume that the left stride lengths are steplength_left + steplength_right in the same row
                             % of the cycles file, and that the right lenghts are steplength_right of row i + steplength_left of row i+1
                             lcols = self.cycles(takecycles,{'stepL','stepR'});
                             l = height(lcols);
                             if strcmp(side{:},'left')
-                                datcol = sum(lcols.Variables,2);                       
+                                datcol = sum(lcols.Variables,2);
+                                si = 1;
                             else
                                 datcol = lcols.stepR(1:l-1) + lcols.stepL(2:end);
+                                si = 2;
                             end
+                            timecol = self.points.get_event(thiskey,'time',stage.times).time(si:end);
                         case 'step_width'
                             % again the cycles files provides only left data
                             thiscopx = self.points.get_event(thiskey,{'time','copx'},stage.times);
@@ -170,9 +179,10 @@ classdef GaitForceEvents < GaitEvents
                             end
                             minlength = min(height(thiscopx),height(thatcopx));
                             datcol = abs(thiscopx.copx(1:minlength - cur +1) - thatcopx.copx(cur:minlength));
+                            timecol = self.points.get_event(thiskey,'time',stage.times).time(1:minlength - cur +1);
                         case 'swing_duration'
-                            hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                            totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).Variables;
+                            hstimes = self.points.get_event(thiskey,'time',stage.times).time;
+                            totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).time;
                             % find the first HS that's after the first TO
                             cur = 1;
                             while hstimes(cur) < totimes(1)
@@ -180,17 +190,19 @@ classdef GaitForceEvents < GaitEvents
                             end
                             datcol = hstimes(cur:end) - totimes(1:length(hstimes)-cur+1);
                             assert(all(datcol) > 0,'wrong swing');
+                            timecol = hstimes(cur:end);
                         case 'stance_duration'
-                            hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
-                            totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).Variables;
+                            hstimes = self.points.get_event(thiskey,'time',stage.times).time;
+                            totimes = self.points.get_event(['TO' upper(side{:}(1))],'time',stage.times).time;
                             % find the first TO that's after the first HS
                             cur = 1;
                             while totimes(cur) < hstimes(1)
                                 cur = cur + 1;
                             end
                             datcol = abs(totimes(cur:end) - hstimes(1:length(totimes) - cur+1));
+                            timecol = totimes(cur:end);
                         case 'ds_duration'
-                            hstimes = self.points.get_event(thiskey,'time',stage.times).Variables;
+                            hstimes = self.points.get_event(thiskey,'time',stage.times).time;
                             if strcmp(side{:},'left')
                                 tokey = 'TOR';
                             else
@@ -202,18 +214,22 @@ classdef GaitForceEvents < GaitEvents
                                 cur = cur + 1;
                             end
                             datcol = totimes(cur:end) - hstimes(1:length(totimes) - cur + 1);
+                            timecol = totimes(cur:end);
                     end
                     if length(datcol) > longest
                         longest = length(datcol);
                     end
-                    stagedata.(varname) = datcol;
+                    m = min(size(datcol,1),size(timecol,1));
+                    timecol = timecol(1:m);
+                    datcol = datcol(1:m);
+                    stagedata.(varname) = [datcol,timecol];
                 end
             end
         end
         function d = resolve_symmetry_details(self,stageindex)
             d.faster = 'none';
             d.normalize = false;
-            d.speeds = [];
+            d.speeds = struct('speedL',1,'speedR',1);
             d.isbaseline = false;
             d.isfitcurve = false;
             name = self.stages(stageindex).name;
@@ -222,7 +238,7 @@ classdef GaitForceEvents < GaitEvents
             else
                 d.isfitcurve = true;
                 d.normalize = true;
-                if strcmp(self.prepost,'pre')
+                if strcmp(self.prepost,'pre') || self.iskat
                     reducedprot = self.protocol(self.protocol.speedL ~= 0 & self.protocol.speedR ~= 0,:);
                     thispeeds = reducedprot(stageindex,{'speedL','speedR'});
                     prevspeeds = reducedprot(stageindex-1,{'speedL','speedR'});
@@ -247,7 +263,7 @@ classdef GaitForceEvents < GaitEvents
                     d.speeds = thispeeds;
                 else
                     grr = struct;
-                    grr.post = {};
+                    grr.post = extractfield(self.stages,'name');
                     grr.pre = self.other_stagenames;
                     otherdir  = regexprep(self.datafolder,'(?<=[\\\/][Pp])ost','re');
                     otherdir = regexprep(otherdir,'[pP]art[12]','');
@@ -255,7 +271,7 @@ classdef GaitForceEvents < GaitEvents
                     other = other.load_stages('.*(salute)?.*pre.*(left|right)?.*txt$');
                     for s=1:other.numstages
                         oname = other.stages(s).name;
-                        if strcmp(name,'salute') && strcmp(oname,'adaptation') || strcmp(name,'post_salute') && strcmp(oname,'post_adaptation')
+                        if (strcmp(name,'salute') && strcmp(oname,'adaptation')) || (strcmp(name,'post_salute') && strcmp(oname,'post_adaptation'))
                             d = other.resolve_symmetry_details(s);
                         end
                     end
@@ -271,7 +287,9 @@ classdef GaitForceEvents < GaitEvents
                 extras = struct;
                 for n = 1:length(fnames)
                     name = fnames{n,1};
-                    datcol = src.(name);
+                    dat = src.(name);
+                    datcol = dat(:,1);
+                    tcol = dat(:,2);
                     % initialize with some margin at the bottom for the cv
                     % and stuff
                     stagedata.(name) = [datcol;nan*ones(longest-length(datcol),1)];
@@ -280,8 +298,10 @@ classdef GaitForceEvents < GaitEvents
                         bname = strrep(name,'_right',''); % this is a little stupid but...
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
+                        symstimename = [bname '_symtimes'];
                         details = self.resolve_symmetry_details(s);
                         leftcol = src.(leftname);
+                        leftcol = leftcol(:,1);
                         %cv = GaitEvents.cv([leftcol;datcol]);
                         % these columns are coordinated by the construction
                         % of the self.basics tables, but the lengths don't
@@ -289,6 +309,7 @@ classdef GaitForceEvents < GaitEvents
                         m = min(length(datcol),length(leftcol));
                         syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),details.faster,GaitForceEvents.remove_outliers,details.normalize);
                         stagedata.(symsname) = [syms;nan*ones(longest-length(syms),1)];
+                        stagedata.(symstimename) = [tcol;nan*ones(longest-length(tcol),1)];
                         extras.(bname).symcv = GaitEvents.cv(syms);
                         extras.(bname).meansym = nanmean(syms);
                         extras.(bname).symcv_first5 = GaitEvents.cv(syms(1:5));
@@ -344,28 +365,28 @@ classdef GaitForceEvents < GaitEvents
                 basictable = self.basics.(stage).data;
                 splitindex = times.(stage).split;
                 auto = 1;
-                % under 5 points its meaningless
-                if splitindex < 5
+                % under 2 points its meaningless
+                if splitindex < 2
                     fprintf('couldn''t find the split in %s\n',stage);
-                    splitindex = round(height(basictable)/2);
+                    %splitindex = round(height(basictable)/2);
+                    splitindex = 1;
                     auto = 0;
                 end               
-                 left = basictable.([b '_left']);
-                 right = basictable.([b '_right']);
-%                 left1 = left(1:splitindex);
-%                 left2 = left(splitindex+1:end);
-%                 right1 = right(1:splitindex);
-%                 right2 = right(splitindex+1:end);
-%                 syms1 = VisHelpers.symmetries([left1,right1],true);
-%                 syms2 = VisHelpers.symmetries([left2,right2],true);
+                left = basictable.([b '_left']);
+                right = basictable.([b '_right']);
                 syms = basictable.([b '_symmetries']);
+                symtimes = basictable.([b '_symtimes']);
+                symtimes = symtimes(~isnan(symtimes));
                 syms1 = syms(1:splitindex);
                 syms2 = syms(splitindex+1:end);
                 syms2 = syms2(~isnan(syms2));
+
+                %time1 = self.timespan(stage,b,1,splitindex);
+                time1 = symtimes(splitindex) - symtimes(1);
+                time2 = symtimes(end) - symtimes(splitindex);
+                %time2 = self.timespan(stage,b,splitindex+1,min(length(left),length(right)));
                 
-                time1 = self.timespan(stage,b,1,splitindex);
-                time2 = self.timespan(stage,b,splitindex+1,min(length(left),length(right)));
-                % see self.export lcolumns below
+                % the key is GaitForceEvents.lrows
                 self.learning_data.(stage).(b) = [...
                     times.(stage).quality;...
                     auto;...
@@ -384,7 +405,7 @@ classdef GaitForceEvents < GaitEvents
                     self.basics.(stage).extras.(b).meansym_last5;...
                     self.basics.(stage).extras.(b).meansym_last30;...
                     min(length(left)-sum(isnan(left)),length(right)-sum(isnan(right)));...
-                    time1 + time2;...
+                    symtimes(end) - symtimes(1);...
                     self.basics.(stage).extras.(b).symcv;...
                     self.basics.(stage).extras.(b).meansym...
                ];

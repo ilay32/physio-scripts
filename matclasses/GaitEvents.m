@@ -89,8 +89,11 @@ classdef GaitEvents
             self.cycles = ctable;
         end
         
-        function self = read_protocol(self,protfilename)
+        function self = read_protocol(self,protfilename,trim)
             fp = fullfile(self.datafolder,protfilename);
+            if nargin == 2
+                trim = true;
+            end
             if ~exist(fp,'file')
                 warning('could not find the protocol file. please save an appropriate %s in %s',...
                     self.datafolder,protfilename...
@@ -101,6 +104,10 @@ classdef GaitEvents
             times = c{:,1};
             speeds = [c{:,2},c{:,3}];
             fclose(pid);
+            self.numstages = (length(times) - 1)/2;
+            if trim
+                self.stages = self.stages(1:self.numstages);
+            end
             self.protocol = array2table([speeds,times],'VariableNames',{'speedL','speedR','onset_time'});
         end
         
@@ -110,6 +117,18 @@ classdef GaitEvents
             % stage in the trial manually. offset should be given in
             % readings.
             ready = isa(offset,'char') && strcmp(offset,'ready');
+            bfile = self.boundaries_file();
+            if exist(bfile,'file')
+                boundaries  = load(bfile);
+                for s=1:self.numstages
+                    self.stages(s).limits = boundaries.stagelimits.limits(s,:);
+                    if any(strcmp(fieldnames(boundaries),'times'))
+                        self.stages(s).times = boundaries.stagelimits.times(s,:);
+                    end
+                end
+                clear grr;
+                return;
+            end
             if isempty(self.protocol)
                 warning('must load protocol first');
                 return;
@@ -138,7 +157,9 @@ classdef GaitEvents
                 for i=1:size(allboundaries,2)
                     ldiff = allboundaries(:,i) - self.stages(i).limits;
                     self.stages(i).limits = round(allboundaries(:,i))';
-                    self.stages(i).times = round(self.stages(i).times + ldiff/self.datarate);
+                    if any(strcmp(fieldnames(self.stages(i)),'times'))
+                        self.stages(i).times = round(self.stages(i).times + ldiff/self.datarate);
+                    end
                 end
                 close;
             end
@@ -171,6 +192,7 @@ classdef GaitEvents
             uiwait(h);
         end
         function self = confirm_stages(self)
+            stagelimits = struct('limits',zeros(self.numstages,2),'times',zeros(self.numstages,2));
             figure('name',self.datafolder);
             title('Please confirm that the stage boundaries');
             plot(self.forces.fz);
@@ -181,6 +203,10 @@ classdef GaitEvents
                 for l=1:2
                     line([limits(l),limits(l)],get(gca,'YLim'),'color','black','LineWidth',2,'Linestyle', '--');
                 end
+                stagelimits.limits(s,:) = limits;
+                if any(strcmp(fieldnames(self.stages(s)),'times'))
+                    stagelimits.times(s,:) = self.stages(s).times;
+                end
             end
             uicontrol('String','Confirm','Callback','uiresume(gcf)',...
                 'Position',[10 10 50 30]);
@@ -188,7 +214,19 @@ classdef GaitEvents
                 'Position',[100,10,50,30]);
             uiwait(gcf);
             close;
+            bfilename = self.boundaries_file();
+            save(bfilename,'stagelimits');
         end
+        
+        function n = boundaries_file(self)
+            b = self.subjid;
+            if any(strcmp(fieldnames(self),'prepost'))
+                b = [b '-' self.prepost]; %#ok<MCNPN>
+            end
+            b = [b '-boundaries.mat'];   
+            n =  fullfile(self.datafolder,b);
+        end
+        
         function stages_rejected(self,~,~,~)
             global goon;
             uiresume(gcf);

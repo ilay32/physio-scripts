@@ -200,25 +200,28 @@ classdef GaitReversed < GaitEvents
         function self = load_salute_stages(self,pat)
             protfiles = syshelpers.subdirs(self.datafolder,pat,true);
             assert(~isempty(protfiles),'could not find the protocol file');
-            self = self.read_protocol(protfiles{1,1}{:});
+            self = self.read_protocol(protfiles{1,1}{:},false);
             iskat = isempty(regexpi(self.datafolder,'salute'));
             if ~isempty(regexpi(self.datafolder,'(pre|day1)','match'))
                 stagenames = {'slow1','fast','slow2','adaptation','post_adaptation'};
-                timings = [10,130,140,260,270,390,400,1000,1010,1310];
+                %timings = [10,130,140,260,270,390,400,1000,1010,1310];
                 if iskat
                     stagenames = {'slow','fast','adaptation','post_adaptation','re_adaptation'};
-                    timings = [10,70,80,140,150,510,520,880,890,1130];
+                    %timings = [10,70,80,140,150,510,520,880,890,1130];
                 end
             elseif ~isempty(regexpi(self.datafolder,'(post|day2)','match'))
                 stagenames = {'fast','salute','post_salute'};
-                timings = [10,310,940,970,1270];
+                %timings = [10,310,940,970,1270];
                 if iskat
                     stagenames = {'slow','fast','adaptation','post_adaptation','re_adaptation'};
-                    timings = [10,70,80,140,150,510,520,880,890,1130];
+                    %timings = [10,70,80,140,150,510,520,880];
                 end
             else
                 error('something''s wrong');
             end
+            timings = self.protocol.onset_time(2:end);
+            self.numstages = length(timings)/2;
+            stagenames = stagenames(1:self.numstages);
             for s=1:length(stagenames)
                 t = s;
                 if mod(s,2) == 0
@@ -338,13 +341,13 @@ classdef GaitReversed < GaitEvents
             % flattens to find the toe off for that side
             % assumes heel strikes have been grouped with
             % group_heel_strikes
-            scopx = movmean(self.forces.copx,GaitReversed.smoothwindow);
+            %scopx = movmean(self.forces.copx,GaitReversed.smoothwindow);
             scopy = movmean(self.forces.copy,GaitReversed.smoothwindow);
-            deriv = diff(scopx) * self.datarate;
-            smoothed_deriv = movmean(deriv,GaitReversed.smoothwindow);
-            smoothed_fz = movmean(self.forces.fz,GaitReversed.smoothwindow);
-            fzderiv = diff(self.forces.fz);
-            qstep = round(self.datarate/4); % i.e 0.25 seconds, the fz peaks are assumed farther than this. also the next - current gap should be smaller
+            %deriv = diff(scopx) * self.datarate;
+            %smoothed_deriv = movmean(deriv,GaitReversed.smoothwindow);
+            %smoothed_fz = movmean(self.forces.fz,GaitReversed.smoothwindow);
+            %fzderiv = diff(self.forces.fz);
+            qstep = round(self.datarate/10); % i.e 0.1 seconds, the fz peaks are assumed farther than this. also the next - current gap should be smaller
             for s=1:length(self.stages)
                 stage = self.stages(s);
                 for side={'left','right'}
@@ -376,19 +379,22 @@ classdef GaitReversed < GaitEvents
                         if nextstrike - strike < qstep
                             continue;
                         end
-                        [fzpeaks,fpinds] = findpeaks(smoothed_fz(search_range),'MinPeakDistance',qstep);
-                        if size(fzpeaks,1) >= 2
-                            fzrange = strike + fpinds(1): strike + fpinds(2);
-                        elseif size(fzpeaks,1) == 1
-                            %fzrange = strike + fpinds(1):nextstrike;
-                            [~,fzmin] = min(smoothed_fz(strike:nextstrike));
-                            fzrange = (strike + fzmin):(strike + min(max(fpinds(1),fzmin),nextstrike));
-                        else
-                            fzrange = search_range;
-                        end
-                        [~,mslind] = max(movmean(fzderiv(fzrange),round(GaitReversed.smoothwindow/2)));
-                        [~,maxcopy] = max(scopy(strike:nextstrike));
+%                        [fzpeaks,fpinds] = findpeaks(smoothed_fz(search_range),'MinPeakDistance',qstep);
+%                         if size(fzpeaks,1) >= 2
+%                             fzrange = strike + fpinds(1): strike + fpinds(2);
+%                         elseif size(fzpeaks,1) == 1
+%                             fzrange = strike + fpinds(1):nextstrike;
+%                             [~,fzmin] = min(smoothed_fz(strike:nextstrike));
+%                             fzrange = (strike + fzmin):(strike + min(max(fpinds(1),fzmin),nextstrike));
+%                         else
+%                             fzrange = search_range;
+%                         end
+                        %[~,mslind] = max(movmean(fzderiv(fzrange),round(GaitReversed.smoothwindow/2)));
+                        [~,maxcopy] = max(scopy(search_range));
                         %tofs = [tofs;fzrange(1) + mslind];
+                        if isempty(strike+maxcopy)
+                            fprintf('%d : %d',s,i);
+                        end
                         tofs = [tofs;strike + maxcopy];
                         op_index = op_index + 1;
                         %byfz = GaitReversed.improve_toeoff(strike,nextstrike,self.forces.fz);
