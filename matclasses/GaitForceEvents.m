@@ -4,7 +4,9 @@ classdef GaitForceEvents < GaitEvents
     % is complete, and the analysis is concerned with symmetries e.g the
     % Salute expriment
     properties(Constant)
-        model = 'exp1';
+        model = 'bastian';
+        perturbation_magnitude = 1.75;
+        direction_strategy = 'expected'; % for symmetry curve fitting
         remove_outliers = true; % in symmetries that is
         lrows = {...
                 'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
@@ -22,7 +24,7 @@ classdef GaitForceEvents < GaitEvents
         part
         subjpat
         other_stagenames
-        iskat
+        isrestep
     end
 
     methods
@@ -43,7 +45,7 @@ classdef GaitForceEvents < GaitEvents
             self.subjpat = subjectpattern;
             ispre = ~isempty(regexpi(folder,'(pre|day1)'));
             ispost = ~isempty(regexpi(folder,'(post|day2)'));
-            self.iskat = ~isempty(regexp(folder,'katherin','ONCE'));
+            self.isrestep = isempty(regexpi(folder,'salute','ONCE'));
             if ~ispre && ~ispost
                 %error('The data folder must be a decendant of either a pre or a post folder');
                 self.prepost = '';
@@ -226,42 +228,51 @@ classdef GaitForceEvents < GaitEvents
                 end
             end
         end
+
         function d = resolve_symmetry_details(self,stageindex)
-            d.faster = 'none';
-            d.normalize = false;
-            d.speeds = struct('speedL',1,'speedR',1);
             d.isbaseline = false;
             d.isfitcurve = false;
             name = self.stages(stageindex).name;
+            d.perturbation_magnitude = GaitForceEvents.perturbation_magnitude;
+            esign = 1;
             if isempty(regexp(name,'(salute|adaptation)','ONCE'))
                 d.isbaseline = true;
             else
                 d.isfitcurve = true;
-                d.normalize = true;
-                if strcmp(self.prepost,'pre') || self.iskat
+                if strcmp(GaitForceEvents.direction_strategy,'empiric')
+                    d.expected_sign = esign;
+                    return;
+                end
+                if strcmp(self.prepost,'pre') || self.isrestep
+
                     reducedprot = self.protocol(self.protocol.speedL ~= 0 & self.protocol.speedR ~= 0,:);
                     thispeeds = reducedprot(stageindex,{'speedL','speedR'});
                     prevspeeds = reducedprot(stageindex-1,{'speedL','speedR'});
+                    
                     if isempty(regexp(name,'post','ONCE'))
+                        % either adaptation or re-adaptation : expecting
+                        % different speeds
+                        l = thispeeds.speedL;
+                        r = thispeeds.speedR;
                         if thispeeds.speedL > thispeeds.speedR
-                            f = 'left';
+                            esign = 1;
                         elseif thispeeds.speedR > thispeeds.speedL
-                            f = 'right';
+                            esign = -1;
                         else
                             error('expecting different belt speeds at this stage');
                         end
                     else
-                        if prevspeeds.speedL > prevspeeds.speedR
-                            f = 'left';
-                        else
-                            f = 'right';
-                        end
-                        thispeeds.speedR = prevspeeds.speedL;
-                        thispeeds.speedL = prevspeeds.speedR;
+                        % this is post_adaptation. use the previous stage
+                        % speeds for magnitude and flip the sign
+                        l = prevspeeds.speedL;
+                        r = prevspeeds.speedR;
+                        assert(l ~= r, 'expecting different belt speeds at previous stage');
                     end
-                    d.faster = f;
-                    d.speeds = thispeeds;
+                    d.perturbation_magnitude = max(l,r)/min(l,r);
+                    d.expected_sign = esign;
                 else
+                    % salute second session (post), the perturbation is with the salute
+                    % device -- use previous stage perturbation data
                     grr = struct;
                     grr.post = extractfield(self.stages,'name');
                     grr.pre = self.other_stagenames;
@@ -299,7 +310,7 @@ classdef GaitForceEvents < GaitEvents
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
                         symstimename = [bname '_symtimes'];
-                        details = self.resolve_symmetry_details(s);
+                        %details = self.resolve_symmetry_details(s);
                         leftcol = src.(leftname);
                         leftcol = leftcol(:,1);
                         %cv = GaitEvents.cv([leftcol;datcol]);
@@ -307,7 +318,8 @@ classdef GaitForceEvents < GaitEvents
                         % of the self.basics tables, but the lengths don't
                         % always match. so just take by shortest
                         m = min(length(datcol),length(leftcol));
-                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),details.faster,GaitForceEvents.remove_outliers,details.normalize);
+                        %syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),details.faster,GaitForceEvents.remove_outliers,details.normalize);
+                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),GaitForceEvents.remove_outliers);
                         stagedata.(symsname) = [syms;nan*ones(longest-length(syms),1)];
                         stagedata.(symstimename) = [tcol;nan*ones(longest-length(tcol),1)];
                         extras.(bname).symcv = GaitEvents.cv(syms);
@@ -457,6 +469,7 @@ classdef GaitForceEvents < GaitEvents
             specs.model = GaitForceEvents.model;
             specs.remove_outliers = GaitForceEvents.remove_outliers;
             stages = VisHelpers.initialize_stages(self.numstages);
+            specs.direction_strategy = GaitForceEvents.direction_strategy;
             for s=1:self.numstages
                 stage = stages(s);
                 source = self.stages(s);
@@ -464,12 +477,11 @@ classdef GaitForceEvents < GaitEvents
                 stage.data = stage.data(~isnan(stage.data));
                 stage.name = source.name;
                 details = self.resolve_symmetry_details(s);
-                stage.faster = details.faster;
-                stage.normalize = details.normalize;
+                stage.perturbation_magnitude = details.perturbation_magnitude;
                 stage.fit_curve = details.isfitcurve;
                 stage.include_inbaseline = details.isbaseline;
                 if details.isfitcurve
-                    stage.speeds = struct('left',details.speeds.speedL,'right',details.speeds.speedR);
+                    stage.expected_sign = details.expected_sign;
                 end
                 stages(s) = stage;
             end
