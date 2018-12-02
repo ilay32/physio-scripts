@@ -11,17 +11,17 @@ classdef VisHelpers
         baselines
         model
         global_outliers_remove
+        direction_strategy
     end
     
     methods (Static)
         function stages = initialize_stages(nstages)
             for s = 1:nstages
                 stages(s) = struct(...
-                    'faster', 'none',...
+                    'expected_sign', 1,...
                     'step_lengths',[],...
                     'data',[],...
-                    'speeds', struct('left',1,'right',1),...
-                    'normalize', false,...
+                    'perturbation_magnitude',0,...
                     'include_inbaseline',false,...
                     'fit_curve',false,...
                     'name','',...
@@ -43,29 +43,29 @@ classdef VisHelpers
                 t = first_dsmall;
             end
         end
-        function optresults = learncurve(stage,model)
-            assert(any(strcmp(stage.faster,{'left','right'})),'please specify which belt moved faster');
-            ls = stage.speeds.left;
-            rs = stage.speeds.right;
+        function optresults = learncurve(stage,model,direction_strategy,basename)
             repname = strrep(stage.name,'_',' ');
             optresults.failed = false;
-            F = max([ls,rs])/min([ls,rs]); % ratio between treadmill belt speeds
-%             if ls > rs && strcmp(stage.faster,'right')
-%                 F = -1*F;
-%             end
+            F = stage.perturbation_magnitude;
             yNoise = stage.data;
-            if mean(yNoise(1:5)) < mean(yNoise(end-5:end))
-                F = -1*F;
-            end
             S = size(yNoise);
             curve = zeros(S);
-            sRange = sign(F)*abs(yNoise(end) - yNoise(1));
+            pSign = stage.expected_sign;
+            if strcmp(direction_strategy,'empiric')
+                trendsize = max(S);
+                [trend,~,~,~,~] = regress(yNoise(1:trendsize),[ones(trendsize,1),(1:trendsize)']);
+                pSign = sign(trend(2));
+            elseif startsWith(basename,'stance')
+                pSign = -1*pSign;
+            end
+            F = -1*pSign*F;
+            sRange = -1*pSign*abs(yNoise(end) - yNoise(1));
             summ = '';
             
             function MSE = bastian(initial)
                 a = initial(1);
                 c = initial(2);
-                curve = a + sRange * exp(-1*(1:S)'/c);
+                curve = a + sRange * exp(-1*(1:S(1))'/c);
                 MSE = sumsqr(curve - yNoise);
             end
             
@@ -159,7 +159,7 @@ classdef VisHelpers
             labels = string((0:1:numel(ticks))/10);
             labels(mod(0:length(labels)-1,5) ~= 0) = ' ';
         end
-        function s = symmetries(left,right,faster_side,remove_outliers,normalize)
+        function s = symmetries(left,right,remove_outliers)
             % expects positive left and right vectors of same size
             % side tells which to subtract from which
             % remove outliers speaks for itself
@@ -170,17 +170,12 @@ classdef VisHelpers
                 warning('symmetries expects non-negative values');
             end
             diffs = left - right;
-            if strcmp(faster_side,'left')
-                diffs = -1*diffs;
-            end
+%             if strcmp(faster_side,'left')
+%                 diffs = -1*diffs;
+%             end
             s = diffs ./ (left + right);
             if remove_outliers
                 s = s(~isoutlier(s));
-            end
-            if normalize
-                %s = s/mean(abs(s(1:3)));
-                %s = s/mean(abs(s(1:3)));
-                %s = s/abs(s(1));
             end
         end
         
@@ -216,10 +211,7 @@ classdef VisHelpers
                     d  = stages(s).step_lengths;
                     assert(size(d,1) > 2 && size(d,2) == 2,'expecting [ left right ] columns of length 3 at least');
                     stages(s).pairs = d;
-                    stages(s).data = VisHelpers.symmetries(d(:,1),d(:,2),...
-                        stages(s).faster,self.global_outliers_remove,...
-                        stages(s).normalize...
-                    );
+                    stages(s).data = VisHelpers.symmetries(d(:,1),d(:,2),self.global_outliers_remove);
                 else
                     d = stages(s).data;
                     assert(size(d,1) > 2 && size(d,2) == 1,'expecting 1 column of length 3 or more');
@@ -228,6 +220,7 @@ classdef VisHelpers
             self.stages = stages;
             self.titlesprefix = specs.titlesprefix;
             self.model = specs.model;
+            self.direction_strategy = specs.direction_strategy;
         end       
         
         function ltimes = plot_global(self,block)
@@ -260,6 +253,9 @@ classdef VisHelpers
             maxsym = 0;
             minsym = 0;
             ylim([-1,1]);
+            pmods = {};
+            emplines = {};
+            bastian_lines = {};
             for s = 1:self.numstages
                 stage = self.stages(s);
                 if max(stage.data) > maxsym
@@ -275,22 +271,25 @@ classdef VisHelpers
                 ylabel('symmetry');
                 
                 if stage.fit_curve
-                    fitresults = VisHelpers.learncurve(stage,self.model);
+                    fitresults = VisHelpers.learncurve(stage,self.model,self.direction_strategy,self.basename);
                     snameclean = regexprep(stage.name,'[\-\s]','_');
                     if fitresults.failed
                         ltimes.(snameclean).split = -1;
                         ltimes.(snameclean).quality = nan;
                         ltimes.(snameclean).params = [];
-                        pmod = plot(1,0,'color','red');
                     else
-                        pmod = plot(pltrange,fitresults.curve,'color','red');
+                        pmods = [pmods,{plot(pltrange,fitresults.curve,'color','red')}];
                         % compute the maximal slope of the graph
                         %[ma,mand] = max(stage.data);
                         %[mi,mind] = min(stage.data);
                         %maxslope = (ma - mi)/abs(mand - mind);
                         maxslope = max(abs(diff(stage.data)))/length(stage.data);
                         ltime = VisHelpers.determine_learning_time(fitresults.curve,maxslope);
-                        line([pltrange(1)+ltime,pltrange(1)+ltime],ylim,'color','black','Linestyle', '--');                        
+                        emplines = [emplines,{line([pltrange(1)+ltime,pltrange(1)+ltime],ylim,'color','black','Linestyle', '--')}];                        
+                        if strcmp(self.model,'bastian')
+                            bltime = round(fitresults.params.c) * -1 * log(0.05);
+                            bastian_lines = [bastian_lines,{line([pltrange(1)+bltime,pltrange(1)+bltime],ylim,'color','black','Linestyle', '-.')}];
+                        end
                         ltimes.(snameclean).split = ltime;
                         ltimes.(snameclean).quality = fitresults.ar2;
                         ltimes.(snameclean).params = fitresults.params;
@@ -307,11 +306,19 @@ classdef VisHelpers
                 ylim([-1.1*l,1.1*l]);
             end
             pbase = line([1,pltrange(end)],[baseline,baseline],'color','green');
-            
+            labels = {'symmetry','baseline mean'};
             lh(1) = psyms{:};
-            lh(2) = pmod;
-            lh(3) = pbase;
-            legend(lh,{'symmetry','model fit','baseline mean'});
+            lh(2) = pbase;
+            if ~isempty(pmods)
+                lh(3) = pmods{:};
+                lh(4) = emplines{:};
+                labels = [labels,{'model fit','heuristic learning time'}];
+            end
+            if ~isempty(bastian_lines)
+                lh(5) = bastian_lines{:};
+                labels = [labels,{'analytic learning time'}];
+            end
+            legend(lh,labels);
             loc = [0.15,0.15];
             boxsize = [0.1,0.2];
             for s=1:length(fitdata)

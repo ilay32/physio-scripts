@@ -42,14 +42,11 @@ for phase=1:3
         syms{stage} = [];
         for subj=1:numsubjects
             stagesteps = steps{subj,stage};
-            normalize = stage >= 4;
             syms{stage} = [syms{stage},...
                 VisHelpers.symmetries(...
                     stagesteps(1:how,1),...
                     stagesteps(1:how,2),...
-                    QualySubject.faster_side,...
-                    QualySubject.remove_outliers,...
-                    normalize...
+                    QualySubject.remove_outliers...
                 )];
         end
     end
@@ -57,6 +54,7 @@ for phase=1:3
     % construct the stages object for Visualizer
     specs = struct;
     specs.name = QualySubject.symmetry_base;
+    specs.direction_strategy = QualySubject.direction_strategy;
     specs.remove_outliers = false;
     specs.model = QualySubject.model;
     specs.titlesprefix = ['Group Analysis (' subjects_dir ') ' QualySubject.partnames{phase}];
@@ -68,13 +66,12 @@ for phase=1:3
         if s <= 3
             stages(s).include_inbaseline = true;
         else
-            stages(s).faster = QualySubject.faster_side;
-            stages(s).fit_curve = true;
-            stages(s).normalize = true;   
+            stages(s).perturbation_magnitude = 2;
+            stages(s).fit_curve = true;  
             if s==4
-                stages(s).speeds = struct('left',0.5,'right',1);
+                stages(s).expected_sign = -1;
             else
-                stages(s).speeds = struct('left',1,'right',0.5);
+                stages(s).expected_sign = 1;
             end
         end
     end

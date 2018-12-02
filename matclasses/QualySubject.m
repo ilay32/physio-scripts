@@ -13,9 +13,9 @@ classdef QualySubject
         numsplits = 8;
         numstages = length(QualySubject.stagenames);
         symmetry_base = 'step length';
-        model = 'dual';
-        faster_side = 'right';
+        model = 'bastian';
         remove_outliers = false;
+        direction_strategy = 'expected'
     end
     properties
         datafile
@@ -282,7 +282,7 @@ classdef QualySubject
             if new
                 saveit = input('save the marked stage boundaries [y/n]? ', 's');
                 if strcmp(saveit,'y')
-                    boundaries= ix;
+                    boundaries= ix;  %#ok<NASGU>
                     save(boundaries_file,'boundaries');
                 end
             end
@@ -322,18 +322,17 @@ classdef QualySubject
                 if s <= 3
                     stage.include_inbaseline = true;
                 else
-                    stage.faster = QualySubject.faster_side;
                     stage.fit_curve = true;
-                    stage.normalize = true;
+                    stage.perturbation_magnitude = 2;
                     % the faster belt was always the right one.
-                    % the symmetries object will flip the 'F' factor
-                    % in the de-adaptation since it will find the left belt
-                    % to be faster. of course, the de-adaptation speeds
-                    % where actually equal.
+                    % the magnitude is 1/0.5 and the expected sign for the
+                    % adaptation is -1 (curve goes down, left is longer
+                    % than right)
                     if s==4
-                        stage.speeds = struct('left',0.5,'right',1);
+                        % adaptation
+                        stage.expected_sign = -1;
                     else % de-adaptation
-                        stage.speeds = struct('left',1,'right',0.5);
+                        stage.expected_sign = 1;
                     end
                 end
                 stage.name = name;
@@ -348,6 +347,7 @@ classdef QualySubject
             specs.titlesprefix = [self.subjid ' ' QualySubject.partnames{self.part}];
             specs.remove_outliers = QualySubject.remove_outliers;
             specs.model = QualySubject.model;
+            specs.direction_strategy = QualySubject.direction_strategy;
             self.visu = VisHelpers(specs);
         end
         function save_step_lengths(self)
