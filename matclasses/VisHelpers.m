@@ -287,7 +287,7 @@ classdef VisHelpers
                         ltime = VisHelpers.determine_learning_time(fitresults.curve,maxslope);
                         emplines = [emplines,{line([pltrange(1)+ltime,pltrange(1)+ltime],ylim,'color','black','Linestyle', '--')}];                        
                         if strcmp(self.model,'bastian')
-                            bltime = round(fitresults.params.c) * -1 * log(0.05);
+                            bltime = round(fitresults.params.c);
                             bastian_lines = [bastian_lines,{line([pltrange(1)+bltime,pltrange(1)+bltime],ylim,'color','black','Linestyle', '-.')}];
                         end
                         ltimes.(snameclean).split = ltime;

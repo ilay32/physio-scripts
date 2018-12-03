@@ -9,7 +9,7 @@ classdef GaitForceEvents < GaitEvents
         direction_strategy = 'expected'; % for symmetry curve fitting
         remove_outliers = true; % in symmetries that is
         lrows = {...
-                'quality','detection by curve','steps1','time1','symcv1','symcv_first5',...
+                'quality','detection_by_curve','steps1','time1','symcv1','symcv_first5',...
                 'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5','symcv_last30',...
                 'meansym2','meansym_last5','meansym_last30','stepstotal','timetotal','cvtotal','meantotal'...
             };
@@ -376,6 +376,9 @@ classdef GaitForceEvents < GaitEvents
                 %t = array2table(t,'VariableNames',self.basicnames,'RowNames',rows);
                 basictable = self.basics.(stage).data;
                 splitindex = times.(stage).split;
+                if strcmp(GaitForceEvents.model,'bastian') && ~isnan(times.(stage).quality)
+                    splitindex = round(times.(stage).params.c);
+                end
                 auto = 1;
                 % under 2 points its meaningless
                 if splitindex < 2
@@ -398,8 +401,7 @@ classdef GaitForceEvents < GaitEvents
                 time2 = symtimes(end) - symtimes(splitindex);
                 %time2 = self.timespan(stage,b,splitindex+1,min(length(left),length(right)));
                 
-                % the key is GaitForceEvents.lrows
-                self.learning_data.(stage).(b) = [...
+                self.learning_data.(stage).(b) = array2table([...
                     times.(stage).quality;...
                     auto;...
                     length(syms1);...
@@ -420,7 +422,7 @@ classdef GaitForceEvents < GaitEvents
                     symtimes(end) - symtimes(1);...
                     self.basics.(stage).extras.(b).symcv;...
                     self.basics.(stage).extras.(b).meansym...
-               ];
+               ]','VariableNames',GaitForceEvents.lrows);
             end           
         end
         
@@ -515,18 +517,35 @@ classdef GaitForceEvents < GaitEvents
                     % extras row.
                     if any(strcmp(fieldnames(self.learning_data),stagename))
                         ld = self.learning_data.(stagename);
+                        lrows = GaitForceEvents.lrows; %#ok<*PROP>
                         bnames = fieldnames(ld); % should be the same as self.basicnames
                         xlswrite(saveto,{'curve fit data'},stagename,['A' num2str(h+9)]);
+                        spssnames = {'meantotal','cvtotal','meansym_first5','meansym_last5','meansym_last30','steps1'};
+                        gnames = lrows(~ismember(lrows,spssnames));
+                        %single line output for the spss params
+                        spssrow = [];
+                        spssheader = {};
+                        for param=spssnames
+                            for b=bnames'
+                                spssheader = [spssheader,[b{:} '_' param{:}]];
+                                spssrow = [spssrow,ld.(b{:}).(param{:})];
+                            end
+                        end
+                        xlswrite(saveto,spssheader,stagename,['A' num2str(h+10)]);
+                        xlswrite(saveto,spssrow,stagename,['A',num2str(h+11)]);
+                        
+                        
+                        % original output format on other params
                         % write the basicnames as a header row -- offset
                         % one to the right because of the row names
-                        xlswrite(saveto,bnames',stagename,['B' num2str(h+10)]);
+                        xlswrite(saveto,bnames',stagename,['B' num2str(h+14)]);
                         % write a column with the learning rows names --
                         % one below the header
-                        xlswrite(saveto,GaitForceEvents.lrows',stagename,['A' num2str(h+11)]);
+                        xlswrite(saveto,gnames',stagename,['A' num2str(h+15)]);
                         % loop the basic names and write the column of computed
                         % values under each
                         for b = 1:length(bnames)
-                            xlswrite(saveto,ld.(bnames{b}),stagename,[char(A + b) num2str(h+11)]);
+                            xlswrite(saveto,ld.(bnames{b})(:,gnames).Variables',stagename,[char(A + b) num2str(h+15)]);
                         end
                     else
                         % write the extra data: cv and mean symm of every
@@ -534,25 +553,29 @@ classdef GaitForceEvents < GaitEvents
                         extras_header = {};
                         enames = fieldnames(dsource.extras);
                         row1 = [];
-                        row2 = [];
-                        row3 = [];
-                        for b=1:length(enames)
-                            bn = enames{b};
-                            cv = dsource.extras.(bn).symcv;
-                            meansym = dsource.extras.(bn).meansym;
-                            f5cv = dsource.extras.(bn).symcv_first5;
-                            l5cv = dsource.extras.(bn).symcv_last5;
-                            f5m = dsource.extras.(bn).meansym_first5;
-                            l5m = dsource.extras.(bn).meansym_last5;
-                            extras_header = [extras_header,[bn '_symcv'],[bn '_meansym']];
-                            row1 = [row1,cv,meansym];
-                            row2 = [row2,f5cv,f5m];
-                            row3 = [row3,l5cv,l5m];
+                        %row2 = [];
+                        %row3 = [];
+                        for param={'meansym','symcv','meansym_last30'}
+                            for b=1:length(enames)
+                                bn = enames{b};
+                                %cv = dsource.extras.(bn).symcv;
+                                val = dsource.extras.(bn).(param{:});
+                                %meansym = dsource.extras.(bn).meansym;
+                                %f5cv = dsource.extras.(bn).symcv_first5;
+                                %l5cv = dsource.extras.(bn).symcv_last5;
+                                %f5m = dsource.extras.(bn).meansym_first5;
+                                %l5m = dsource.extras.(bn).meansym_last5;
+                                %extras_header = [extras_header,[bn '_symcv'],[bn '_meansym']];
+                                extras_header = [extras_header,[bn '_' param{:}]];
+                                row1 = [row1,val];
+                                %row2 = [row2,f5cv,f5m];
+                                %row3 = [row3,l5cv,l5m];
+                            end
                         end
                         xlswrite(saveto,extras_header,stagename,['A' num2str(h+5)]);
                         xlswrite(saveto,row1,stagename,['A' num2str(h+6)]);
-                        xlswrite(saveto,row2,stagename,['A' num2str(h+7)]);
-                        xlswrite(saveto,row3,stagename,['A' num2str(h+8)]);
+                        %xlswrite(saveto,row2,stagename,['A' num2str(h+7)]);
+                        %xlswrite(saveto,row3,stagename,['A' num2str(h+8)]);
                     end
                 end
                 syshelpers.remove_default_sheets(saveto);
@@ -569,8 +592,8 @@ classdef GaitForceEvents < GaitEvents
                 dat = self.learning_data.(name).(basic);
                 fprintf(fid,'%s',name);
                 for c=2:length(cols)
-                    take = strcmp(GaitForceEvents.lrows,cols{c});
-                    fprintf(fid,',%f',dat(take));
+                    %take = strcmp(GaitForceEvents.lrows,cols{c});
+                    fprintf(fid,',%f',dat.(cols{c}));
                 end
                 fprintf(fid,'\n');
             end
