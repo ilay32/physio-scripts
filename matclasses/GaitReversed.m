@@ -237,15 +237,15 @@ classdef GaitReversed < GaitEvents
             % reads the stages from the protocol and names them by the 
             % log file produced in the gazing points experiment if exists
             protfilename = [self.subjid '-protocol.txt'];
-            self = self.read_protocol(protfilename);
+            self = self.read_protocol(protfilename,false);
             self.numstages = sum(diff(self.protocol.onset_time) > 20); % !CAUTION! this assumes the protocol standing periods are no longer than 20 seconds
             logfile = fullfile(self.datafolder,[self.subjid '-log.txt']);
             if ~exist(logfile,'file')
                 warning('could not find the log file. conditions will be numerically named');
                 for i = 1:self.numstages
                     stages(i) = struct('name',num2str(i),'limits',[]);
-                    self.stages = stages;
                 end
+                self.stages = stages;
                 return
             end
             pid = fopen(logfile);

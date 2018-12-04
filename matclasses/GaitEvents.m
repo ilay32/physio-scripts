@@ -155,7 +155,11 @@ classdef GaitEvents
                 allboundaries = sort(allboundaries);
                 allboundaries = reshape(allboundaries,[2,size(allboundaries,1)/2]);
                 for i=1:size(allboundaries,2)
-                    ldiff = allboundaries(:,i) - self.stages(i).limits;
+                    lims = self.stages(i).limits;
+                    if isempty(lims)
+                        lims = [0,0];
+                    end
+                    ldiff = allboundaries(:,i) - lims;
                     self.stages(i).limits = round(allboundaries(:,i))';
                     if any(strcmp(fieldnames(self.stages(i)),'times'))
                         self.stages(i).times = round(self.stages(i).times + ldiff/self.datarate);

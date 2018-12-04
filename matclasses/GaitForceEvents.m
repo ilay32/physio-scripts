@@ -5,6 +5,7 @@ classdef GaitForceEvents < GaitEvents
     % Salute expriment
     properties(Constant)
         model = 'bastian';
+        bastian_limits = 'article';
         perturbation_magnitude = 1.75;
         direction_strategy = 'expected'; % for symmetry curve fitting
         remove_outliers = true; % in symmetries that is
@@ -470,6 +471,7 @@ classdef GaitForceEvents < GaitEvents
             specs.titlesprefix = [self.subjid ' ' self.prepost ' ' basicname];
             specs.model = GaitForceEvents.model;
             specs.remove_outliers = GaitForceEvents.remove_outliers;
+            specs.bastian_limits = GaitForceEvents.bastian_limits;
             stages = VisHelpers.initialize_stages(self.numstages);
             specs.direction_strategy = GaitForceEvents.direction_strategy;
             for s=1:self.numstages

@@ -14,6 +14,7 @@ classdef QualySubject
         numstages = length(QualySubject.stagenames);
         symmetry_base = 'step length';
         model = 'bastian';
+        bastian_limits = 'natural';
         remove_outliers = false;
         direction_strategy = 'expected'
     end
@@ -343,6 +344,7 @@ classdef QualySubject
             % make specs for the visualizer
             specs = struct;
             specs.name = QualySubject.symmetry_base;
+            specs.bastian_limits = QualySubject.bastian_limits;
             specs.stages = self.stages;
             specs.titlesprefix = [self.subjid ' ' QualySubject.partnames{self.part}];
             specs.remove_outliers = QualySubject.remove_outliers;

@@ -12,6 +12,7 @@ classdef VisHelpers
         model
         global_outliers_remove
         direction_strategy
+        bastian_limits
     end
     
     methods (Static)
@@ -43,7 +44,7 @@ classdef VisHelpers
                 t = first_dsmall;
             end
         end
-        function optresults = learncurve(stage,model,direction_strategy,basename)
+        function optresults = learncurve(stage,model,direction_strategy,basename,blims)
             repname = strrep(stage.name,'_',' ');
             optresults.failed = false;
             F = stage.perturbation_magnitude;
@@ -142,7 +143,14 @@ classdef VisHelpers
                     summ = sprintf('Af: %f\nBf: %f\nAs: %f\nBs: %f',params);
                     p = 4;
                 elseif strcmp(model,'bastian')
-                    [params,~] = fmincon(@bastian,[0,20],[],[],[],[],[-0.5,1]',[0.5,40]');
+                    if strcmp(blims,'natural')
+                        lbound = [min(yNoise);1];
+                        ubound = [max(yNoise);max(S)];
+                    elseif strcmp(blims,'article')
+                        lbound = [-0.5;1];
+                        ubound = [0.5;40];
+                    end
+                    [params,~] = fmincon(@bastian,[0,20],[],[],[],[],lbound,ubound);
                     optresults.params = struct('a',params(1),'c',params(2),'b',sRange);
                     summ = sprintf('a: %f\nc: %f\nb: %f',[params,sRange]);
                 end
@@ -205,6 +213,7 @@ classdef VisHelpers
             self.basename = specs.name;
             self.numstages = length(specs.stages);
             self.global_outliers_remove = specs.remove_outliers;
+            self.bastian_limits = specs.bastian_limits;
             stages = specs.stages;
             for s=1:self.numstages
                 if ~isempty(stages(s).step_lengths)
@@ -271,7 +280,7 @@ classdef VisHelpers
                 ylabel('symmetry');
                 
                 if stage.fit_curve
-                    fitresults = VisHelpers.learncurve(stage,self.model,self.direction_strategy,self.basename);
+                    fitresults = VisHelpers.learncurve(stage,self.model,self.direction_strategy,self.basename,self.bastian_limits);
                     snameclean = regexprep(stage.name,'[\-\s]','_');
                     if fitresults.failed
                         ltimes.(snameclean).split = -1;
@@ -303,7 +312,15 @@ classdef VisHelpers
             end
             l = max(abs(maxsym),abs(minsym));
             if l > min(abs(ylim))
-                ylim([-1.1*l,1.1*l]);
+                ylim(round([-1.5*l,1.5*l]));
+                for linegroup={emplines,bastian_lines}
+                    if ~isempty(linegroup{:})
+                        for i=1:length(linegroup{:})
+                            cur = linegroup{:}{i};
+                            cur.YData = ylim;
+                        end
+                    end
+                end
             end
             pbase = line([1,pltrange(end)],[baseline,baseline],'color','green');
             labels = {'symmetry','baseline mean'};
