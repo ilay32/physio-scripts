@@ -7,7 +7,7 @@ classdef GaitForceEvents < GaitEvents
         model = 'bastian';
         bastian_limits = 'article';
         perturbation_magnitude = 1.75;
-        direction_strategy = 'expected'; % for symmetry curve fitting
+        direction_strategy = 'empiric'; % for symmetry curve fitting
         remove_outliers = true; % in symmetries that is
         lrows = {...
                 'quality','detection_by_curve','steps1','time1','symcv1','symcv_first5',...
