@@ -13,10 +13,6 @@ classdef QualySubject
         numsplits = 8;
         numstages = length(QualySubject.stagenames);
         symmetry_base = 'step length';
-        model = 'bastian';
-        bastian_limits = 'natural';
-        remove_outliers = false;
-        direction_strategy = 'expected'
     end
     properties
         datafile
@@ -344,12 +340,10 @@ classdef QualySubject
             % make specs for the visualizer
             specs = struct;
             specs.name = QualySubject.symmetry_base;
-            specs.bastian_limits = QualySubject.bastian_limits;
             specs.stages = self.stages;
+            conf = yaml.ReadYaml('conf.yml');
+            specs.fit_parameters = conf.Qualysis;
             specs.titlesprefix = [self.subjid ' ' QualySubject.partnames{self.part}];
-            specs.remove_outliers = QualySubject.remove_outliers;
-            specs.model = QualySubject.model;
-            specs.direction_strategy = QualySubject.direction_strategy;
             self.visu = VisHelpers(specs);
         end
         function save_step_lengths(self)

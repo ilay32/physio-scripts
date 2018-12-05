@@ -9,10 +9,7 @@ classdef VisHelpers
         basename
         titlesprefix
         baselines
-        model
-        global_outliers_remove
-        direction_strategy
-        bastian_limits
+        fit_parameters
     end
     
     methods (Static)
@@ -44,15 +41,16 @@ classdef VisHelpers
                 t = first_dsmall;
             end
         end
-        function optresults = learncurve(stage,model,direction_strategy,basename,blims)
+        function optresults = learncurve(stage,basename,fparams)
             repname = strrep(stage.name,'_',' ');
             optresults.failed = false;
+            model = fparams.model;
             F = stage.perturbation_magnitude;
             yNoise = stage.data;
             S = size(yNoise);
             curve = zeros(S);
             pSign = stage.expected_sign;
-            if strcmp(direction_strategy,'empiric')
+            if strcmp(fparams.direction_strategy,'empiric')
                 trendsize = max(S);
                 [trend,~,~,~,~] = regress(yNoise(1:trendsize),[ones(trendsize,1),(1:trendsize)']);
                 pSign = sign(trend(2));
@@ -143,10 +141,10 @@ classdef VisHelpers
                     summ = sprintf('Af: %f\nBf: %f\nAs: %f\nBs: %f',params);
                     p = 4;
                 elseif strcmp(model,'bastian')
-                    if strcmp(blims,'natural')
+                    if strcmp(fparams.bastian_limits,'natural')
                         lbound = [min(yNoise);1];
                         ubound = [max(yNoise);max(S)];
-                    elseif strcmp(blims,'article')
+                    elseif strcmp(bastian_limits,'article')
                         lbound = [-0.5;1];
                         ubound = [0.5;40];
                     end
@@ -212,15 +210,14 @@ classdef VisHelpers
             %   methods that helps visualize it.
             self.basename = specs.name;
             self.numstages = length(specs.stages);
-            self.global_outliers_remove = specs.remove_outliers;
-            self.bastian_limits = specs.bastian_limits;
+            self.fit_parameters = specs.fit_parameters;
             stages = specs.stages;
             for s=1:self.numstages
                 if ~isempty(stages(s).step_lengths)
                     d  = stages(s).step_lengths;
                     assert(size(d,1) > 2 && size(d,2) == 2,'expecting [ left right ] columns of length 3 at least');
                     stages(s).pairs = d;
-                    stages(s).data = VisHelpers.symmetries(d(:,1),d(:,2),self.global_outliers_remove);
+                    stages(s).data = VisHelpers.symmetries(d(:,1),d(:,2),self.fit_parameters.remove_outliers);
                 else
                     d = stages(s).data;
                     assert(size(d,1) > 2 && size(d,2) == 1,'expecting 1 column of length 3 or more');
@@ -228,8 +225,6 @@ classdef VisHelpers
             end
             self.stages = stages;
             self.titlesprefix = specs.titlesprefix;
-            self.model = specs.model;
-            self.direction_strategy = specs.direction_strategy;
         end       
         
         function ltimes = plot_global(self,block)
@@ -280,7 +275,7 @@ classdef VisHelpers
                 ylabel('symmetry');
                 
                 if stage.fit_curve
-                    fitresults = VisHelpers.learncurve(stage,self.model,self.direction_strategy,self.basename,self.bastian_limits);
+                    fitresults = VisHelpers.learncurve(stage,self.basename,self.fit_parameters);
                     snameclean = regexprep(stage.name,'[\-\s]','_');
                     if fitresults.failed
                         ltimes.(snameclean).split = -1;
@@ -295,7 +290,7 @@ classdef VisHelpers
                         maxslope = max(abs(diff(stage.data)))/length(stage.data);
                         ltime = VisHelpers.determine_learning_time(fitresults.curve,maxslope);
                         emplines = [emplines,{line([pltrange(1)+ltime,pltrange(1)+ltime],ylim,'color','black','Linestyle', '--')}];                        
-                        if strcmp(self.model,'bastian')
+                        if strcmp(self.fit_parameters.model,'bastian')
                             bltime = round(fitresults.params.c);
                             bastian_lines = [bastian_lines,{line([pltrange(1)+bltime,pltrange(1)+bltime],ylim,'color','black','Linestyle', '-.')}];
                         end
@@ -339,7 +334,7 @@ classdef VisHelpers
             loc = [0.15,0.15];
             boxsize = [0.1,0.2];
             for s=1:length(fitdata)
-                if s==2
+                if s > 1
                     loc = loc + [boxsize(1)+0.05,0];
                 end
                 annotation('textbox',[loc,boxsize],'String',fitdata{s},'FitBoxToText','on');

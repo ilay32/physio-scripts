@@ -2,7 +2,7 @@
 %   gathers available steps data and plots group-averaged symmetries
 clear; clc; close all;
 addpath 'matclasses'
-
+addpath 'yamlmatlab'
 
 % get parent directory from user
 subjects_dir = uigetdir('Parent Directory for Saved Steps Data of Subjects (.mat)');
@@ -77,10 +77,8 @@ for phase=1:3
     % construct the stages object for Visualizer
     specs = struct;
     specs.name = QualySubject.symmetry_base;
-    specs.bastian_limits = QualySubject.bastian_limits;
-    specs.direction_strategy = QualySubject.direction_strategy;
-    specs.remove_outliers = false;
-    specs.model = QualySubject.model;
+    conf = yaml.ReadYaml('conf.yml');
+    specs.fit_parameters = conf.Qualysis;
     specs.titlesprefix = ['Group Analysis (' subjects_dir ') ' QualySubject.partnames{phase}];
     stages = VisHelpers.initialize_stages(numstages);
     % loop the collected symmetries to construct the stages struct for

@@ -1,3 +1,6 @@
 [submodule "Phisyo-code"]
 	path = Phisyo-code
 	url = https://github.com/rotemmairon/Phisyo-code.git
+[submodule "yamlmatlab"]
+	path = yamlmatlab
+	url = https://github.com/ewiger/yamlmatlab.git

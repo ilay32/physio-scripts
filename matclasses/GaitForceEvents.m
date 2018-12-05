@@ -4,11 +4,7 @@ classdef GaitForceEvents < GaitEvents
     % is complete, and the analysis is concerned with symmetries e.g the
     % Salute expriment
     properties(Constant)
-        model = 'bastian';
-        bastian_limits = 'article';
         perturbation_magnitude = 1.75;
-        direction_strategy = 'empiric'; % for symmetry curve fitting
-        remove_outliers = true; % in symmetries that is
         lrows = {...
                 'quality','detection_by_curve','steps1','time1','symcv1','symcv_first5',...
                 'meansym1','meansym_first5','steps2','time2','symcv2','symcv_last5','symcv_last30',...
@@ -25,11 +21,12 @@ classdef GaitForceEvents < GaitEvents
         part
         subjpat
         other_stagenames
-        isrestep
+        fit_parameters
+        kind
     end
 
     methods
-        function self = GaitForceEvents(folder,stagenames,basicnames,subjectpattern)
+        function self = GaitForceEvents(folder,stagenames,basicnames,subjectpattern,kind)
             %GAITFORCE construcor
             % folder: absolute path to the folder in which the GaitForce
             % exports and the protocol file are saved. zipped exports are
@@ -44,38 +41,45 @@ classdef GaitForceEvents < GaitEvents
             self@GaitEvents(folder,subjectpattern);
             self.basicnames=  basicnames;
             self.subjpat = subjectpattern;
+            self.kind = kind;
             ispre = ~isempty(regexpi(folder,'(pre|day1)'));
             ispost = ~isempty(regexpi(folder,'(post|day2)'));
-            self.isrestep = isempty(regexpi(folder,'salute','ONCE'));
             if ~ispre && ~ispost
                 %error('The data folder must be a decendant of either a pre or a post folder');
                 self.prepost = '';
             elseif ispre && ispost
                 error('The data folder cannot be a decendant of both pre and post folders');
             end
+           
             if ispre
                 self.prepost = 'pre';
                 snames = stagenames.pre;
-                if ~isempty(regexp(self.subjid,'0?(13|10)_','match'))
-                    snames = stagenames.pre10;
-                end
-                self.other_stagenames = stagenames.post;
-            elseif ispost 
-                self.prepost = 'post';        
-                snames = stagenames.post;
-                if ~isempty(regexp(self.subjid,'(13|10)','match'))
-                    snames = stagenames.post10;
-                end
-                if ~isempty(regexp(self.subjid,'(11|17|23)','match'))
-                    part = regexp(self.datafolder,'part(1|2)','match');
-                    if(isempty(strfind(self.subjid,'23')))
-                        snames = stagenames.(['post11_' part{:}]);
-                    else
-                        snames = stagenames.(['post23_' part{:}]);
+                if strcmp(kind,'salute')
+                    if ~isempty(regexp(self.subjid,'0?(13|10)_','match'))
+                        snames = stagenames.pre10;
                     end
+                    self.other_stagenames = stagenames.post;
                 end
-                self.other_stagenames = stagenames.pre;
+            elseif ispost 
+                self.prepost = 'post';
+                snames = stagenames.post;
+                if strcmp(kind,'salute')
+                    if ~isempty(regexp(self.subjid,'(13|10)','match'))
+                        snames = stagenames.post10;
+                    end
+                    if ~isempty(regexp(self.subjid,'(11|17|23)','match'))
+                        part = regexp(self.datafolder,'part(1|2)','match');
+                        if(isempty(strfind(self.subjid,'23')))
+                            snames = stagenames.(['post11_' part{:}]);
+                        else
+                            snames = stagenames.(['post23_' part{:}]);
+                        end
+                    end
+                    self.other_stagenames = stagenames.pre;
+                end
             end
+            conf = yaml.ReadYaml('conf.yml');
+            self.fit_parameters = conf.GaitFors.(self.kind);
             numstages = length(snames);
             for i = 1:numstages
                 stages(i) = struct('name',snames{i},'limits',[]); %#ok<AGROW>
@@ -85,7 +89,7 @@ classdef GaitForceEvents < GaitEvents
             self.points =  LoCopp(self.datafolder);
             self.stage_reject_message = 'automatic stage identification rejected. press any key but y to quit here: ';
         end
-        
+
         function self = load_stages(self,pat)
             %LOADSTAGES read stage times from protocol file
             % pat: regexp pattern of protocol file name
@@ -240,7 +244,7 @@ classdef GaitForceEvents < GaitEvents
                 d.isbaseline = true;
             else
                 d.isfitcurve = true;
-                if strcmp(GaitForceEvents.direction_strategy,'empiric')
+                if strcmp(self.fit_parameters.direction_strategy,'empiric')
                     d.expected_sign = esign;
                     return;
                 end
@@ -255,9 +259,9 @@ classdef GaitForceEvents < GaitEvents
                         % different speeds
                         l = thispeeds.speedL;
                         r = thispeeds.speedR;
-                        if thispeeds.speedL > thispeeds.speedR
+                        if l > r
                             esign = 1;
-                        elseif thispeeds.speedR > thispeeds.speedL
+                        elseif r > l
                             esign = -1;
                         else
                             error('expecting different belt speeds at this stage');
@@ -267,7 +271,13 @@ classdef GaitForceEvents < GaitEvents
                         % speeds for magnitude and flip the sign
                         l = prevspeeds.speedL;
                         r = prevspeeds.speedR;
-                        assert(l ~= r, 'expecting different belt speeds at previous stage');
+                        if l  > r
+                            esign = -1; % this is confusing look above!
+                        elseif r > l
+                            esign = 1;
+                        else
+                            error('expecting different belt speeds at previous stage');
+                        end
                     end
                     d.perturbation_magnitude = max(l,r)/min(l,r);
                     d.expected_sign = esign;
@@ -320,7 +330,7 @@ classdef GaitForceEvents < GaitEvents
                         % always match. so just take by shortest
                         m = min(length(datcol),length(leftcol));
                         %syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),details.faster,GaitForceEvents.remove_outliers,details.normalize);
-                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),GaitForceEvents.remove_outliers);
+                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),self.fit_parameters.remove_outliers);
                         stagedata.(symsname) = [syms;nan*ones(longest-length(syms),1)];
                         stagedata.(symstimename) = [tcol;nan*ones(longest-length(tcol),1)];
                         extras.(bname).symcv = GaitEvents.cv(syms);
@@ -377,7 +387,7 @@ classdef GaitForceEvents < GaitEvents
                 %t = array2table(t,'VariableNames',self.basicnames,'RowNames',rows);
                 basictable = self.basics.(stage).data;
                 splitindex = times.(stage).split;
-                if strcmp(GaitForceEvents.model,'bastian') && ~isnan(times.(stage).quality)
+                if strcmp(self.fit_parameters.model,'bastian') && ~isnan(times.(stage).quality)
                     splitindex = round(times.(stage).params.c);
                 end
                 auto = 1;
@@ -469,11 +479,8 @@ classdef GaitForceEvents < GaitEvents
             specs = struct; 
             specs.name = basicname;
             specs.titlesprefix = [self.subjid ' ' self.prepost ' ' basicname];
-            specs.model = GaitForceEvents.model;
-            specs.remove_outliers = GaitForceEvents.remove_outliers;
-            specs.bastian_limits = GaitForceEvents.bastian_limits;
+            specs.fit_parameters = self.fit_parameters;
             stages = VisHelpers.initialize_stages(self.numstages);
-            specs.direction_strategy = GaitForceEvents.direction_strategy;
             for s=1:self.numstages
                 stage = stages(s);
                 source = self.stages(s);

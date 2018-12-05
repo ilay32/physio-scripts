@@ -6,6 +6,7 @@
 !wcapp
 !matfunctions
 !matclasses
+!yamlmatlab
 !*.m
 !*.css
 !Phisyo-code
