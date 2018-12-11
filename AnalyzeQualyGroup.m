@@ -10,7 +10,7 @@ subjects_dir = uigetdir('Parent Directory for Saved Steps Data of Subjects (.mat
 if subjects_dir == 0
     error('Aborting');
 end
-cleanstagenames = cellfun(@matlab.lang.makeValidName,QualySubject.stagenames,'UniformOutput',false);
+%cleanstagenames = cellfun(@matlab.lang.makeValidName,QualySubject.stagenames,'UniformOutput',false);
 % get experiment part to process 
 %phase = listdlg('ListString',QualySubject.partnames,'PromptString',...
 %    'Select Session to Analyze','SelectionMode','single');
@@ -44,11 +44,12 @@ for phase=1:3
     grouped_syms = cell(1,numstages);
     vtps = cell(1,numstages);
     [vtps{:}] = deal('double');
-    stagemeans = table('Size',[numsubjects,numstages],...
-        'VariableTypes',vtps,...
-        'RowNames',subjids,...
-        'VariableNames',cleanstagenames...
-    );
+%     stagemeans = table('Size',[numsubjects,numstages],...
+%         'VariableTypes',vtps,...
+%         'RowNames',subjids,...
+%         'VariableNames',cleanstagenames...
+%     );
+    subject_normalizers = nan*ones(numsubjects);
     for stage = 1:numstages
         [how,long] = min(cellfun(@length,steps(:,stage)));
         stagesyms = zeros(how,numsubjects);
@@ -60,7 +61,10 @@ for phase=1:3
                 QualySubject.remove_outliers...
             );
             stagesyms(:,subj) = syms;
-            stagemeans(subjids{subj},cleanstagenames).Variables = mean(syms);
+            %stagemeans(subjids{subj},cleanstagenames).Variables = mean(syms);
+            if stage==3 % using last 0.5 m/s part to normalize
+                subject_normalizers(subj) = abs(mean(syms(end-min(30,length(syms)-1):end)));
+            end
         end
         grouped_syms{stage} = stagesyms;
     end
@@ -69,8 +73,8 @@ for phase=1:3
     for s=1:numstages
         for j=1:numsubjects
             raw_symmetries = grouped_syms{s}(:,j);      
-            normalizer = mean(stagemeans(subjids{j},1:3).Variables);
-            grouped_syms{s}(:,j) =  raw_symmetries/abs(normalizer);
+            %normalizer = mean(stagemeans(subjids{j},1:3).Variables);
+            grouped_syms{s}(:,j) =  raw_symmetries/abs(subject_normalizers(j));
         end
     end
     
@@ -86,7 +90,8 @@ for phase=1:3
     % loop the collected symmetries to construct the stages struct for
     % VisHelpers (similar to compile_stages in QualySubject)
     for s = 1:numstages
-        stages(s).data = mean(grouped_syms{s},2);
+        d = mean(grouped_syms{s},2);
+        stages(s).data = d/abs(max(d));
         stages(s).name = QualySubject.stagenames{s};
         if s <= 3
             stages(s).include_inbaseline = true;

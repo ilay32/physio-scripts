@@ -13,7 +13,7 @@ classdef QualySubject
         numsplits = 8;
         numstages = length(QualySubject.stagenames);
         symmetry_base = 'step length';
-        model = 'bastian';
+        model = 'dual';
         bastian_limits = 'natural';
         remove_outliers = false;
         direction_strategy = 'expected'
