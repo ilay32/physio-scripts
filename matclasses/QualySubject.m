@@ -13,7 +13,7 @@ classdef QualySubject
         numsplits = 8;
         numstages = length(QualySubject.stagenames);
         symmetry_base = 'step length';
-    end
+   end
     properties
         datafile
         datapath
