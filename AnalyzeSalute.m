@@ -1,4 +1,5 @@
-clear; close all;
+close all;
+clear;
 global goon; 
 goon = true;
 addpath 'matclasses';
@@ -43,6 +44,7 @@ for b=basicnames
     gf = gf.process_learning_times(learning_times,b{:});
     fprintf('done.\n\n');
 end
+gf.save_gist();
 do_export = input('save the current statistics to file? [y/n] ','s');
 if strcmp(do_export,'y')
     gf.export();

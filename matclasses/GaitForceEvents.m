@@ -64,7 +64,7 @@ classdef GaitForceEvents < GaitEvents
                 self.prepost = 'post';
                 snames = stagenames.post;
                 if strcmp(kind,'salute')
-                    if ~isempty(regexp(self.subjid,'(13|10)','match'))
+                    if ~isempty(regexp(self.subjid,'10','match'))
                         snames = stagenames.post10;
                     end
                     if ~isempty(regexp(self.subjid,'(11|17|23)','match'))
