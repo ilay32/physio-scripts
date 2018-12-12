@@ -3,22 +3,18 @@ global goon;
 goon = true;
 addpath 'matclasses';
 addpath 'matfunctions';
-export_basics = {'step_length'};
-stagenames = struct;
-stagenames.pre = {'slow','fast','adaptation','post_adaptation','re_adaptation'};
-stagenames.post = stagenames.pre;
-
-
-basicnames = {'step_duration','step_length'};
-subjectpattern = '[A-Za-z]{2}\d{3}';
-folder = uigetdir(syshelpers.driveroot());
+addpath 'yamlmatlab';
+conf = yaml.ReadYaml('conf.yml');
+%folder = uigetdir(syshelpers.driveroot());
+folder = 'Q:\testdata\katherin-all\CVA\AU082\Day1';
+defs = conf.restep.constants;
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
 if isempty(listofcop)
-    gf = GaitMissing(folder,stagenames,basicnames,subjectpattern);
+    gf = GaitMissing(folder,defs.stagenames,defs.basicnames,defs.subjectpattern,'restep');
     gf = gf.load_from_disk();
 else
-    gf = GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
-    gf = gf.load_stages('.*Day_(1|2)\.txt.*');
+    gf = GaitForceEvents(folder,'restep');
+    gf = gf.load_stages();
     gf = gf.mark_stages('ready');
     gf.confirm_stages();
     if ~goon
@@ -26,7 +22,7 @@ else
     end
 end
 gf = gf.compute_basics();
-for b=export_basics
+for b=RestepGroups.export_basics
     fprintf('Computing %s Symmetries\n',b{:});
     visu = gf.get_visualizer(b{:});
     learning_times = visu.plot_global(false);

@@ -1,29 +1,18 @@
-close all;
-clear;
+close all; clear;
 global goon; 
 goon = true;
-addpath 'matclasses';
-addpath 'matfunctions';
-stagenames = struct;
-
-basicnames = {...
-    'step_length',...
-	'step_duration',... 
-	'stride_duration',...
-	'stride_length',...
-	'step_width',...
-	'swing_duration',...
-	'stance_duration',...
-	'ds_duration'...
-};
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
+conf = yaml.ReadYaml('conf.yml');
 folder = uigetdir(syshelpers.driveroot());
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
 if isempty(listofcop)
     gf = GaitMissing(folder,basicnames,'salute');
     gf = gf.load_from_disk();
 else
-    gf = GaitForceEvents(folder,basicnames,'salute');
-    gf = gf.load_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
+    gf = GaitForceEvents(folder,'salute');
+    gf = gf.load_stages();
     gf = gf.mark_stages('ready');
     gf.confirm_stages();
     if ~goon
@@ -31,7 +20,7 @@ else
     end
 end
 gf = gf.compute_basics();
-for b=basicnames
+for b=conf.GaitFors.salute.constants.basicnames
     fprintf('Computing %s Symmetries:\n',b{:});
     visu = gf.get_visualizer(b{:});
     learning_times = visu.plot_global(false);
@@ -43,5 +32,3 @@ do_export = input('save the current statistics to file? [y/n] ','s');
 if strcmp(do_export,'y')
     gf.export();
 end
-
-

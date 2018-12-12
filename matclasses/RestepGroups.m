@@ -37,18 +37,19 @@ classdef RestepGroups < GaitForsGroups
             pat = fullfile(self.datafolder,'*','*','*','*gist.mat'); 
             % the wildcards are: cva/tbi, subjid, day<x>
             gistfiles = dir(pat);
-            defs = self.conf.constants;
             for g = 1:length(gistfiles)
                 folder = gistfiles(g).folder;
                 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
                 if isempty(listofcop)
-                    gf = GaitMissing(folder,defs.stagenames,defs.basicnames,defs.subjectpattern,'restep');
+                    gf = GaitMissing(folder,'restep');
                     gf = gf.load_from_disk();
                 else
-                    gf = GaitForceEvents(folder,defs.stagenames,defs.basicnames,defs.subjectpattern,'restep');
-                    gf = gf.load_stages('.*Day_(1|2)\.txt.*');
+                    gf = GaitForceEvents(folder,'restep');
+                    gf = gf.load_stages();
                 end
                 gf = gf.compute_basics();
+                
+                %skip the learning loop for now....
                 gf.save_gist();
             end
         end

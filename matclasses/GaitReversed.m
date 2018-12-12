@@ -180,7 +180,7 @@ classdef GaitReversed < GaitEvents
     
     methods
         function self = GaitReversed(folder,subjpattern)
-            self@GaitEvents(folder,subjpattern);
+            self@GaitEvents(folder,'reversed',subjpattern);
             self.stage_reject_message = 'mark the stages again? [y/n] ';
             svn = fullfile(self.datafolder,[self.subjid '_hsandboundaries.mat']);
             self.has_loaded_from_disk = false;

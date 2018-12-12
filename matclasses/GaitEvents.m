@@ -14,11 +14,13 @@ classdef GaitEvents
         datastarts
         datalength
         subjid
+        subjpat
         stages
         numstages
         protocol
         stage_reject_message
-        abort;
+        abort
+        conf
     end
     methods (Static)
         function c = cv(s)
@@ -35,7 +37,7 @@ classdef GaitEvents
         end         
     end
     methods
-        function self = GaitEvents(folder,basicnames,kind)
+        function self = GaitEvents(folder,kind,subjectpattern)
             % constructor takes just one parameter -- the folder
             % wehre the treadmill data is expected. the file names are:
             % "0 NI_Daq_Inputs @0.5 kHz.csv" -- not used here
@@ -48,7 +50,12 @@ classdef GaitEvents
             self.datafolder =  folder;
             self.abort = false;
             conf = yaml.ReadYaml('conf.yml');
-            subjmatch = regexp(folder,conf.GaitFors.(kind).constants.subjectpattern,'match');
+            self.conf = conf.GaitFors.(kind);
+            self.subjpat = self.conf.constants.subjectpattern;
+            if nargin == 3
+                self.subjpat = subjectpattern;
+            end
+            subjmatch = regexp(folder,self.subjpat,'match');
             if isempty(subjmatch)
                 self.subjid = 'IDUNMATCHED';
             else

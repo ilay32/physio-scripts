@@ -76,6 +76,10 @@ classdef GaitForsGroups
                                         gistkey = strrep(gistkey,'adaptation','salute');
                                     end
                                 end
+                                if ~any(strcmp(fieldnames(gist.basics),gistkey))
+                                    warning('%s saved data does not include %s. skipping',gists(d).folder,gistkey);
+                                    continue;
+                                end
                                 syms = gist.basics.(gistkey).data.([base '_symmetries']);
 
                                 % you can't add them up if some are
@@ -100,6 +104,7 @@ classdef GaitForsGroups
                                 ustages{s} = syms;
                             end
                             
+                            
                             %bmean = mean(bmeans);
                             % loop stages again to normalize by baseline
                             for s=1:numstages
@@ -109,13 +114,12 @@ classdef GaitForsGroups
                             clear gist;
                             allsyms{d} = ustages;
                         end
-                        
                         % double loop all symmetries to find the shortest
                         % in each stage
                         shortest = inf*ones(1,numstages);
                         for s=1:numstages
                             for d=1:length(allsyms)
-                                if length(allsyms{d}{s}) < shortest(s)
+                                if ~isempty(allsyms{d}{s}) && length(allsyms{d}{s}) < shortest(s)
                                     shortest(s) = length(allsyms{d}{s});
                                 end
                             end
@@ -128,15 +132,19 @@ classdef GaitForsGroups
                         for s=1:numstages
                             stagesyms = zeros(shortest(s),length(allsyms));
                             for d=1:length(allsyms)
-                                stagesyms = allsyms{d}{s}(1:shortest(s));
+                                if ~isempty(allsyms{d}{s})
+                                    stagesyms(:,d) = allsyms{d}{s}(1:shortest(s));
+                                else
+                                    stagesyms(:,d) = [];
+                                end
                             end
                             name = stage_names{s};
-                            stages(s).data = mean(stagesyms,2);
+                            stages(s).data = nanmean(stagesyms,2);
                             stages(s).name = name;
                             if isempty(regexp(name,'adaptation','ONCE'))
                                 stages(s).include_inbaseline = true;
                             else
-                                stages(s).fit_curve =true;
+                                stages(s).fit_curve = true;
                                 stages(s).perturbation_magnitude = GaitForceEvents.perturbation_magnitude;
                             end
                         end

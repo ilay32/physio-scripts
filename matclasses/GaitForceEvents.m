@@ -19,14 +19,12 @@ classdef GaitForceEvents < GaitEvents
         learning_data
         stages_offset
         part
-        subjpat
         other_stagenames
-        conf
         kind
     end
 
     methods
-        function self = GaitForceEvents(folder,basicnames,kind)
+        function self = GaitForceEvents(folder,kind)
             %GAITFORCE construcor
             % folder: absolute path to the folder in which the GaitForce
             % exports and the protocol file are saved. zipped exports are
@@ -38,10 +36,8 @@ classdef GaitForceEvents < GaitEvents
             % subject pattern: regex to match against the folder string, so
             % as to obtain the subject id for the instance. see wrapper
             % scripts for examples.
-            self@GaitEvents(folder,basicnames,kind);
-            self.basicnames=  basicnames;
-            conf = yaml.ReadYaml('conf.yml');
-            self.conf = conf.GaitFors.(kind);
+            self@GaitEvents(folder,kind);
+            self.basicnames=  self.conf.constants.basicnames;
             self.kind = kind;
             stagenames = self.conf.constants.stagenames;
             ispre = ~isempty(regexpi(folder,'(pre|day1)'));
@@ -85,17 +81,16 @@ classdef GaitForceEvents < GaitEvents
             for i = 1:numstages
                 stages(i) = struct('name',snames{i},'limits',[]); %#ok<AGROW>
             end
-            self.subjpat = self.conf.constants.subjectpattern;
             self.stages = stages;
             self.numstages = numstages;
             self.points =  LoCopp(self.datafolder);
             self.stage_reject_message = 'automatic stage identification rejected. press any key but y to quit here: ';
         end
 
-        function self = load_stages(self,pat)
+        function self = load_stages(self)
             %LOADSTAGES read stage times from protocol file
             % pat: regexp pattern of protocol file name
-            protfiles = syshelpers.subdirs(self.datafolder,pat,true);
+            protfiles = syshelpers.subdirs(self.datafolder,self.conf.constants.protocol_pattern,true);
             assert(~isempty(protfiles),'could not find the protocol file');
             self = self.read_protocol(protfiles{1,1}{:});
             times = self.protocol.onset_time;
@@ -286,13 +281,10 @@ classdef GaitForceEvents < GaitEvents
                 else
                     % salute second session (post), the perturbation is with the salute
                     % device -- use previous stage perturbation data
-                    grr = struct;
-                    grr.post = extractfield(self.stages,'name');
-                    grr.pre = self.other_stagenames;
                     otherdir  = regexprep(self.datafolder,'(?<=[\\\/][Pp])ost','re');
                     otherdir = regexprep(otherdir,'[pP]art[12]','');
-                    other = GaitForceEvents(otherdir,grr,self.basicnames,self.subjpat);
-                    other = other.load_stages('.*(salute)?.*pre.*(left|right)?.*txt$');
+                    other = GaitForceEvents(otherdir,self.kind,self.subjpat);
+                    other = other.load_stages();
                     for s=1:other.numstages
                         oname = other.stages(s).name;
                         if (strcmp(name,'salute') && strcmp(oname,'adaptation')) || (strcmp(name,'post_salute') && strcmp(oname,'post_adaptation'))

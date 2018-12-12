@@ -1,18 +1,19 @@
 close all; clear;
-addpath 'matclasses';
-addpath 'matfunctions';
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
 folder = uigetdir(syshelpers.driveroot());
-subpat = '\d{3}_[A-Za-z]{2}';
-protpat = '.*(salute)?.*(pre|post).*(left|right)?.*txt$';
+conf = yaml.ReadYaml('conf.yml');
+kind = 'salute';
 if isempty(regexpi(folder,'salute'))
-    subpat = '[A-Za-z]{2}\d{3}';
-    protpat = '.*Day_\d\.txt$';
+    kind = 'restep';
 end
-gr = GaitReversed(folder,subpat);
+constants = conf.GaitFors.(kind).constants;
+gr = GaitReversed(folder,constants.subjectpattern);
 if ~gr.has_loaded_from_disk
     gr = gr.find_heel_strikes();
     close;
-    gr = gr.load_salute_stages(protpat);
+    gr = gr.load_salute_stages(constants.protocol_pattern);
     gr = gr.mark_stages(gr.left_hs(1));
 end
 gr.confirm_stages();

@@ -1,8 +1,10 @@
 close all; clear;
-addpath 'matclasses';
-addpath 'matfunctions';
-folder = uigetdir();
-gr = GaitReversed(folder,'stability-\d+');
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
+conf = yaml.ReadYaml('conf.yml');
+folder = uigetdir(syshelpers.driveroot());
+gr = GaitReversed(folder,conf.GaitFors.reversed.constants.subjectpattern);
 if ~gr.has_loaded_from_disk
     gr = gr.find_heel_strikes();
     gr = gr.load_ps_stages();

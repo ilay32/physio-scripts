@@ -1,9 +1,9 @@
 close all; clear;
-addpath 'matclasses';
-addpath 'matfunctions';
-addpath 'yamlmatlab';
-dataroot = uigetdir(syshelpers.driveroot());
-%dataroot = 'Q:\testdata\salute\treadmill';
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
+%dataroot = uigetdir(syshelpers.driveroot());
+dataroot = 'Q:\testdata\salute\treadmill';
 groups = SaluteGroups(dataroot);
 % for s=3:4
 %     for b = RestepGroups.export_basics

@@ -1,41 +1,25 @@
 clear; close all;
 global goon; 
 goon = true;
-addpath 'matclasses';
-stagenames = struct;
-stagenames.pre = {'slow1','fast','slow2','adaptation','post_adaptation'};
-stagenames.post = {'fast','salute','post_salute'};
-stagenames.post11_part1 = {'fast','salute'};
-stagenames.post11_part2 = {'salute','post_salute'};
-stagenames.post23_part1 = {'slow'};
-stagenames.post23_part2 = {'salute','post_salute'};
-basicnames = {...
-    'step_length',...
-	'step_duration',... 
-	'stride_duration',...
-	'stride_length',...
-	'step_width',...
-	'swing_duration',...
-	'stance_duration',...
-	'ds_duration'...
-};
-subjectpattern = '\d{3}_[A-Za-z]{2}';
-folder = uigetdir('C:\Users\Public\Salute\Salute Trials\naamadiskonkey');
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
+folder = uigetdir(syshelpers.driveroot());
 for part=1:2
     partname = ['part' num2str(part)];
-    gfp = GaitForceEvents(fullfile(folder,partname),stagenames,basicnames,subjectpattern);
-    gfp = gfp.load_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
+    gfp = GaitForceEvents(fullfile(folder,partname),'salute');
+    gfp = gfp.load_stages();
     gfp = gfp.mark_stages('ready');
     gfp.confirm_stages();
     if ~goon
         error('Operation Aborted');
     end
-    gfp = gfp.compute_basics();
+    gfp = gfp.compute_basics(); %#ok<NASGU>
     eval(['part' num2str(part) ' = gfp;']);
     clear gfp;
 end
 gf = part1.combine(part2);
-for b=basicnames
+for b=gf.conf.constants.basicnames
     fprintf('Computing %s Symmetries:\n',b{:});
     visu = gf.get_visualizer(b{:});
     learning_times = visu.plot_global(false);
