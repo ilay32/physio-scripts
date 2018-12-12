@@ -21,12 +21,12 @@ classdef GaitForceEvents < GaitEvents
         part
         subjpat
         other_stagenames
-        fit_parameters
+        conf
         kind
     end
 
     methods
-        function self = GaitForceEvents(folder,stagenames,basicnames,subjectpattern,kind)
+        function self = GaitForceEvents(folder,basicnames,kind)
             %GAITFORCE construcor
             % folder: absolute path to the folder in which the GaitForce
             % exports and the protocol file are saved. zipped exports are
@@ -38,10 +38,12 @@ classdef GaitForceEvents < GaitEvents
             % subject pattern: regex to match against the folder string, so
             % as to obtain the subject id for the instance. see wrapper
             % scripts for examples.
-            self@GaitEvents(folder,subjectpattern);
+            self@GaitEvents(folder,basicnames,kind);
             self.basicnames=  basicnames;
-            self.subjpat = subjectpattern;
+            conf = yaml.ReadYaml('conf.yml');
+            self.conf = conf.GaitFors.(kind);
             self.kind = kind;
+            stagenames = self.conf.constants.stagenames;
             ispre = ~isempty(regexpi(folder,'(pre|day1)'));
             ispost = ~isempty(regexpi(folder,'(post|day2)'));
             if ~ispre && ~ispost
@@ -78,12 +80,12 @@ classdef GaitForceEvents < GaitEvents
                     self.other_stagenames = stagenames.pre;
                 end
             end
-            conf = yaml.ReadYaml('conf.yml');
-            self.fit_parameters = conf.GaitFors.(self.kind);
+
             numstages = length(snames);
             for i = 1:numstages
                 stages(i) = struct('name',snames{i},'limits',[]); %#ok<AGROW>
             end
+            self.subjpat = self.conf.constants.subjectpattern;
             self.stages = stages;
             self.numstages = numstages;
             self.points =  LoCopp(self.datafolder);
@@ -244,7 +246,7 @@ classdef GaitForceEvents < GaitEvents
                 d.isbaseline = true;
             else
                 d.isfitcurve = true;
-                if strcmp(self.fit_parameters.direction_strategy,'empiric')
+                if strcmp(self.conf.fit_parameters.direction_strategy,'empiric')
                     d.expected_sign = esign;
                     return;
                 end
@@ -321,7 +323,6 @@ classdef GaitForceEvents < GaitEvents
                         leftname = [bname '_left'];
                         symsname = [bname '_symmetries'];
                         symstimename = [bname '_symtimes'];
-                        %details = self.resolve_symmetry_details(s);
                         leftcol = src.(leftname);
                         leftcol = leftcol(:,1);
                         %cv = GaitEvents.cv([leftcol;datcol]);
@@ -330,7 +331,7 @@ classdef GaitForceEvents < GaitEvents
                         % always match. so just take by shortest
                         m = min(length(datcol),length(leftcol));
                         %syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),details.faster,GaitForceEvents.remove_outliers,details.normalize);
-                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),self.fit_parameters.remove_outliers);
+                        syms = VisHelpers.symmetries(leftcol(1:m),datcol(1:m),self.conf.fit_parameters.remove_outliers);
                         stagedata.(symsname) = [syms;nan*ones(longest-length(syms),1)];
                         stagedata.(symstimename) = [tcol;nan*ones(longest-length(tcol),1)];
                         extras.(bname).symcv = GaitEvents.cv(syms);
@@ -345,6 +346,8 @@ classdef GaitForceEvents < GaitEvents
                 end
                 self.basics.(self.stages(s).name).data = stagedata;
                 self.basics.(self.stages(s).name).extras = extras;
+                % this is necessary for later group analysis
+                self.basics.(self.stages(s).name).symmetry_details = self.resolve_symmetry_details(s);
             end
         end
         function s = timespan(self,stage,bname,start,finish)
@@ -387,7 +390,7 @@ classdef GaitForceEvents < GaitEvents
                 %t = array2table(t,'VariableNames',self.basicnames,'RowNames',rows);
                 basictable = self.basics.(stage).data;
                 splitindex = times.(stage).split;
-                if strcmp(self.fit_parameters.model,'bastian') && ~isnan(times.(stage).quality)
+                if strcmp(self.conf.fit_parameters.model,'bastian') && ~isnan(times.(stage).quality)
                     splitindex = round(times.(stage).params.c);
                 end
                 auto = 1;
@@ -479,7 +482,7 @@ classdef GaitForceEvents < GaitEvents
             specs = struct; 
             specs.name = basicname;
             specs.titlesprefix = [self.subjid ' ' self.prepost ' ' basicname];
-            specs.fit_parameters = self.fit_parameters;
+            specs.fit_parameters = self.conf.fit_parameters;
             stages = VisHelpers.initialize_stages(self.numstages);
             for s=1:self.numstages
                 stage = stages(s);

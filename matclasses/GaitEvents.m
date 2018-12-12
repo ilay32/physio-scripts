@@ -35,7 +35,7 @@ classdef GaitEvents
         end         
     end
     methods
-        function self = GaitEvents(folder,subjectpattern)
+        function self = GaitEvents(folder,basicnames,kind)
             % constructor takes just one parameter -- the folder
             % wehre the treadmill data is expected. the file names are:
             % "0 NI_Daq_Inputs @0.5 kHz.csv" -- not used here
@@ -47,7 +47,8 @@ classdef GaitEvents
             % ClientData.csv -- irrelevant
             self.datafolder =  folder;
             self.abort = false;
-            subjmatch = regexp(folder,subjectpattern,'match');
+            conf = yaml.ReadYaml('conf.yml');
+            subjmatch = regexp(folder,conf.GaitFors.(kind).constants.subjectpattern,'match');
             if isempty(subjmatch)
                 self.subjid = 'IDUNMATCHED';
             else

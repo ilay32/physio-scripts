@@ -5,10 +5,6 @@ goon = true;
 addpath 'matclasses';
 addpath 'matfunctions';
 stagenames = struct;
-stagenames.pre = {'slow1','fast','slow2','adaptation','post_adaptation'};
-stagenames.post = {'fast','salute','post_salute'};
-stagenames.pre10 = {'slow1','fast','slow2','adaptation'};
-stagenames.post10 = {'fast','salute'};
 
 basicnames = {...
     'step_length',...
@@ -20,15 +16,13 @@ basicnames = {...
 	'stance_duration',...
 	'ds_duration'...
 };
-subjectpattern = '\d{3}_[A-Za-z]{2}';
-% katrin subjectpattern = '[A-Za-z]{2}\d{3}');
 folder = uigetdir(syshelpers.driveroot());
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
 if isempty(listofcop)
-    gf = GaitMissing(folder,stagenames,basicnames,subjectpattern);
+    gf = GaitMissing(folder,basicnames,'salute');
     gf = gf.load_from_disk();
 else
-    gf = GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
+    gf = GaitForceEvents(folder,basicnames,'salute');
     gf = gf.load_stages('.*(salute)?.*(pre|post).*(left|right)?.*txt$');
     gf = gf.mark_stages('ready');
     gf.confirm_stages();
