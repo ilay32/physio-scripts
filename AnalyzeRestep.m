@@ -5,12 +5,10 @@ addpath 'matclasses';
 addpath 'matfunctions';
 addpath 'yamlmatlab';
 conf = yaml.ReadYaml('conf.yml');
-%folder = uigetdir(syshelpers.driveroot());
-folder = 'Q:\testdata\katherin-all\CVA\AU082\Day1';
-defs = conf.restep.constants;
+folder = uigetdir(syshelpers.driveroot());
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
 if isempty(listofcop)
-    gf = GaitMissing(folder,defs.stagenames,defs.basicnames,defs.subjectpattern,'restep');
+    gf = GaitMissing(folder,'restep');
     gf = gf.load_from_disk();
 else
     gf = GaitForceEvents(folder,'restep');

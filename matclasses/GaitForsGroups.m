@@ -8,17 +8,17 @@ classdef GaitForsGroups
        
     
     properties
-        datafolder;
-        groups;
-        data_names;
-        conf;
+        datafolder
+        groups
+        data_names
+        conf
     end
     
     methods
         function self = GaitForsGroups(rootfolder)
             self.datafolder = rootfolder;
         end
-        function collected = main(self,stage,base,action)
+        function collected = main(self,stageindex,base,action)
             %MAIN the purpose of this class
             %   'action' cab be either 'flat_averages' for gathering per-subject symmetries data
             %   or 'joint_symmetries' for curve-analysis of symmetries
@@ -42,7 +42,7 @@ classdef GaitForsGroups
                     end
                     if strcmp(action,'flat_averages')
                         for d=1:length(gists)
-                            row = self.subject_data(fullfile(gists(d).folder,gists(d).name),stage,base);
+                            row = self.subject_data(fullfile(gists(d).folder,gists(d).name),stage_names{stageindex},base);
                             dat = [dat;row];
                         end
                         collected.(key) = array2table(mean(dat,1),'VariableNames',self.data_names);
@@ -67,7 +67,7 @@ classdef GaitForsGroups
                                 %the name to use or skip
                                 gistkey = stage_names{s};
                                 if isa(self,'SaluteGroups') && strcmp(n2,'both_sessions')
-                                    prepost = regexpi(gists(d).folder,'(pre|post)','match');
+                                    prepost = regexpi(gists(d).folder,'(pre|post|day[12])','match');
                                     assert(~isempty(prepost),'this gist file seems to be mislocated')
                                     prepost = lower(prepost{:});
                                     if strcmp(gistkey,'normal')
@@ -85,10 +85,16 @@ classdef GaitForsGroups
                                 % you can't add them up if some are
                                 % supposed to be up-trend while some
                                 % down-trend. so the expected sign is set
-                                % arbitrarily to 1, and if it was -1 for
-                                % this subject, the symmetries are flipped.
+                                % arbitrarily to 1 on (re)adaptation and -1 on post_adaptation, 
+                                % and if it was the other way around, flip
+                                % the symmetries and the expected sign
                                 if strcmp(self.conf.fit_parameters.direction_strategy,'expected')
-                                    if gist.basics.(gistkey).symmetry_details.expected_sign == -1
+                                    sdetails= gist.basics.(gistkey).symmetry_details;
+                                    % so case 1: post_adaptation on 1,
+                                    % change to -1
+                                    if sdetails.isfitcurve && startsWith(gistkey,'post') && sdetails.expected_sign == 1
+                                        syms = -1*syms;
+                                    elseif sdetails.isfitcurve && sdetails.expected_sign == -1
                                         syms = -1*syms;
                                     end
                                 % same reasoning for empiric strategy...
@@ -124,21 +130,28 @@ classdef GaitForsGroups
                                 end
                             end
                         end
+                        stages_with_data =~isinf(shortest);
+                        shortest = shortest(stages_with_data);
+                        numstages = sum(stages_with_data);
+                        stage_names = stage_names(stages_with_data);
+                        
                         % and finally, construct the visualizer
                         specs = struct;
                         stages = VisHelpers.initialize_stages(numstages);
                         specs.fit_parameters = self.conf.fit_parameters;
-                        specs.fit_parameters.direction_strategy = 'empiric';
                         for s=1:numstages
-                            stagesyms = zeros(shortest(s),length(allsyms));
+                            stagesyms = [];
                             for d=1:length(allsyms)
                                 if ~isempty(allsyms{d}{s})
-                                    stagesyms(:,d) = allsyms{d}{s}(1:shortest(s));
-                                else
-                                    stagesyms(:,d) = [];
+                                    stagesyms = [stagesyms,allsyms{d}{s}(1:shortest(s))];
                                 end
                             end
                             name = stage_names{s};
+                            if startsWith(name,'post')
+                                stages(s).expected_sign = -1;
+                            elseif regexp(name,'adaptation','ONCE')
+                                stages(s).expected_sign = 1;
+                            end
                             stages(s).data = nanmean(stagesyms,2);
                             stages(s).name = name;
                             if isempty(regexp(name,'adaptation','ONCE'))
@@ -162,12 +175,8 @@ classdef GaitForsGroups
             %SUBJECT_DATA just return relevant data from a subject's saved
             % gist file
             load(gistfile);  %#ok<LOAD> "gist"
-            d = nan*ones(1,length(self.data_names));
-            for col = 1:length(self.data_names)
-                item_key = strcmp(gist.learning_keys,self.data_names{col});
-                src = gist.learning.(stage).(base);
-                d(col) = src(item_key);
-            end
+            srcrow = gist.learning.(stage).(base);
+            d = srcrow(1,ismember(gist.learning_keys,self.data_names)).Variables;
             clear gist;
         end
     end
