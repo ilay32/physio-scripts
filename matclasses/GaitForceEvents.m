@@ -245,7 +245,7 @@ classdef GaitForceEvents < GaitEvents
                     d.expected_sign = esign;
                     return;
                 end
-                if strcmp(self.prepost,'pre') || self.isrestep
+                if strcmp(self.prepost,'pre') || strcmp(self.kind,'restep')
 
                     reducedprot = self.protocol(self.protocol.speedL ~= 0 & self.protocol.speedR ~= 0,:);
                     thispeeds = reducedprot(stageindex,{'speedL','speedR'});
