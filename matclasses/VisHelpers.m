@@ -209,7 +209,13 @@ classdef VisHelpers
             %   methods that helps visualize it.
             self.basename = specs.name;
             self.numstages = length(specs.stages);
-            self.fit_parameters = specs.fit_parameters;
+            fp = specs.fit_parameters;
+            if strcmp(fp.model,'dual') || (strcmp(fp.model,'bastian') && strcmp(fp.bastian_limits,'article'))
+                fp.allto_zeroone = true;
+            else
+                fp.allto_zeroone = false;
+            end
+            self.fit_parameters = fp;
             stages = specs.stages;
             for s=1:self.numstages
                 if ~isempty(stages(s).step_lengths)
@@ -237,15 +243,20 @@ classdef VisHelpers
             ltimes = struct;
             fitdata = {};
             
-            % get the baseline
+            % get the baseline and shrink to 0-1 if necessary
             for s=1:self.numstages
                 stage = self.stages(s);
-                if ~stage.include_inbaseline
-                    continue;
-                end
                 a = stage.data;
-                b = [b;a];
-                b = b(~isoutlier(b));
+                % this is supposed to happen only in group analysis
+                if self.fit_parameters.allto_zeroone && max(abs(a)) > 1
+                    a = a/max(abs(a));
+                    stage.data = a;
+                    self.stages(s) = stage;
+                end
+                if stage.include_inbaseline
+                    b = [b;a];
+                    b = b(~isoutlier(b));
+                end
             end
             baseline = mean(b);
             figure('name',self.titlesprefix);
@@ -256,6 +267,9 @@ classdef VisHelpers
             maxsym = 0;
             minsym = 0;
             ylim([-1,1]);
+            if self.fit_parameters.allto_zeroone
+                ylim([-1.5,1.5]);
+            end
             pmods = {};
             emplines = {};
             bastian_lines = {};

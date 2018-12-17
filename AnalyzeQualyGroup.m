@@ -1,9 +1,10 @@
 %GROUPANALYSIS wrapper script for group analysis
 %   gathers available steps data and plots group-averaged symmetries
 clear; clc; close all;
-addpath 'matclasses'
-addpath 'yamlmatlab'
-
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
+conf = yaml.ReadYaml('conf.yml').Qualysis;
 % get parent directory from user
 subjects_dir = uigetdir('Parent Directory for Saved Steps Data of Subjects (.mat)');
 %subjects_dir = 'Q:\testdata\adi-examples\saved-steps';
@@ -58,7 +59,7 @@ for phase=1:3
             syms = VisHelpers.symmetries(...
                 stagesteps(1:how,1),...
                 stagesteps(1:how,2),...
-                QualySubject.remove_outliers...
+                conf.remove_outliers...
             );
             stagesyms(:,subj) = syms;
             %stagemeans(subjids{subj},cleanstagenames).Variables = mean(syms);
@@ -81,15 +82,13 @@ for phase=1:3
     % construct the stages object for Visualizer
     specs = struct;
     specs.name = QualySubject.symmetry_base;
-    conf = yaml.ReadYaml('conf.yml');
-    specs.fit_parameters = conf.Qualysis;
+    specs.fit_parameters = conf;
     specs.titlesprefix = ['Group Analysis (' subjects_dir ') ' QualySubject.partnames{phase}];
     stages = VisHelpers.initialize_stages(numstages);
     % loop the collected symmetries to construct the stages struct for
     % VisHelpers (similar to compile_stages in QualySubject)
     for s = 1:numstages
-        d = mean(grouped_syms{s},2);
-        stages(s).data = d/abs(max(d));
+        stages(s).data = mean(grouped_syms{s},2);
         stages(s).name = QualySubject.stagenames{s};
         if s <= 3
             stages(s).include_inbaseline = true;
@@ -108,7 +107,7 @@ for phase=1:3
     ltimes = visu.plot_global(false);
     lnames = fieldnames(ltimes);
     for i=1:length(lnames)
-        fprintf('%s learning times summary (model: %s):\n',lnames{i},QualySubject.model)
+        fprintf('%s learning times summary (model: %s):\n',lnames{i},conf.model)
         disp(ltimes.(lnames{i}));
         fprintf('params:\n');
         disp(ltimes.(lnames{i}).params);
