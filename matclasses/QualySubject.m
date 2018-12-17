@@ -24,6 +24,7 @@ classdef QualySubject
         stage_boundaries
         visu
         part
+        conf
     end
     methods(Static)
         function [timings] = StepTimes(start,finish,COPY,Fz)
@@ -141,6 +142,8 @@ classdef QualySubject
             self.part = part;
             self.stages = VisHelpers.initialize_stages(QualySubject.numstages);
             self.part = part;
+            conf = yaml.ReadYaml('conf.yml');
+            self.conf = conf.Qualysis;
             clear raw;
         end
         function [matched_lengths] = align_steps(self,stageindex,start)
@@ -341,8 +344,7 @@ classdef QualySubject
             specs = struct;
             specs.name = QualySubject.symmetry_base;
             specs.stages = self.stages;
-            conf = yaml.ReadYaml('conf.yml');
-            specs.fit_parameters = conf.Qualysis;
+            specs.fit_parameters = self.conf;
             specs.titlesprefix = [self.subjid ' ' QualySubject.partnames{self.part}];
             self.visu = VisHelpers(specs);
         end
@@ -355,7 +357,7 @@ classdef QualySubject
             end
         end
         function export_learning_data(self,ltimes)
-            exportfilename = [self.subjid '_part' num2str(self.part) '_' self.model '_learning.csv'];
+            exportfilename = [self.subjid '_part' num2str(self.part) '_' self.conf.model '_learning.csv'];
             fid = fopen(fullfile(self.datapath,exportfilename),'wt');
             lnames = fieldnames(ltimes);
             fprintf(fid,'stage,learning time,learning steps,r^2,first 5,last 30');
@@ -371,8 +373,13 @@ classdef QualySubject
                 end
                 s = find(strcmp(strrep(lnames{lt},'_',' '),QualySubject.stagenames),1);
                 lhs = self.stages(s).gait_indices.left(:,1);
-                time = round((lhs(dat.split) - lhs(1))/self.datarate,2);
-                steps = 2*dat.split;
+                if dat.split > 0
+                    time = round((lhs(dat.split) - lhs(1))/self.datarate,2);
+                    steps = 2*dat.split;
+                else
+                    time = nan;
+                    steps = nan;
+                end
                 fprintf(fid,'%s,%f,%d,%f,%f,%f',lnames{lt},time,steps,dat.quality,dat.mf5,dat.ml30);
                 fprintf(fid,repmat(',%f',1,length(paramnames)),paramvalues);
                 fprintf(fid,'\n');
