@@ -3,7 +3,7 @@ classdef SaluteGroups < GaitForsGroups
     %   assumes treadmill outputs from AnalyzeRestep.m
     %   given a query e.g 'post', returns the aggregated data
     properties(Constant)
-        export_basics = {'ds_duration'};
+        export_basics = {}
     end
     methods
         function self = SaluteGroups(rootfolder)
