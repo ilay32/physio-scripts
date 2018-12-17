@@ -4,8 +4,9 @@
 %   With the stages, it finds step lengths and computes step symmetry
 %   accordingly
 clear; clc; close all;
-addpath 'matclasses';
-addpath 'matfunctions';
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
 
 % construct a QualySubject instance by file and part
 [datfile,path] = uigetfile('*.mat', 'Select data file');
