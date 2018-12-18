@@ -1,9 +1,9 @@
 clear; close all;
 global goon; 
 goon = true;
-addpath 'matclasses';
-addpath 'matfunctions';
-addpath 'yamlmatlab';
+addpath matclasses
+addpath matfunctions
+addpath yamlmatlab
 conf = yaml.ReadYaml('conf.yml');
 folder = uigetdir(syshelpers.driveroot());
 listofcop = syshelpers.subdirs(folder,'.*COP.*txt',true);
@@ -26,6 +26,10 @@ for b=RestepGroups.export_basics
     learning_times = visu.plot_global(false);
     gf = gf.process_learning_times(learning_times,b{:});
 end
-gf.save_gist();
+fprintf('\n\nLAST PROCESSED: %s\n',folder)
+save = input('save this data [y/n]? ','s');
+if strcmp(save,'y')
+    gf.save_gist();
+end
 
 

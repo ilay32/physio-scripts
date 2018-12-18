@@ -18,7 +18,7 @@ classdef GaitForsGroups
         function self = GaitForsGroups(rootfolder)
             self.datafolder = rootfolder;
         end
-        function collected = main(self,stageindex,base,action)
+        function  main(self,please_process,base,action)
             %MAIN the purpose of this class
             %   'action' cab be either 'flat_averages' for gathering per-subject symmetries data
             %   or 'joint_symmetries' for curve-analysis of symmetries
@@ -31,23 +31,34 @@ classdef GaitForsGroups
                 for g2 = 1:length(self.groups{2})
                     n2 = self.groups{2}{g2};
                     fprintf('gathering %s & %s %s data\n',n1,n2,base)
-                    dat = zeros(0,length(self.data_names));
                     key = lower([n1 '_' n2]);
                     gists = self.agg_dirs(n1,n2);
-                    stage_names = self.conf.constants.stagenames.(n2);
-                    numstages = length(stage_names);
                     if isempty(gists)
                         disp('no data found');
                         continue;
                     end
                     if strcmp(action,'flat_averages')
-                        for d=1:length(gists)
-                            row = self.subject_data(fullfile(gists(d).folder,gists(d).name),stage_names{stageindex},base);
-                            dat = [dat;row];
+                        for s=please_process
+                            dat = zeros(0,length(self.data_names));
+                            for d=1:length(gists)
+                                row = self.subject_data(fullfile(gists(d).folder,gists(d).name),s{:},base);
+                                if any(row)
+                                    dat = [dat;row];
+                                end
+                            end
+                            if any(dat)
+                                row = cell(1,size(dat,2));
+                                for i=1:length(row)
+                                    col = dat(:,i);
+                                    row{i} = sprintf('%.5f (std: %.5f, no. subjects %d)',mean(col),std(col),sum(~isnan(col)));
+                                end
+                                collected.(key).(s{:}) = row;
+                            end
+                                
                         end
-                        collected.(key) = array2table(mean(dat,1),'VariableNames',self.data_names);
                     elseif strcmp(action,'joint_symmetries')
-                       
+                        stage_names = self.conf.constants.stagenames.(n2);
+                        numstages = length(stage_names);
                         % loop the found data saved by the GaitForceEvents
                         % object
                         allsyms = cell(1,length(gists));
@@ -153,6 +164,9 @@ classdef GaitForsGroups
                                 stages(s).expected_sign = 1;
                             end
                             stages(s).data = nanmean(stagesyms,2);
+                            if strcmp(self.conf.fit_parameters.model,'dual')
+                                stages(s).data = stages(s).data / max(stages(s).data);
+                            end
                             stages(s).name = name;
                             if isempty(regexp(name,'adaptation','ONCE'))
                                 stages(s).include_inbaseline = true;
@@ -169,12 +183,46 @@ classdef GaitForsGroups
                     end
                 end
             end
+            if strcmp(action,'flat_averages')
+                warning('off','MATLAB:xlswrite:AddSheet');
+                savefile = fullfile(self.datafolder,['restep-' base '-gflats.xlsx']);
+                group_keys = fieldnames(collected)';
+                if exist(savefile,'file')
+                    delete(savefile);
+                end
+                for s=please_process
+                    current_excel_row  = 1;
+                    writestage = false;
+                    for k = group_keys
+                        if any(strcmp(fieldnames(collected.(k{:})),s{:}))
+                            writestage = true;
+                        end
+                    end
+                    if ~writestage
+                        continue;
+                    end
+                    xlswrite(savefile,self.data_names,s{:},'B1');
+                    for k = group_keys
+                        if any(strcmp(fieldnames(collected.(k{:})),s{:}))
+                            current_excel_row = current_excel_row + 1;
+                            xlswrite(savefile,cellstr(k),s{:},['A' num2str(current_excel_row)]);
+                            xlswrite(savefile,collected.(k{:}).(s{:}),s{:},['B' num2str(current_excel_row)]);
+                            
+                        end
+                    end
+                end
+                syshelpers.remove_default_sheets(savefile);
+            end
         end
         
         function d = subject_data(self,gistfile,stage,base)
             %SUBJECT_DATA just return relevant data from a subject's saved
             % gist file
+            d = [];
             load(gistfile);  %#ok<LOAD> "gist"
+            if isempty(gist.learning) || ~any(strcmp(fieldnames(gist.learning),stage))
+                return;
+            end
             srcrow = gist.learning.(stage).(base);
             d = srcrow(1,ismember(gist.learning_keys,self.data_names)).Variables;
             clear gist;

@@ -5,6 +5,35 @@ classdef RestepGroups < GaitForsGroups
     properties(Constant)
         export_basics = {'step_length'}
     end
+    methods(Static)
+        function b = test(s)
+            b = s{:}.yosi < 4;
+        end    
+        function has = hasother(gistlocation)
+            has = false;
+            prepost = regexp(gistlocation.folder,'(?<=Day)[12]','match');
+            if isempty(prepost)
+                return;
+            end
+            prepost = str2double(prepost);
+            if prepost  > 2 || prepost < 1
+                warning(['bad folder name: ' gistlocation.folder]);
+                return
+            end
+            if prepost == 1
+                rep = 'pre';
+                by = 'post';
+            else
+                rep = 'post';
+                by = 'pre';
+            end
+            otherdir = strrep(gistlocation.folder,['Day' num2str(prepost)],['Day' num2str(3-prepost)]);
+            otherfile = strrep(gistlocation.name,rep,by);
+            if exist(fullfile(otherdir,otherfile),'file')
+                has = true;
+            end 
+        end
+    end
     methods
         function self = RestepGroups(rootfolder)
             %RESTEPGROUPS Implement the ReStep version of GaitForsGroups
@@ -12,13 +41,14 @@ classdef RestepGroups < GaitForsGroups
             confs = yaml.ReadYaml('conf.yml');
             self.conf = confs.GaitFors.restep;
             self.groups = {
-                {'CVA','TBI','both_impairments'};...
-                {'pre','post','both_sessions'}...
+                {'both_impairments','CVA','TBI'};...
+                {'pre','post'}...
             };
             self.data_names = {'time1','steps1','meansym_last30','meansym1','meansym2','meansym_first5','meantotal'}; 
         end
         
         function p = agg_dirs(self,agg1,agg2)
+            p = [];
             agg1folder = agg1;
             if startsWith(agg1,'both')
                 agg1folder = '*';
@@ -33,7 +63,12 @@ classdef RestepGroups < GaitForsGroups
                 end
             end
             pat = fullfile(self.datafolder,agg1folder,'*',agg2folder,'*gist.mat'); % the wildcard is the subject ID
-            p = dir(pat);
+            allmatches = dir(pat);
+            for i=1:length(allmatches)
+                if RestepGroups.hasother(allmatches(i))
+                    p = [p,allmatches(i)];
+                end
+            end
         end
         
         function b = is_baseline_stage(self,s,n1,n2)  %#ok<INUSL,INUSD>

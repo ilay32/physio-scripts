@@ -5,12 +5,10 @@ addpath yamlmatlab
 %dataroot = uigetdir(syshelpers.driveroot());
 dataroot = 'Q:\testdata\katherin-all';
 groups = RestepGroups(dataroot);
-gflats = struct;
-for s=3:4
-    for b = RestepGroups.export_basics
-        gflats.(b{:}) = groups.main(s,b{:},'flat_averages') %#ok<NOPTS>
-    end
+%groups.regenerate_gists();
+for b=RestepGroups.export_basics
+   groups.main({'adaptation','de_adaptation'},b{:},'flat_averages');
 end
 % for b=RestepGroups.export_basics
-%     ltimes = groups.main('',b{:},'joint_symmetries');
+%     ltimes = groups.main(b{:},'joint_symmetries');
 % end

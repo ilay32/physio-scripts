@@ -251,7 +251,7 @@ classdef GaitForceEvents < GaitEvents
                     thispeeds = reducedprot(stageindex,{'speedL','speedR'});
                     prevspeeds = reducedprot(stageindex-1,{'speedL','speedR'});
                     
-                    if isempty(regexp(name,'post','ONCE'))
+                    if ~startsWith(name,'de')
                         % either adaptation or re-adaptation : expecting
                         % different speeds
                         l = thispeeds.speedL;
@@ -261,10 +261,11 @@ classdef GaitForceEvents < GaitEvents
                         elseif r > l
                             esign = -1;
                         else
+                            disp(self.datafolder)
                             error('expecting different belt speeds at this stage');
                         end
                     else
-                        % this is post_adaptation. use the previous stage
+                        % this is de_adaptation. use the previous stage
                         % speeds for magnitude and flip the sign
                         l = prevspeeds.speedL;
                         r = prevspeeds.speedR;
@@ -287,7 +288,7 @@ classdef GaitForceEvents < GaitEvents
                     other = other.load_stages();
                     for s=1:other.numstages
                         oname = other.stages(s).name;
-                        if (strcmp(name,'salute') && strcmp(oname,'adaptation')) || (strcmp(name,'post_salute') && strcmp(oname,'post_adaptation'))
+                        if (strcmp(name,'salute') && strcmp(oname,'adaptation')) || (strcmp(name,'de_salute') && strcmp(oname,'de_adaptation'))
                             d = other.resolve_symmetry_details(s);
                         end
                     end
