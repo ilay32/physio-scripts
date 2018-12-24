@@ -2,9 +2,9 @@ classdef GaitMissing < GaitForceEvents
     %GAITMISSING Summary exactly like GaitForceEvents, but uses
     %self-detected HS and TO instead of the "List of COP points"
     methods
-        %function self = GaitMissing(folder,stagenames,basicnames,subjectpattern)
-        %    self@GaitForceEvents(folder,stagenames,basicnames,subjectpattern);
-        %end
+        function self = GaitMissing(folder,kind)
+            self@GaitForceEvents(folder,kind);
+        end
 
         function self = load_from_disk(self)
             svn = fullfile(self.datafolder,[self.subjid '_hsandboundaries.mat']);

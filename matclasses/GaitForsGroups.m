@@ -103,7 +103,7 @@ classdef GaitForsGroups
                                     sdetails= gist.basics.(gistkey).symmetry_details;
                                     % so case 1: post_adaptation on 1,
                                     % change to -1
-                                    if sdetails.isfitcurve && startsWith(gistkey,'post') && sdetails.expected_sign == 1
+                                    if sdetails.isfitcurve && startsWith(gistkey,'de') && sdetails.expected_sign == 1
                                         syms = -1*syms;
                                     elseif sdetails.isfitcurve && sdetails.expected_sign == -1
                                         syms = -1*syms;
@@ -142,15 +142,17 @@ classdef GaitForsGroups
                             end
                         end
                         stages_with_data =~isinf(shortest);
-                        shortest = shortest(stages_with_data);
-                        numstages = sum(stages_with_data);
-                        stage_names = stage_names(stages_with_data);
                         
                         % and finally, construct the visualizer
                         specs = struct;
-                        stages = VisHelpers.initialize_stages(numstages);
+                        stages = VisHelpers.initialize_stages(sum(stages_with_data));
                         specs.fit_parameters = self.conf.fit_parameters;
-                        for s=1:numstages
+                        s = 0;
+                        for stageindex=stages_with_data
+                            s = s + 1;
+                            if ~stageindex
+                                continue;
+                            end
                             stagesyms = [];
                             for d=1:length(allsyms)
                                 if ~isempty(allsyms{d}{s})
@@ -158,7 +160,7 @@ classdef GaitForsGroups
                                 end
                             end
                             name = stage_names{s};
-                            if startsWith(name,'post')
+                            if startsWith(name,'de')
                                 stages(s).expected_sign = -1;
                             elseif regexp(name,'adaptation','ONCE')
                                 stages(s).expected_sign = 1;
@@ -175,7 +177,7 @@ classdef GaitForsGroups
                                 stages(s).perturbation_magnitude = GaitForceEvents.perturbation_magnitude;
                             end
                         end
-                        specs.stages = stages;
+                        specs.stages = stages(stages_with_data);
                         specs.name = base;
                         specs.titlesprefix = [n1 ' -- ' n2 ' ' base];
                         v = VisHelpers(specs);
