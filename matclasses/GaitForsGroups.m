@@ -18,7 +18,7 @@ classdef GaitForsGroups
         function self = GaitForsGroups(rootfolder)
             self.datafolder = rootfolder;
         end
-        function  main(self,please_process,base,action)
+        function  collected = main(self,please_process,base,action)
             %MAIN the purpose of this class
             %   'action' cab be either 'flat_averages' for gathering per-subject symmetries data
             %   or 'joint_symmetries' for curve-analysis of symmetries

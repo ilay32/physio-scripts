@@ -202,20 +202,16 @@ classdef GaitReversed < GaitEvents
             assert(~isempty(protfiles),'could not find the protocol file');
             self = self.read_protocol(protfiles{1,1}{:},false);
             iskat = isempty(regexpi(self.datafolder,'salute'));
+            if iskat
+                confkey = 'restep';
+            else
+                confkey = 'salute';
+            end
+            conf = yaml.ReadYaml('conf.yml');
             if ~isempty(regexpi(self.datafolder,'(pre|day1)','match'))
-                stagenames = {'slow1','fast','slow2','adaptation','post_adaptation'};
-                %timings = [10,130,140,260,270,390,400,1000,1010,1310];
-                if iskat
-                    stagenames = {'slow','fast','adaptation','post_adaptation','re_adaptation'};
-                    %timings = [10,70,80,140,150,510,520,880,890,1130];
-                end
+                stagenames = conf.GaitFors.(confkey).constants.stagenames.pre;
             elseif ~isempty(regexpi(self.datafolder,'(post|day2)','match'))
-                stagenames = {'fast','salute','post_salute'};
-                %timings = [10,310,940,970,1270];
-                if iskat
-                    stagenames = {'slow','fast','adaptation','post_adaptation','re_adaptation'};
-                    %timings = [10,70,80,140,150,510,520,880];
-                end
+                stagenames = conf.GaitFors.(confkey).constants.stagenames.post;
             else
                 error('something''s wrong');
             end

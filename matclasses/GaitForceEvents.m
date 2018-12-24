@@ -331,10 +331,10 @@ classdef GaitForceEvents < GaitEvents
                         extras.(bname).meansym = nanmean(syms);
                         extras.(bname).symcv_first5 = GaitEvents.cv(syms(1:5));
                         extras.(bname).symcv_last5 = GaitEvents.cv(syms(end-5:end));
-                        extras.(bname).symcv_last30 = GaitEvents.cv(syms(end-30:end));
+                        extras.(bname).symcv_last30 = GaitEvents.cv(syms(max(1,end-30):end));
                         extras.(bname).meansym_first5 = nanmean(syms(1:5));
                         extras.(bname).meansym_last5 = nanmean(syms(end-5:end));
-                        extras.(bname).meansym_last30 = nanmean(syms(end-30:end));
+                        extras.(bname).meansym_last30 = nanmean(syms(max(1,end-30):end));
                     end
                 end
                 self.basics.(self.stages(s).name).data = stagedata;
