@@ -102,6 +102,30 @@ classdef RestepGroups < GaitForsGroups
                 gf.save_gist();
             end
         end
+ 
+        function save_joint_learning(self,learning_data)
+            warning('off','MATLAB:xlswrite:AddSheet');
+            for b = RestepGroups.export_basics
+                saveltimes = fullfile(self.datafolder,[b{:} '-learning-data.xlsx']);
+                src = learning_data.(b{:});
+                for group=fieldnames(src)'
+                    xlsrow = 2;
+                    xlswrite(saveltimes,{'steps','curve-quality','mean_first_5','mean_last_30'},group{:},'B1')
+                    for stage=fieldnames(src.(group{:}))'
+                        stagedata = src.(group{:}).(stage{:});
+                        xlswrite(saveltimes,stage,group{:},['A' num2str(xlsrow)]);
+                        xlswrite(saveltimes,[...
+                            stagedata.split,...
+                            stagedata.quality,...
+                            stagedata.mf5,...
+                            stagedata.ml30
+                        ],group{:},['B' num2str(xlsrow)]);
+                        xlsrow = xlsrow + 1;
+                    end
+                end
+                syshelpers.remove_default_sheets(saveltimes);
+            end
+        end
     end
 end
 
