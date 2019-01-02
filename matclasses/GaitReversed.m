@@ -743,6 +743,8 @@ classdef GaitReversed < GaitEvents
                         xlswrite(saveto,dat{:},s.name,[char(A+c) '2']);
                         c = c+1;
                     end
+                    xlswrite(saveto,{'mean'},s.name,[char(A+c-2),'3']);
+                    xlswrite(saveto,mean(col),s.name,[char(A+c-1),'3']);
                     % compute and register the DFA of the complete right
                     % left right left .. series
                     combined = nan*ones(1,numel(lr.left) +numel(lr.right));
