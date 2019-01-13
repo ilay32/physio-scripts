@@ -701,6 +701,8 @@ classdef GaitReversed < GaitEvents
             % writes steptimes,durations, widths and DFA results to file
             % and plots DFA graphs along the way, for each stage separately
             % will output an excell with sheets corresponding to the stages
+            dodfa = input('\nPerform DFA Analysis [y/n]? ','s');
+            dodfa = strcmp(dodfa,'y');
             warning('off','MATLAB:xlswrite:AddSheet');
             [s,p] = uiputfile(fullfile(self.datafolder,[self.subjid '-data-by-condition.xlsx']));
             if s == 0
@@ -708,6 +710,9 @@ classdef GaitReversed < GaitEvents
             end
             fnms = {'stride_durations','step_durations','step_widths'};
             saveto = fullfile(p,s);
+            if exist(saveto,'file')
+                delete(saveto);
+            end
             A = double('A');
             for s=self.stages
                 fprintf('entering stage: %s\n',s.name);
@@ -745,32 +750,40 @@ classdef GaitReversed < GaitEvents
                     end
                     xlswrite(saveto,{'mean'},s.name,[char(A+c-2),'3']);
                     xlswrite(saveto,mean(col),s.name,[char(A+c-1),'3']);
-                    % compute and register the DFA of the complete right
-                    % left right left .. series
-                    combined = nan*ones(1,numel(lr.left) +numel(lr.right));
-                    if lr.left(1) < lr.right(1)
-                        first = 'left';
-                        second = 'right';
-                    else
-                        first = 'right';
-                        second = 'left';
+                    if dodfa
+                        % compute and register the DFA of the complete right
+                        % left right left .. series
+                        combined = nan*ones(1,numel(lr.left) +numel(lr.right));
+                        if lr.left(1) < lr.right(1)
+                            first = 'left';
+                            second = 'right';
+                        else
+                            first = 'right';
+                            second = 'left';
+                        end
+                        combined(1:2:2*length(lr.(first))) = lr.(first);
+                        combined(2:2:1+2*length(lr.(second))) = lr.(second);
+                        fprintf('computing DFA for %s\n',f{:}); 
+                        [alph,rsq] = dfa(combined,true,[strrep(s.name,'_',' ') ' ' strrep(f{:},'_',' ')]);
+                        %[alph,rsq] = dfa(combined);
+                        dfas = [dfas,alph,rsq];
+                        dcolnames = [dcolnames,[f{:} ' alpha'],[f{:} ' R^2']];
                     end
-                    combined(1:2:2*length(lr.(first))) = lr.(first);
-                    combined(2:2:1+2*length(lr.(second))) = lr.(second);
-                    fprintf('computing DFA for %s\n',f{:}); 
-                    [alph,rsq] = dfa(combined,true,[strrep(s.name,'_',' ') ' ' strrep(f{:},'_',' ')]);
-                    %[alph,rsq] = dfa(combined);
-                    dfas = [dfas,alph,rsq];
-                    dcolnames = [dcolnames,[f{:} ' alpha'],[f{:} ' R^2']];
                 end
-                % add the header row
+                % add the header row (goes on top, but written after the
+                % data loop because the names were gathered along the way)
                 xlswrite(saveto,colnames,s.name);
-                % add alphas header 3 rows below the end of the longest
-                % data columns
-                xlswrite(saveto,{'DFA'},s.name,['A' num2str(longest+4)]);
-                xlswrite(saveto,dcolnames,s.name,['A' num2str(longest+5)]);
-                % add the alphas row 
-                xlswrite(saveto,dfas,s.name,['A' num2str(longest+6)]);
+                % add mean copy 3 rows below the data
+                xlswrite(saveto,{'mean COPY'},s.name,['A' num2str(longest+4)]);
+                xlswrite(saveto,mean(self.forces.copy(s.limits(1):s.limits(2))),s.name,['B' num2str(longest+4)]);
+                if dodfa
+                    % add alphas header 3 rows below the end of the longest
+                    % data columns
+                    xlswrite(saveto,{'DFA'},s.name,['A' num2str(longest+6)]);
+                    xlswrite(saveto,dcolnames,s.name,['A' num2str(longest+7)]);
+                    % add the alphas row 
+                    xlswrite(saveto,dfas,s.name,['A' num2str(longest+8)]);
+                end
             end
             syshelpers.remove_default_sheets(saveto);
         end
