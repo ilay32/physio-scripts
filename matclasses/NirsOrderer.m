@@ -62,26 +62,34 @@ classdef NirsOrderer
         
         function self = learn_events(self)
             % gather event timings by name
-            events = table(); 
+            evs = table();
+            bogus = [];
             for event_index=1:size(self.conditions,2)
                 times = find(self.inputdat.s(:,event_index)==1);
+                % apparantly this can happen -- there's an event name
+                % listed in "conditions" but has zero occurrences
+                if isempty(times)
+                    bogus = [bogus,event_index];
+                    continue;
+                end
                 for t=1:length(times)
                     %n = strrep(self.inputdat.CondNames(event_index),'-','_');
-                    events = [events;{times(t),self.conditions(event_index)}];
+                    evs = [evs;{times(t),self.conditions(event_index)}];
                 end
             end
-            events.Properties.VariableNames =  {'time','name'};
-            events = sortrows(events,'time');
+            self.conditions = self.conditions(~ismember(1:length(self.conditions),bogus));
+            evs.Properties.VariableNames =  {'time','name'};
+            evs = sortrows(evs,'time');
             % sometimes events are somehow doubled in short succession
             % catch this cases and take the middle value as correct
             % condition is twice the same name and less the 2sec between.
-            for row=1:height(events)-1
-                if height(events) <= row
+            for row=1:height(evs)-1
+                if height(evs) <= row
                     % this can happen since rows get deleted
                     break;
                 end
-                thisrow = events(row,:);
-                nextrow = events(row+1,:);
+                thisrow = evs(row,:);
+                nextrow = evs(row+1,:);
                 if ~isempty(regexp(thisrow.name{:},'^(E|F|S)$','match'))
                     continue;
                 end
@@ -91,14 +99,14 @@ classdef NirsOrderer
                     if nextrow.time - thisrow.time < 2*self.datarate
                         fprintf('using middle value\n\r');
                         mid = [thisrow.time+round(nextrow.time-thisrow.time),thisrow.name];
-                        events(row,:) = mid;
-                        events(row+1,:) = [];
+                        evs(row,:) = mid;
+                        evs(row+1,:) = [];
                     else
                         error('that''s too long. please check the data. aborting\n\r');
                     end
                 end
             end
-            self.event_times = events;
+            self.event_times = evs;
         end
        
         function self = read_export(self)
