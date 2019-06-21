@@ -180,7 +180,9 @@ classdef NirsOrderer
                 % normalize the walk duration by interpolation
                 walk_length = nextrow.time - walk_start;
                 u = NirsOrderer.uniwalklength*self.datarate;
-                if walk_length > 1.5*u || walk_length < u/1.5
+                downsratio =  size(self.inputdat.s,1)/self.datarate/60/30; %since the experiment takes about 1/2 an hour
+                uadj = u/downsratio;
+                if walk_length > 1.5*uadj || walk_length < uadj/1.5
                     fprintf('deviant walk duration: %.2f seconds at no. %d (%s)\n',walk_length/self.datarate,r,row.name{:})
                 end
                 walkraw = data(walk_start+1:nextrow.time,:) - center;
