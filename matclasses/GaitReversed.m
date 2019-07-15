@@ -7,6 +7,10 @@ classdef GaitReversed < GaitEvents
         scanwindow = 20; % this is just to make sure the scan method doesn't pick up on some single missread. could be set heigher maybe.
         slope_thresh = 0.1; % this does not depend on the data **assuming the diff is devided by the delta width i.e 1/datarate**
         lcopformat = '%d\t%s\tCOP\t%f\t%f\t%f\n\r';
+        cyclength = 200;
+        lyap_ncycles=150;
+        maximal_embedd = 20; % more than that, you're in trouble
+        fnn_increase_ratio=15; % as in Kennel 1992
     end
     properties
         right_hs
@@ -697,12 +701,34 @@ classdef GaitReversed < GaitEvents
            end
         end
         
+        function [t,meancycle] = preparemle(self,s)
+            % return a table like self.forces but without a time column
+            % and with spline-regulated cycles
+            nstrides = size(s.left_hs,1);
+            ncycles = min(GaitReversed.lyap_ncycles,nstrides);
+            if nstrides > ncycles +1
+                offset = floor((nstrides - ncycles)/2);  
+            else
+                offset = 0;
+            end
+            ucyc = GaitReversed.cyclength;
+            a = nan*ones(ucyc*ncycles,3); % copx,copy,fz
+            meancycle = mean(diff(s.left_hs(offset:offset+ncycles)));
+            for i=offset+1:offset+ncycles
+                cyclepoints = table2array(self.forces(s.left_hs(i,1):s.left_hs(i+1,1),2:4));
+                a((i -offset -1)*ucyc+1:(i-offset)*ucyc,:) = NirsOrderer.spline_unify(cyclepoints,ucyc);
+            end
+            t = array2table(a,'VariableNames',self.forces.Properties.VariableNames(2:end));
+        end
+        
         function proper_export(self)
             % writes steptimes,durations, widths and DFA results to file
             % and plots DFA graphs along the way, for each stage separately
             % will output an excell with sheets corresponding to the stages
             dodfa = input('\nPerform DFA Analysis [y/n]? ','s');
             dodfa = strcmp(dodfa,'y');
+            dolyap = input('\nCompute Maximal Lyapunov Exponents [y/n]? ','s');
+            dolyap = strcmp(dolyap,'y');
             warning('off','MATLAB:xlswrite:AddSheet');
             [s,p] = uiputfile(fullfile(self.datafolder,[self.subjid '-data-by-condition.xlsx']));
             if s == 0
@@ -719,10 +745,12 @@ classdef GaitReversed < GaitEvents
                 % collect the data
                 colnames = {};
                 dcolnames = {};
-                c = 0;
+                exrow = 0;
+                excol = 0;
                 dfas = [];
                 longest = 0;
                 for f=fnms
+                    exrow = 2;
                     lr = struct;
                     for side = {'left','right'}
                         colname = [f{:} '_' side{:}];
@@ -730,12 +758,11 @@ classdef GaitReversed < GaitEvents
                         col = self.(f{:})(side{:},s.name);
                         lr.(side{:}) = col;
                         % write the data column
-                        xlswrite(saveto,col,s.name,[char(A+c) '2']);
-                        
+                        xlswrite(saveto,col,s.name,[char(A+excol) num2str(exrow)]);                        
                         if length(col) > longest
                             longest = length(col);
                         end
-                        c = c + 1;
+                        excol = excol + 1;
                     end
                     % add mean(left,right), cv(mean), mediancv(mean)
                     % columns
@@ -745,11 +772,12 @@ classdef GaitReversed < GaitEvents
                     cv = GaitEvents.cv(col);
                     mcv = GaitEvents.medcv(col);
                     for dat = {col,cv,mcv}
-                        xlswrite(saveto,dat{:},s.name,[char(A+c) '2']);
-                        c = c+1;
+                        xlswrite(saveto,dat{:},s.name,[char(A+excol) num2str(exrow)]);
+                        excol = excol+1;
                     end
-                    xlswrite(saveto,{'mean'},s.name,[char(A+c-2),'3']);
-                    xlswrite(saveto,mean(col),s.name,[char(A+c-1),'3']);
+                    exrow = exrow + 1;
+                    xlswrite(saveto,{'mean'},s.name,[char(A+excol-2) num2str(exrow)]);
+                    xlswrite(saveto,mean(col),s.name,[char(A+excol-1) num2str(exrow)]);
                     if dodfa
                         % compute and register the DFA of the complete right
                         % left right left .. series
@@ -764,25 +792,104 @@ classdef GaitReversed < GaitEvents
                         combined(1:2:2*length(lr.(first))) = lr.(first);
                         combined(2:2:1+2*length(lr.(second))) = lr.(second);
                         fprintf('computing DFA for %s\n',f{:}); 
-                        [alph,rsq] = dfa(combined,true,[strrep(s.name,'_',' ') ' ' strrep(f{:},'_',' ')]);
+                        [alph,rsq] = dfa(combined,true,[self.subjid ' DFA ' strrep(s.name,'_',' ') ' ' strrep(f{:},'_',' ')]);
                         %[alph,rsq] = dfa(combined);
                         dfas = [dfas,alph,rsq];
                         dcolnames = [dcolnames,[f{:} ' alpha'],[f{:} ' R^2']];
                     end
                 end
+                if dolyap
+                    lypvals = [];
+                    usetis = false;
+                    if exist('tisean','file')
+                        spath = getenv('PATH');
+                        setenv('PATH',[spath ';' pwd '\tisean']);
+                        [tisexit,~] = system('lyap_r -h');
+                        if ~tisexit
+                            usetis = true;
+                        end
+                    end
+                    [unicycle,ms] = self.preparemle(s);                    
+                    % compute lyapunovs for the x,y,z butterfly
+                    % there's delay and no question about the dimension
+                    cl = GaitReversed.cyclength;
+                    dt = (ms/self.datarate)/cl; % this is the virtual data rate after the spline unification
+                    % compute lyapunovs for fz,copx,copy
+                    for dname=unicycle.Properties.VariableNames
+                        lydat = unicycle.(dname{:});
+                        % first, find the optimal lag:
+                        [~,tau] = fminmi(lydat,cl,'swinney');
+                        iters = round(11*ms/self.datarate);
+                        % now the dimension:
+                        % will be just fixed at 5 for now
+                        m = 5;
+                        details = struct(...
+                            'dname',dname{:},...
+                            'm',m,...
+                            'stagename',s.name,...
+                            'tau',tau,...
+                            'id',self.subjid...
+                        );
+                        %[nngraph,embd] = fnn(dat,...
+                            %tau,...
+                            %GaitReversed.maximal_embedd,...
+                            %GaitReversed.fnn_increase_ratio,...
+                            %std(unicycle(:,3)),...
+                            %true...
+                        %);
+                        %m = afnn(unicycle(:,3),tau,cl);
+                        %plot(m);
+                        %hold off;
+                        %plot(nngraph);
+                        
+                        % now if tisean is present use it:
+                        if usetis
+                            sfile = 'lydat.txt';
+                            ofile = 'dgraph.txt';
+                            save(sfile,'lydat','-ascii');
+                            tisex = system(['lyap_r ' sfile ' -V0 -m' num2str(m) ' -d' num2str(tau) ' -t' num2str(cl) ' -s' num2str(cl*11) ' -o ' ofile]);
+                            if tisex
+                                warning('tisean error, use diversion_graph.m');
+                            else
+                                dgraph = load(ofile);
+                                [lyvals,lynames] = lyapunovs(linspace(dt,iters,size(dgraph,1)),dgraph(:,2)',cl,dt,details);
+                                delete(sfile);
+                                delete(ofile);
+                            end
+                        else
+                             X = lagmatrix(lydat,-tau*(0:m-1));
+                            [x,y] = diversion_graph(X(1:end-tau*(m-1),:),cl,iters,dt);
+                            [lyvals,lynames] = lyapunovs(x,y,cl,dt,details);
+                        end
+                        lypvals = [lypvals;lyvals];
+                    end
+                end   
+                exrow = longest + 4;
                 % add the header row (goes on top, but written after the
                 % data loop because the names were gathered along the way)
                 xlswrite(saveto,colnames,s.name);
                 % add mean copy 3 rows below the data
-                xlswrite(saveto,{'mean COPY'},s.name,['A' num2str(longest+4)]);
-                xlswrite(saveto,mean(self.forces.copy(s.limits(1):s.limits(2))),s.name,['B' num2str(longest+4)]);
+                xlswrite(saveto,{'mean COPY'},s.name,['A' num2str(exrow)]);
+                xlswrite(saveto,mean(self.forces.copy(s.limits(1):s.limits(2))),s.name,['B' num2str(exrow)]);
                 if dodfa
+                    exrow = exrow + 2;
                     % add alphas header 3 rows below the end of the longest
                     % data columns
-                    xlswrite(saveto,{'DFA'},s.name,['A' num2str(longest+6)]);
-                    xlswrite(saveto,dcolnames,s.name,['A' num2str(longest+7)]);
+                    xlswrite(saveto,{'DFA'},s.name,['A' num2str(exrow)]);
+                    exrow = exrow + 1;
+                    xlswrite(saveto,dcolnames,s.name,['A' num2str(exrow)]);
+                    exrow = exrow + 1;
                     % add the alphas row 
-                    xlswrite(saveto,dfas,s.name,['A' num2str(longest+8)]);
+                    xlswrite(saveto,dfas,s.name,['A' num2str(exrow)]);
+                end
+                if dolyap
+                    exrow = exrow + 3;
+                    xlswrite(saveto,{'Lyapunovs'},s.name,['A' num2str(exrow)]);
+                    exrow = exrow + 1;
+                    xlswrite(saveto,lynames,s.name,['B' num2str(exrow)]);
+                    exrow = exrow + 1;
+                    xlswrite(saveto,unicycle.Properties.VariableNames',s.name,['A' num2str(exrow)]);
+                    xlswrite(saveto,lypvals,s.name,['B' num2str(exrow)]);
                 end
             end
             syshelpers.remove_default_sheets(saveto);

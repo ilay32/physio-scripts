@@ -57,16 +57,19 @@ function [alpha,rsq] = dfa(x,plotflag,plottitle)
     rsq = stats(1);
     int = b(1);
     if plotflag
-        figure;
+        wname = '';
+        ntite = true;
+        if nargin == 3
+            wname = plottitle;
+            ntite = false;
+        end
+        figure('Name',wname,'NumberTitle',ntite);
         scatter(log2(box_sizes),log2(F));
         hold on;
         plot(log2(box_sizes),log2(box_sizes)*alpha+int);
         ylabel('log fluctuation');
         xlabel('log window size');
-        tite = sprintf('DFA  alpha = %f R^2 = %f',alpha,rsq);
-        if nargin == 3
-            tite = [plottitle ' ' tite];
-        end
+        tite = sprintf('alpha = %f R^2 = %f',alpha,rsq);
         title(tite);
         hold off;
     end

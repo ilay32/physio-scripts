@@ -2,8 +2,10 @@ close all; clear;
 addpath matclasses
 addpath matfunctions
 addpath yamlmatlab
+addpath mutu-inf
 conf = yaml.ReadYaml('conf.yml');
 folder = uigetdir(syshelpers.driveroot());
+%folder = 'Q:\testdata2\yogev\stability-21-treadmill';
 gr = GaitReversed(folder,conf.GaitFors.reversed.constants.subjectpattern);
 if ~gr.has_loaded_from_disk
     gr = gr.find_heel_strikes();
