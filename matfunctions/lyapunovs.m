@@ -7,7 +7,7 @@ function [v,n] = lyapunovs(dgx,dgy,mp,dt,details)
     %  dt: the data frequency,
     % mp: the data mean period
     lle = [];
-    figure('Name',sprintf('%s divergence graph %s %s',details.id,details.stagename,details.dname),'NumberTitle',false);
+    figure('Name',sprintf('%s divergence graph %s %s',details.id,details.stagename,details.dname),'NumberTitle','off');
     scatter(dgx,dgy);
     hold on;
 
