@@ -58,10 +58,10 @@ function [alpha,rsq] = dfa(x,plotflag,plottitle)
     int = b(1);
     if plotflag
         wname = '';
-        ntite = true;
+        ntite = 'on';
         if nargin == 3
             wname = plottitle;
-            ntite = false;
+            ntite = 'off';
         end
         figure('Name',wname,'NumberTitle',ntite);
         scatter(log2(box_sizes),log2(F));
