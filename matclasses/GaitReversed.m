@@ -800,6 +800,7 @@ classdef GaitReversed < GaitEvents
                 end
                 if dolyap
                     lypvals = [];
+                    taus = [];
                     usetis = false;
                     if exist('tisean','file')
                         spath = getenv('PATH');
@@ -819,6 +820,7 @@ classdef GaitReversed < GaitEvents
                         lydat = unicycle.(dname{:});
                         % first, find the optimal lag:
                         [~,tau] = fminmi(lydat,cl,'swinney');
+                        taus = [taus;tau];
                         iters = round(11*ms/self.datarate);
                         % now the dimension:
                         % will be just fixed at 5 for now
@@ -887,9 +889,12 @@ classdef GaitReversed < GaitEvents
                     xlswrite(saveto,{'Lyapunovs'},s.name,['A' num2str(exrow)]);
                     exrow = exrow + 1;
                     xlswrite(saveto,lynames,s.name,['B' num2str(exrow)]);
+                    excol = A + 1 + length(lypvals);
+                    xlswrite(saveto,{'tau'},s.name,[char(excol)  num2str(exrow)]);
                     exrow = exrow + 1;
                     xlswrite(saveto,unicycle.Properties.VariableNames',s.name,['A' num2str(exrow)]);
                     xlswrite(saveto,lypvals,s.name,['B' num2str(exrow)]);
+                    xlswrite(saveto,taus,s.name,[char(excol) num2str(exrow)]);
                 end
             end
             syshelpers.remove_default_sheets(saveto);
