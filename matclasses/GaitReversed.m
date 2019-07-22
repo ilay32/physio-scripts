@@ -705,17 +705,25 @@ classdef GaitReversed < GaitEvents
             % return a table like self.forces but without a time column
             % and with spline-regulated cycles
             nstrides = size(s.left_hs,1);
-            ncycles = min(GaitReversed.lyap_ncycles,nstrides);
+            ncycles = GaitReversed.lyap_ncycles;
+            if nstrides <= ncycles
+                warning('trying to take %d cycles, but there were only %d in stage %s',...
+                    ncycles,...
+                    nstrides-1,...
+                    s.name...
+                );
+                ncycles = nstrides -1;
+            end
             if nstrides > ncycles +1
                 offset = floor((nstrides - ncycles)/2);  
             else
-                offset = 0;
+                offset = 1;
             end
             ucyc = GaitReversed.cyclength;
-            a = nan*ones(ucyc*ncycles,3); % copx,copy,fz
+            a = nan*ones(ucyc*ncycles,3);
             meancycle = mean(diff(s.left_hs(offset:offset+ncycles)));
             for i=offset+1:offset+ncycles
-                cyclepoints = table2array(self.forces(s.left_hs(i,1):s.left_hs(i+1,1),2:4));
+                cyclepoints = table2array(self.forces(s.left_hs(i-1,1):s.left_hs(i,1),2:4));
                 a((i -offset -1)*ucyc+1:(i-offset)*ucyc,:) = NirsOrderer.spline_unify(cyclepoints,ucyc);
             end
             t = array2table(a,'VariableNames',self.forces.Properties.VariableNames(2:end));
