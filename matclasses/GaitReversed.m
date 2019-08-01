@@ -776,16 +776,20 @@ classdef GaitReversed < GaitEvents
                     % columns
                     colnames = [colnames,['mean_' f{:}],[f{:} '_cv'],[f{:} '_medcv']];
                     minl = min(length(lr.left),length(lr.right));
-                    col = mean([lr.left(1:minl),lr.right(1:minl)],2);
-                    cv = GaitEvents.cv(col);
-                    mcv = GaitEvents.medcv(col);
-                    for dat = {col,cv,mcv}
+                    mcol = mean([lr.left(1:minl),lr.right(1:minl)],2);
+                    statcol = [lr.left;lr.right];
+                    cv = GaitEvents.cv(statcol);
+                    mcv = GaitEvents.medcv(statcol);
+                    for dat = {mcol,cv,mcv}
                         xlswrite(saveto,dat{:},s.name,[char(A+excol) num2str(exrow)]);
                         excol = excol+1;
                     end
                     exrow = exrow + 1;
                     xlswrite(saveto,{'mean'},s.name,[char(A+excol-2) num2str(exrow)]);
-                    xlswrite(saveto,mean(col),s.name,[char(A+excol-1) num2str(exrow)]);
+                    xlswrite(saveto,mean(statcol),s.name,[char(A+excol-1) num2str(exrow)]);
+                    exrow = exrow + 1;
+                    xlswrite(saveto,{'median'},s.name,[char(A+excol-2) num2str(exrow)]);
+                    xlswrite(saveto,median(statcol),s.name,[char(A+excol-1) num2str(exrow)]);
                     if dodfa
                         % compute and register the DFA of the complete right
                         % left right left .. series
