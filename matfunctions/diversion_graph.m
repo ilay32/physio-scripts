@@ -1,5 +1,5 @@
 function [x,y] = diversion_graph(X,meanperiod,iter,dt)
-%MAXLYAPUNOV Return the Maximal Lyapunov Exponent of a Series
+%DIVERSION_GRAPH Return the Maximal Lyapunov Exponent of a Series
 %   will apply the alogrithm described in Rosenstein 1993 to the input
 %   series X. Names of arguments and variables are as in that paper:
 %   https://pdfs.semanticscholar.org/c50a/0cf9d70d4a37855b0dea9d15d5515ecb6f76.pdf
@@ -24,7 +24,8 @@ function [x,y] = diversion_graph(X,meanperiod,iter,dt)
                 pool(k,:) = inf*ones(1,m);
             end
         end
-        [~,mind] = min(vecnorm(pool - X(i,:),2,2));
+        %[~,mind] = min(vecnorm(pool - X(i,:),2,2));
+        [~,mind] = min(sqrt(sum((pool - X(i,:)).^2,2)));
         d0(i) = mind;
     end
     % follow every pair, as long as specified, taking the avergae of
@@ -36,7 +37,7 @@ function [x,y] = diversion_graph(X,meanperiod,iter,dt)
             if j+i > M || d0(j)+i > M
                 continue;
             end
-            d = vecnorm(X(j+i,:) - X(d0(j)+i,:));
+            d = vnorm(X(j+i,:) - X(d0(j)+i,:));
             if d~=0 && ~isnan(d)
                 av = av +log(d);
                 count = count + 1;

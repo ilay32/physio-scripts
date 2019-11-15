@@ -19,7 +19,8 @@ function m = afnn(x,tau,meanperiod)
                     pool(k,:) = inf*ones(1,size(dd,2));
                 end
             end
-            [~,mind] = min(vecnorm(pool - dd(i,:),2,2));
+            %[~,mind] = min(vecnorm(pool - dd(i,:),2,2));
+            [~,mind] = min(sqrt(sum((pool-dd(i,:)).^2,2)));
             nearest(i) = max(abs(dd(i,:)-dd(mind,:))); % max coordinate norm as in the paper
         end
         nearests(1:l,d) = nearest;
