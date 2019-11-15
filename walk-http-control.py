@@ -15,8 +15,9 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         "absolute end", 
         "relative start", 
         "relative end", 
-        "duration", 
-        "speed m/s", 
+        "net duration", 
+        "average net speed  m/s", 
+        "paused for (ms)",
         "distractor digits",
         "remembered as"
     ]
@@ -173,7 +174,7 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         cols = ExpRunner.datacols
         for sheet in ['normal','restep']:
             for r in wb[sheet].iter_rows():
-                dur = r[cols.index('duration')].value
+                dur = r[cols.index('net duration')].value
                 dig = r[cols.index('distractor digits')].value
                 if dig and str.isdigit(dig):
                     durations.append(dur*1000)
@@ -255,8 +256,17 @@ class ExpRunner(hs.SimpleHTTPRequestHandler):
         # data
         for i,w in enumerate(dat['walkdata']):
             isdist = str(i) in dat['distractions'].keys()
-            s,e = w
-            row = [i+1,s,e,float(s - start)/1000, float(e - start)/1000,float(e - s)/1000,1000*float(walks['distance'])/(e - s)]
+            wstart,wend,acpause = w
+            row = [
+                i+1,
+                wstart,
+                wend,
+                float(wstart - start)/1000, 
+                float(wend - start)/1000,
+                float(wend - wstart - acpause)/1000,
+                1000*float(walks['distance'])/(wend - wstart - acpause),
+                acpause/1000
+            ]
             if isdist: 
                 row += dat['distractions'][str(i)]
             else:
