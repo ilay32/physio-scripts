@@ -78,6 +78,7 @@ classdef GaitEvents
                 end
             end
             f = importdata(forcesfile);
+            f.data = fillmissing(f.data,'linear');
             self.datarate = 1/(f.data(2,1) - f.data(1,1)); % Hz
             self.forces = array2table(f.data,'VariableNames',{'time','fz','copx','copy'});
         end
